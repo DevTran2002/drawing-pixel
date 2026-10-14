@@ -27,3 +27,4 @@ exports/
 .exports/
 scratch/
 .scratch/
+*.zip
