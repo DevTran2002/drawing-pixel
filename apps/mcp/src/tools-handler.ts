@@ -2,7 +2,7 @@
 // Dinh nghia danh muc 10 cong cu MCP va xu ly goi ham tu AI
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { BridgeClient } from './bridge-client';
+import { BridgeClient } from './bridge-client.js';
 import { McpDrawPayload, PixelPoint } from '@pixel-draw/shared-types';
 
 const bridge = new BridgeClient();

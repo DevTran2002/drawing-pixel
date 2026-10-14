@@ -8,7 +8,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
-import { MCP_TOOLS_DEFINITIONS, handleToolCall } from './tools-handler';
+import { MCP_TOOLS_DEFINITIONS, handleToolCall } from './tools-handler.js';
 
 async function main() {
   const server = new Server(
