@@ -36,6 +36,15 @@ export const PRESET_PALETTES: PalettePreset[] = [
     ]
   },
   {
+    id: 'stardew-valley',
+    name: 'Stardew Cozy Farming (24 Colors)',
+    colors: [
+      '#3a2010', '#523624', '#945b3a', '#b87b4e', '#deb887', '#e8e2d5', '#ffffff', '#8b3a1a',
+      '#d95726', '#f29e38', '#fce068', '#ffee88', '#1e3f20', '#386b2e', '#5c9e3d', '#8fcf4f',
+      '#1d3354', '#365b8c', '#5b8dbf', '#9dc4e8', '#382b47', '#5e3b66', '#8f507e', '#d1738f'
+    ]
+  },
+  {
     id: 'dawnbringer-16',
     name: 'DawnBringer 16',
     colors: [
