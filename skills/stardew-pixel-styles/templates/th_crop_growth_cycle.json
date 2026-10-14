@@ -1,0 +1,36 @@
+{
+  "th_template_name": "Stardew 5-Stage Crop Growth Cycle",
+  "th_tile_size": { "width": 16, "height": 32 },
+  "th_stages": [
+    {
+      "stage": 1,
+      "name": "seedling",
+      "plant_height_px": 5,
+      "description": "Hai chồi mầm nhỏ màu xanh lá nhạt nhú lên từ tâm ô đất cày"
+    },
+    {
+      "stage": 2,
+      "name": "sprout",
+      "plant_height_px": 10,
+      "description": "Thân mảnh vươn cao với 3-4 lá xanh non xòe ngang"
+    },
+    {
+      "stage": 3,
+      "name": "vegetative",
+      "plant_height_px": 16,
+      "description": "Tán lá sum sê, định hình cấu trúc thân bụi hoặc dây leo"
+    },
+    {
+      "stage": 4,
+      "name": "budding",
+      "plant_height_px": 22,
+      "description": "Nụ hoa hé nở hoặc quả non màu xanh bóng bắt đầu lộ diện"
+    },
+    {
+      "stage": 5,
+      "name": "mature_harvestable",
+      "plant_height_px": 28,
+      "description": "Hoa nở rộ hoặc củ/quả chín căng mọng, có bóng đổ trên luống đất"
+    }
+  ]
+}

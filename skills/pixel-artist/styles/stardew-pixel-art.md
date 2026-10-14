@@ -6,6 +6,7 @@ Tạo tài nguyên đồ họa pixel 16-bit phong cách ấm cúng (cozy), hoạ
 - Người dùng yêu cầu tạo tài nguyên đồ họa pixel cho game thể loại nông trại (farming), mô phỏng đời sống (life-sim) hoặc nhập vai 2D nhẹ nhàng (vật nuôi, nông sản, nhân vật, công trình, nông cụ, biểu tượng hoặc bộ ô đất tileset).
 - Người dùng yêu cầu hoạt cảnh sprite sheet đa khung hình (bước đi, nhịp thở, gà mổ thóc, chạy, các giai đoạn phát triển của cây trồng).
 - Cần sự đồng bộ nhất quán về mặt thị giác trên toàn bộ dự án.
+- **Tham khảo bộ kỹ năng chuyên sâu:** Để xem đầy đủ 6 phong cách mở rộng (Chibi 4 mùa, Chân dung 64x64 SVE/Ridgeside, Giả tưởng Sword & Sorcery, Hoạt cảnh đồ vật), sử dụng kỹ năng chuyên sâu `stardew-pixel-styles`.
 
 ## 2. Quy Chuẩn Thẩm Mỹ Thị Giác (Visual Style Guidelines)
 

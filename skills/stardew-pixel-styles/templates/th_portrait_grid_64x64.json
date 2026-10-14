@@ -1,0 +1,17 @@
+{
+  "th_template_name": "Stardew NPC Portrait Grid 64x64",
+  "th_frame_size": { "width": 64, "height": 64 },
+  "th_layout": {
+    "columns": 2,
+    "rows": 3,
+    "total_size": { "width": 128, "height": 192 }
+  },
+  "th_expressions": [
+    { "index": 0, "col": 0, "row": 0, "name": "neutral", "description": "Biểu cảm mặc định, mỉm cười nhẹ" },
+    { "index": 1, "col": 1, "row": 0, "name": "happy", "description": "Cười tươi, mắt nheo lại tạo đường cong, má hơi ửng hồng" },
+    { "index": 2, "col": 0, "row": 1, "name": "sad", "description": "Khóe miệng trĩu xuống, chân mày nhíu lại thể hiện lo lắng" },
+    { "index": 3, "col": 1, "row": 1, "name": "surprised", "description": "Mắt mở to hơn bình thường, miệng há nhẹ hình chữ o" },
+    { "index": 4, "col": 0, "row": 2, "name": "angry", "description": "Chân mày xếch chéo xuống, ánh mắt nghiêm nghị" },
+    { "index": 5, "col": 1, "row": 2, "name": "blushing", "description": "Hai gò má ửng đỏ rõ nét, mắt nhìn tránh sang một bên" }
+  ]
+}

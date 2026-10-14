@@ -21,3 +21,9 @@ Thumbs.db
 # IDE and local configs
 .vscode/
 .idea/
+trainning/
+.trainning/
+exports/
+.exports/
+scratch/
+.scratch/

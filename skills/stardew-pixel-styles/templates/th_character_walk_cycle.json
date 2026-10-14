@@ -1,0 +1,37 @@
+{
+  "th_template_name": "Stardew NPC Walk Cycle (4-Direction, 4-Frames)",
+  "th_frame_size": { "width": 16, "height": 32 },
+  "th_directions": {
+    "down": {
+      "th_description": "Nhìn thẳng mặt, đi về phía dưới màn hình",
+      "th_frames": [
+        { "frame": 0, "name": "stand_down", "foot_offset_y": 0, "head_offset_y": 0 },
+        { "frame": 1, "name": "walk_left_foot", "foot_offset_y": -1, "head_offset_y": 1 },
+        { "frame": 2, "name": "pass_down", "foot_offset_y": 0, "head_offset_y": 0 },
+        { "frame": 3, "name": "walk_right_foot", "foot_offset_y": -1, "head_offset_y": 1 }
+      ]
+    },
+    "right": {
+      "th_description": "Nhìn ngang sang phải",
+      "th_frames": [
+        { "frame": 4, "name": "stand_right", "foot_offset_x": 0, "arm_swing": 0 },
+        { "frame": 5, "name": "step_right_1", "foot_offset_x": 1, "arm_swing": 2 },
+        { "frame": 6, "name": "stand_right_pass", "foot_offset_x": 0, "arm_swing": 0 },
+        { "frame": 7, "name": "step_right_2", "foot_offset_x": -1, "arm_swing": -2 }
+      ]
+    },
+    "up": {
+      "th_description": "Quay lưng, đi về phía trên màn hình",
+      "th_frames": [
+        { "frame": 8, "name": "stand_up", "foot_offset_y": 0, "head_offset_y": 0 },
+        { "frame": 9, "name": "walk_up_1", "foot_offset_y": -1, "head_offset_y": 1 },
+        { "frame": 10, "name": "stand_up_pass", "foot_offset_y": 0, "head_offset_y": 0 },
+        { "frame": 11, "name": "walk_up_2", "foot_offset_y": -1, "head_offset_y": 1 }
+      ]
+    },
+    "left": {
+      "th_description": "Nhìn ngang sang trái (thường là lật gương của hướng right)",
+      "th_mirror_of": "right"
+    }
+  }
+}
