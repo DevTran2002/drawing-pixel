@@ -1,0 +1,205 @@
+// apps/studio/src/core/canvas-engine.ts
+// Dieu khien hien thi HTML5 Canvas, xu ly thu phong, keo luoi va toa do
+
+import { CanvasProject, FrameData, LayerData, Point2D } from '@pixel-draw/shared-types';
+import { PixelBuffer } from './pixel-buffer';
+
+export interface CanvasEngineOptions {
+  canvas: HTMLCanvasElement;
+  project: CanvasProject;
+  showGrid?: boolean;
+  showPivot?: boolean;
+  onPixelClick?: (x: number, y: number, isRightClick: boolean) => void;
+}
+
+export class CanvasEngine {
+  readonly canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  project: CanvasProject;
+
+  // Viewport states
+  zoom = 16; // He so phong to (vi du 16x tuong duong 1600%)
+  panOffset: Point2D = { x: 0, y: 0 };
+  showGrid = true;
+  showPivot = true;
+
+  // Cache buffer cho frame va layer dang duoc chon
+  private layerBuffers: Map<string, PixelBuffer> = new Map();
+
+  constructor(options: CanvasEngineOptions) {
+    this.canvas = options.canvas;
+    const context = this.canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Khong the khoi tao Canvas 2D context');
+    }
+    this.ctx = context;
+    this.project = options.project;
+    this.showGrid = options.showGrid ?? true;
+    this.showPivot = options.showPivot ?? true;
+
+    this.rebuildBuffers();
+    this.centerViewport();
+  }
+
+  // Tao lai buffer tu project data
+  rebuildBuffers(): void {
+    this.layerBuffers.clear();
+    const currentFrame = this.getCurrentFrame();
+    if (currentFrame) {
+      for (const layer of currentFrame.layers) {
+        this.layerBuffers.set(
+          layer.id,
+          new PixelBuffer(this.project.width, this.project.height, layer.pixels)
+        );
+      }
+    }
+  }
+
+  getCurrentFrame(): FrameData | undefined {
+    return this.project.frames[this.project.activeFrameIndex];
+  }
+
+  getLayerBuffer(layerId: string): PixelBuffer | undefined {
+    return this.layerBuffers.get(layerId);
+  }
+
+  getActiveLayerBuffer(): PixelBuffer | undefined {
+    return this.layerBuffers.get(this.project.activeLayerId);
+  }
+
+  // Can giua canvas vao trung tam viewport
+  centerViewport(): void {
+    const totalWidth = this.project.width * this.zoom;
+    const totalHeight = this.project.height * this.zoom;
+    this.panOffset = {
+      x: Math.floor((this.canvas.width - totalWidth) / 2),
+      y: Math.floor((this.canvas.height - totalHeight) / 2)
+    };
+  }
+
+  // Chuyen doi toa do chuot tren canvas sang toa do pixel thuc
+  screenToPixel(screenX: number, screenY: number): Point2D | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const clientX = screenX - rect.left;
+    const clientY = screenY - rect.top;
+
+    const pixelX = Math.floor((clientX - this.panOffset.x) / this.zoom);
+    const pixelY = Math.floor((clientY - this.panOffset.y) / this.zoom);
+
+    if (pixelX < 0 || pixelX >= this.project.width || pixelY < 0 || pixelY >= this.project.height) {
+      return null;
+    }
+    return { x: pixelX, y: pixelY };
+  }
+
+  // Ve toan bo khung nhin
+  render(onionSkinCanvas?: HTMLCanvasElement): void {
+    const ctx = this.ctx;
+    ctx.imageSmoothingEnabled = false; // Luon giu pixelated sac canh
+
+    // 1. Xoa nen toan bo khung canvas voi mau toi studio
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    ctx.save();
+    ctx.translate(this.panOffset.x, this.panOffset.y);
+
+    const artWidth = this.project.width * this.zoom;
+    const artHeight = this.project.height * this.zoom;
+
+    // 2. Ve nen caro trong suot (checkerboard) cho vung lam viec
+    this.renderCheckerboard(artWidth, artHeight);
+
+    // 3. Neu co Onion Skin, ve len truoc
+    if (onionSkinCanvas) {
+      ctx.drawImage(onionSkinCanvas, 0, 0, artWidth, artHeight);
+    }
+
+    // 4. Ve cac layer theo thu tu
+    const currentFrame = this.getCurrentFrame();
+    if (currentFrame) {
+      for (const layer of currentFrame.layers) {
+        if (!layer.visible) continue;
+        const buffer = this.layerBuffers.get(layer.id);
+        if (!buffer) continue;
+
+        ctx.save();
+        ctx.globalAlpha = layer.opacity;
+
+        const pixels = buffer.getAllPixels();
+        for (const p of pixels) {
+          if (!p.color) continue;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x * this.zoom, p.y * this.zoom, this.zoom, this.zoom);
+        }
+        ctx.restore();
+      }
+    }
+
+    // 5. Ve luoi diem anh neu dang bat va do phong to >= 4x
+    if (this.showGrid && this.zoom >= 6) {
+      this.renderPixelGrid(artWidth, artHeight);
+    }
+
+    // 6. Ve diem neo pivot nhan vat
+    if (this.showPivot && this.project.pivot) {
+      this.renderPivotMarker(this.project.pivot.x, this.project.pivot.y);
+    }
+
+    // 7. Ve duong vien bao quanh toan bo canvas
+    ctx.strokeStyle = '#3f3f46';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, artWidth, artHeight);
+
+    ctx.restore();
+  }
+
+  private renderCheckerboard(width: number, height: number): void {
+    const tileSize = Math.max(8, Math.floor(this.zoom / 2));
+    const ctx = this.ctx;
+    for (let y = 0; y < height; y += tileSize) {
+      for (let x = 0; x < width; x += tileSize) {
+        const isDark = (Math.floor(x / tileSize) + Math.floor(y / tileSize)) % 2 === 1;
+        ctx.fillStyle = isDark ? '#27272a' : '#323238';
+        const w = Math.min(tileSize, width - x);
+        const h = Math.min(tileSize, height - y);
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+  }
+
+  private renderPixelGrid(width: number, height: number): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    // Duong doc
+    for (let x = 0; x <= width; x += this.zoom) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, height);
+    }
+    // Duong ngang
+    for (let y = 0; y <= height; y += this.zoom) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(width, y + 0.5);
+    }
+    ctx.stroke();
+  }
+
+  private renderPivotMarker(pivotX: number, pivotY: number): void {
+    const ctx = this.ctx;
+    const cx = (pivotX + 0.5) * this.zoom;
+    const cy = (pivotY + 0.5) * this.zoom;
+    const size = Math.max(4, Math.floor(this.zoom * 0.4));
+
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - size, cy);
+    ctx.lineTo(cx + size, cy);
+    ctx.moveTo(cx, cy - size);
+    ctx.lineTo(cx, cy + size);
+    ctx.stroke();
+  }
+}

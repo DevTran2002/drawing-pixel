@@ -1,0 +1,434 @@
+/* apps/studio/styles/main.css */
+/* Giao dien Dark Theme hien dai cho Pixel Art Studio */
+
+:root {
+  --bg-dark: #0f0f12;
+  --bg-panel: #18181f;
+  --bg-card: #20202a;
+  --bg-hover: #2a2a38;
+  --border-color: #2c2c3a;
+  --border-active: #4a4a60;
+  --primary-color: #ec4899;
+  --primary-hover: #db2777;
+  --accent-color: #3b82f6;
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-family);
+  font-size: 13px;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 1. Top Navigation Bar */
+.top-nav {
+  height: 48px;
+  background-color: var(--bg-panel);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 20;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.brand-badge {
+  background-color: #272733;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-active);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-hover);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background-color: #1a1a24;
+  border: 1px solid var(--border-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ef4444; /* Do mac dinh, chuyen xanh khi ket noi */
+}
+
+.status-dot.connected {
+  background-color: #22c55e;
+}
+
+/* 2. Main Studio Workspace */
+.studio-body {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 2.1 Left Toolbar */
+.left-toolbar {
+  width: 60px;
+  background-color: var(--bg-panel);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.tool-btn {
+  width: 44px;
+  height: 40px;
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.15s;
+}
+
+.tool-btn:hover {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
+.tool-btn.active {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  border-color: var(--primary-hover);
+  font-weight: 600;
+}
+
+.tool-shortcut {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.toolbar-divider {
+  width: 32px;
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 4px 0;
+}
+
+/* 2.2 Center Viewport */
+.center-viewport {
+  flex: 1;
+  position: relative;
+  background-color: #121215;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.canvas-container {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#main-canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+}
+
+.viewport-info {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background-color: rgba(24, 24, 31, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  display: flex;
+  gap: 12px;
+}
+
+/* 2.3 Right Sidebar */
+.right-sidebar {
+  width: 280px;
+  background-color: var(--bg-panel);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.sidebar-section {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-header {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Bảng màu và kích cỡ cọ */
+.color-swatch-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.primary-color-input, .secondary-color-input {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 2px solid var(--border-active);
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+
+.brush-sizes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.size-btn {
+  flex: 1;
+  padding: 4px;
+  text-align: center;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.size-btn.active {
+  background-color: var(--border-active);
+  color: #ffffff;
+  border-color: var(--accent-color);
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.palette-item {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.1s;
+}
+
+.palette-item:hover {
+  transform: scale(1.15);
+  z-index: 2;
+  border-color: #ffffff;
+}
+
+/* Quản lý Layer */
+.layers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.layer-item.active {
+  border-color: var(--accent-color);
+  background-color: #242938;
+}
+
+.layer-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Cửa sổ Preview mini */
+.preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+#preview-canvas {
+  background-color: #000000;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* 3. Bottom Timeline Bar */
+.bottom-timeline {
+  height: 96px;
+  background-color: var(--bg-panel);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  z-index: 20;
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timeline-frames {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 0;
+}
+
+.frame-card {
+  width: 60px;
+  height: 60px;
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.frame-card.active {
+  border-color: var(--primary-color);
+  color: #ffffff;
+  background-color: #2a202d;
+}
+
+.frame-num {
+  font-weight: 600;
+}
+
+.frame-ms {
+  font-size: 9px;
+  opacity: 0.7;
+}

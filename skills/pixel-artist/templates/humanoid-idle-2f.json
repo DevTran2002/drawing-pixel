@@ -1,0 +1,24 @@
+{
+  "name": "humanoid-idle-2f",
+  "description": "Nhịp thở nhấp nhô 2 khung hình cho nhân vật dáng người (Humanoid)",
+  "frameCount": 2,
+  "fps": 4,
+  "frames": [
+    {
+      "index": 0,
+      "durationMs": 250,
+      "description": "Khung chuẩn bị: Toàn thân ở vị trí cân bằng gốc",
+      "headOffset": { "x": 0, "y": 0 },
+      "bodyOffset": { "x": 0, "y": 0 },
+      "feetOffset": { "x": 0, "y": 0 }
+    },
+    {
+      "index": 1,
+      "durationMs": 250,
+      "description": "Khung hít thở: Đầu và thân người hạ xuống 1 pixel, chân giữ nguyên điểm neo",
+      "headOffset": { "x": 0, "y": 1 },
+      "bodyOffset": { "x": 0, "y": 1 },
+      "feetOffset": { "x": 0, "y": 0 }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@pixel-draw/server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@pixel-draw/shared-types": "*",
+    "pngjs": "^7.0.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pngjs": "^6.0.4",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}

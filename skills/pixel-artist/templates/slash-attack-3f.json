@@ -1,0 +1,28 @@
+{
+  "name": "slash-attack-3f",
+  "description": "Động tác vung vũ khí chém quét vòng cung 3 khung hình",
+  "frameCount": 3,
+  "fps": 10,
+  "frames": [
+    {
+      "index": 0,
+      "durationMs": 120,
+      "description": "Chuẩn bị ra đòn: Kéo ngược vũ khí ra phía sau lưng, thu tấn chuẩn bị lực",
+      "weaponAngle": -45
+    },
+    {
+      "index": 1,
+      "durationMs": 60,
+      "description": "Chém lướt: Vung kiếm cực nhanh tạo vệt quét cung tròn màu trắng phản quang",
+      "weaponAngle": 45,
+      "slashTrail": true
+    },
+    {
+      "index": 2,
+      "durationMs": 140,
+      "description": "Hạ thế thu kiếm: Mũi kiếm hạ thấp, quán tính dừng lại và trở về tư thế thủ",
+      "weaponAngle": 15,
+      "slashTrail": false
+    }
+  ]
+}

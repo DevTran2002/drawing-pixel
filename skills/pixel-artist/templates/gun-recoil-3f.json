@@ -1,0 +1,29 @@
+{
+  "name": "gun-recoil-3f",
+  "description": "Động tác bắn súng và giật ngược nòng súng 3 khung hình",
+  "frameCount": 3,
+  "fps": 12,
+  "frames": [
+    {
+      "index": 0,
+      "durationMs": 60,
+      "description": "Bắn đạn: Nòng súng lóe tia lửa cam vàng 2-3 pixel, thân súng giật lùi nhẹ",
+      "recoilOffset": { "x": -1, "y": 0 },
+      "muzzleFlash": true
+    },
+    {
+      "index": 1,
+      "durationMs": 80,
+      "description": "Hồi nòng: Tia lửa nòng súng vụt tắt, thân súng giật chếch nhẹ lên trên",
+      "recoilOffset": { "x": -2, "y": -1 },
+      "muzzleFlash": false
+    },
+    {
+      "index": 2,
+      "durationMs": 100,
+      "description": "Thu hồi vị trí: Thân súng trở về tư thế sẵn sàng bắn tiếp",
+      "recoilOffset": { "x": 0, "y": 0 },
+      "muzzleFlash": false
+    }
+  ]
+}

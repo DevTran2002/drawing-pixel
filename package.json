@@ -1,0 +1,21 @@
+{
+  "name": "pixel-draw-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "dev:studio": "npm run dev --workspace=apps/studio",
+    "dev:server": "npm run dev --workspace=apps/server",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:studio\"",
+    "build": "npm run build --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  }
+}

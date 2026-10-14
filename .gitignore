@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Production build outputs
+dist/
+build/
+
+# Logs and scratch
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.superpowers/
+test-output/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE and local configs
+.vscode/
+.idea/

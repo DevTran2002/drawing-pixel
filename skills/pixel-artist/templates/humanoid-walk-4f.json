@@ -1,0 +1,32 @@
+{
+  "name": "humanoid-walk-4f",
+  "description": "Chu kỳ bước đi 4 khung hình hoàn chỉnh: Chân trái bước, tiếp đất, chân phải bước, tiếp đất",
+  "frameCount": 4,
+  "fps": 8,
+  "frames": [
+    {
+      "index": 0,
+      "durationMs": 125,
+      "description": "Bước 1: Chân trái đưa về phía trước, chân phải đưa ra sau",
+      "bodyOffset": { "x": 0, "y": 0 }
+    },
+    {
+      "index": 1,
+      "durationMs": 125,
+      "description": "Bước 2: Hai chân thu về giữa tiếp đất, thân người nhấp nhô nhấc lên 1 pixel",
+      "bodyOffset": { "x": 0, "y": -1 }
+    },
+    {
+      "index": 2,
+      "durationMs": 125,
+      "description": "Bước 3: Chân phải đưa về phía trước, chân trái đưa ra sau",
+      "bodyOffset": { "x": 0, "y": 0 }
+    },
+    {
+      "index": 3,
+      "durationMs": 125,
+      "description": "Bước 4: Hai chân thu về giữa đổi bên, thân người nhấp nhô nhấc lên 1 pixel",
+      "bodyOffset": { "x": 0, "y": -1 }
+    }
+  ]
+}

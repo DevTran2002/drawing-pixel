@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pixel Art Studio & MCP Integration Engine</title>
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <!-- 1. Thanh dieu huong tren cung -->
+    <header class="top-nav">
+      <div class="brand-section">
+        <span class="brand-title">Pixel Studio</span>
+        <span class="brand-badge" id="canvas-size-badge">24x24 px</span>
+        <span class="brand-badge" id="canvas-zoom-badge">1600%</span>
+      </div>
+
+      <div class="nav-actions">
+        <button class="btn btn-small" id="btn-undo" title="Hoan tac (Ctrl+Z)">Undo</button>
+        <button class="btn btn-small" id="btn-redo" title="Lam lai (Ctrl+Y)">Redo</button>
+        <button class="btn btn-small" id="btn-toggle-grid" title="Bat/tat luoi">Grid</button>
+        <button class="btn btn-small" id="btn-toggle-pivot" title="Bat/tat diem neo">Pivot</button>
+        <button class="btn btn-small" id="btn-toggle-symmetry" title="Doi xung doc">Sym X</button>
+
+        <div class="status-badge" id="mcp-status" title="Trang thai ket noi MCP Bridge">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Bridge: Offline</span>
+        </div>
+
+        <button class="btn btn-primary" id="btn-export">Export</button>
+      </div>
+    </header>
+
+    <!-- 2. Khong gian lam viec chinh -->
+    <main class="studio-body">
+      <!-- 2.1 Thanh cong cu ben trai -->
+      <aside class="left-toolbar" id="toolbar">
+        <button class="tool-btn active" data-tool="pencil" title="But chi (P)">
+          <span>Pen</span>
+          <span class="tool-shortcut">P</span>
+        </button>
+        <button class="tool-btn" data-tool="eraser" title="Tay (E)">
+          <span>Erase</span>
+          <span class="tool-shortcut">E</span>
+        </button>
+        <button class="tool-btn" data-tool="bucket" title="Thung son (G)">
+          <span>Fill</span>
+          <span class="tool-shortcut">G</span>
+        </button>
+        <button class="tool-btn" data-tool="eyedropper" title="Hut mau (I)">
+          <span>Pick</span>
+          <span class="tool-shortcut">I</span>
+        </button>
+        <div class="toolbar-divider"></div>
+        <button class="tool-btn" data-tool="line" title="Duong thang (L)">
+          <span>Line</span>
+          <span class="tool-shortcut">L</span>
+        </button>
+        <button class="tool-btn" data-tool="rectangle" title="Hinh chu nhat (U)">
+          <span>Rect</span>
+          <span class="tool-shortcut">U</span>
+        </button>
+        <button class="tool-btn" data-tool="circle" title="Hinh tron (C)">
+          <span>Circle</span>
+          <span class="tool-shortcut">C</span>
+        </button>
+        <div class="toolbar-divider"></div>
+        <button class="tool-btn" data-tool="dither" title="To caro (J)">
+          <span>Dither</span>
+          <span class="tool-shortcut">J</span>
+        </button>
+        <button class="tool-btn" data-tool="lighten" title="Lam sang (D)">
+          <span>Light</span>
+          <span class="tool-shortcut">D</span>
+        </button>
+        <button class="tool-btn" data-tool="darken" title="Lam toi (K)">
+          <span>Dark</span>
+          <span class="tool-shortcut">K</span>
+        </button>
+      </aside>
+
+      <!-- 2.2 Khu vuc Canvas trung tam -->
+      <section class="center-viewport" id="viewport">
+        <div class="canvas-container">
+          <canvas id="main-canvas" width="600" height="600"></canvas>
+        </div>
+
+        <div class="viewport-info">
+          <span id="cursor-coord">X: --, Y: --</span>
+          <span id="canvas-resolution">24 x 24</span>
+        </div>
+      </section>
+
+      <!-- 2.3 Thanh dieu khien ben phai -->
+      <aside class="right-sidebar">
+        <!-- Bang mau -->
+        <div class="sidebar-section">
+          <div class="section-header">
+            <span>Color Palette</span>
+            <select id="palette-select" class="btn btn-small" style="padding: 2px 4px; font-size: 11px;">
+              <option value="endesga-32">Endesga 32</option>
+              <option value="pico-8">Pico-8</option>
+              <option value="gameboy">Game Boy</option>
+              <option value="dawnbringer-16">DawnBringer 16</option>
+            </select>
+          </div>
+
+          <div class="color-swatch-box">
+            <input type="color" id="primary-color" class="primary-color-input" value="#ec4899" title="Mau chinh (Chuot trai)" />
+            <input type="color" id="secondary-color" class="secondary-color-input" value="#000000" title="Mau phu (Chuot phai)" />
+            <span style="font-size: 11px; color: var(--text-muted);" id="color-hex-label">#ec4899</span>
+          </div>
+
+          <div class="section-header" style="margin-top: 8px;">
+            <span>Brush Size</span>
+          </div>
+          <div class="brush-sizes" id="brush-size-group">
+            <button class="size-btn active" data-size="1">1px</button>
+            <button class="size-btn" data-size="2">2px</button>
+            <button class="size-btn" data-size="3">3px</button>
+            <button class="size-btn" data-size="4">4px</button>
+          </div>
+
+          <div class="palette-grid" id="palette-grid"></div>
+        </div>
+
+        <!-- Quan ly Layer -->
+        <div class="sidebar-section">
+          <div class="section-header">
+            <span>Layers</span>
+            <button class="btn btn-small" id="btn-add-layer">+ Layer</button>
+          </div>
+          <div class="layers-list" id="layers-list"></div>
+        </div>
+
+        <!-- Cua so xem truoc Hoat anh -->
+        <div class="sidebar-section" style="border-bottom: none;">
+          <div class="section-header">
+            <span>Animation Preview</span>
+            <button class="btn btn-small" id="btn-toggle-play">Play</button>
+          </div>
+          <div class="preview-container">
+            <canvas id="preview-canvas" width="96" height="96"></canvas>
+            <span style="font-size: 11px; color: var(--text-muted);" id="preview-info">Clip: idle</span>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 3. Thanh dong thoi gian ben duoi -->
+    <footer class="bottom-timeline">
+      <div class="timeline-controls">
+        <button class="btn btn-primary btn-small" id="btn-play-pause">Play</button>
+        <button class="btn btn-small" id="btn-onion-skin">Onion: Off</button>
+
+        <label style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+          FPS:
+          <input type="range" id="fps-slider" min="1" max="30" value="10" style="width: 80px;" />
+          <span id="fps-label">10</span>
+        </label>
+
+        <select id="clip-select" class="btn btn-small" style="font-size: 11px;">
+          <option value="idle">Clip: idle</option>
+        </select>
+      </div>
+
+      <div class="timeline-frames" id="timeline-frames-container">
+        <!-- Danh sach Frame cards duoc sinh tu dong -->
+      </div>
+
+      <button class="btn btn-small" id="btn-add-frame" style="flex-shrink: 0;">+ Add Frame</button>
+    </footer>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

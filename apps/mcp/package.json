@@ -1,0 +1,21 @@
+{
+  "name": "@pixel-draw/mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "pixel-draw-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "@pixel-draw/shared-types": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}

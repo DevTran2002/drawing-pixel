@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pixel-draw": {
+      "command": "node",
+      "args": ["d:/pixel_draw/apps/mcp/dist/index.js"]
+    }
+  }
+}
