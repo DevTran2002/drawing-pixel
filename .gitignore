@@ -12,6 +12,7 @@ yarn-debug.log*
 yarn-error.log*
 .superpowers/
 test-output/
+sprites/
 
 # OS generated files
 .DS_Store
