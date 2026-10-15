@@ -31,3 +31,6 @@ models/**/*.pt
 # Storage and generated outputs
 storage/outputs/*
 !storage/outputs/.gitkeep
+exports/
+scratch/
+trainning/
