@@ -16,65 +16,117 @@
       </div>
 
       <div class="nav-actions">
-        <button class="btn btn-small" id="btn-undo" title="Hoan tac (Ctrl+Z)">Undo</button>
-        <button class="btn btn-small" id="btn-redo" title="Lam lai (Ctrl+Y)">Redo</button>
-        <button class="btn btn-small" id="btn-toggle-grid" title="Bat/tat luoi">Grid</button>
-        <button class="btn btn-small" id="btn-toggle-pivot" title="Bat/tat diem neo">Pivot</button>
-        <button class="btn btn-small" id="btn-toggle-symmetry" title="Doi xung doc">Sym X</button>
+        <!-- Undo -->
+        <button class="btn btn-small" id="btn-undo" title="Hoàn tác (Ctrl+Z)">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M3 10h10a5 5 0 0 1 5 5v2M3 10l6-6M3 10l6 6"/></svg>
+          Undo
+        </button>
+        <!-- Redo -->
+        <button class="btn btn-small" id="btn-redo" title="Làm lại (Ctrl+Y)">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-6-6M21 10l-6 6"/></svg>
+          Redo
+        </button>
+        <!-- Grid -->
+        <button class="btn btn-small" id="btn-toggle-grid" title="Bật/tắt lưới">
+          <svg class="btn-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+          Grid
+        </button>
+        <!-- Pivot -->
+        <button class="btn btn-small" id="btn-toggle-pivot" title="Bật/tắt điểm neo">
+          <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
+          Pivot
+        </button>
+        <!-- Sym X -->
+        <button class="btn btn-small" id="btn-toggle-symmetry" title="Đối xứng dọc trục X">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2v20M4 18l4-12 4 12M20 18l-4-12-4 12"/></svg>
+          Sym X
+        </button>
 
-        <div class="status-badge" id="mcp-status" title="Trang thai ket noi MCP Bridge">
+        <div class="status-badge" id="mcp-status" title="Trạng thái kết nối MCP Bridge">
           <span class="status-dot" id="status-dot"></span>
           <span id="status-text">Bridge: Offline</span>
         </div>
-        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh chan dung nhan vat Stardew Valley bang AI LoRA">AI Portrait</button>
-        <button class="btn btn-primary" id="btn-export">Export</button>
+
+        <!-- Kho Ảnh (Gallery) -->
+        <button class="btn btn-gallery" id="btn-open-gallery" title="Mở kho lưu trữ và lịch sử tranh ảnh đã tạo">
+          <svg class="btn-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Kho Ảnh
+        </button>
+
+        <!-- Lưu vào Kho (Save) -->
+        <button class="btn btn-save" id="btn-save-gallery" title="Lưu tranh hiện tại vào kho ảnh">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Lưu Kho
+        </button>
+
+        <!-- AI Portrait -->
+        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh chân dung nhân vật Stardew Valley bằng AI LoRA">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>
+          AI Portrait
+        </button>
+
+        <!-- Export -->
+        <button class="btn btn-primary" id="btn-export" title="Xuất file ảnh SpriteSheet">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Export
+        </button>
       </div>
     </header>
 
     <!-- 2. Khong gian lam viec chinh -->
     <main class="studio-body">
-      <!-- 2.1 Thanh cong cu ben trai -->
+      <!-- 2.1 Thanh cong cu ben trai (Co Icon SVG truc quan) -->
       <aside class="left-toolbar" id="toolbar">
-        <button class="tool-btn active" data-tool="pencil" title="But chi (P)">
-          <span>Pen</span>
+        <!-- Pen -->
+        <button class="tool-btn active" data-tool="pencil" title="Bút chì vẽ pixel (P)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
           <span class="tool-shortcut">P</span>
         </button>
-        <button class="tool-btn" data-tool="eraser" title="Tay (E)">
-          <span>Erase</span>
+        <!-- Erase -->
+        <button class="tool-btn" data-tool="eraser" title="Tẩy xóa pixel (E)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M20 20H7L2 15l10-10 8 5-7 7M18 11l-5-5"/></svg>
           <span class="tool-shortcut">E</span>
         </button>
-        <button class="tool-btn" data-tool="bucket" title="Thung son (G)">
-          <span>Fill</span>
+        <!-- Fill -->
+        <button class="tool-btn" data-tool="bucket" title="Thùng sơn tô mảng màu (G)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l5 5a2.12 2.12 0 0 0 3 0L19 11zM5 2l5 5M2 13h15M22 20a2 2 0 1 1-4 0c0-1.6 2-3 2-3s2 1.4 2 3z"/></svg>
           <span class="tool-shortcut">G</span>
         </button>
-        <button class="tool-btn" data-tool="eyedropper" title="Hut mau (I)">
-          <span>Pick</span>
+        <!-- Pick -->
+        <button class="tool-btn" data-tool="eyedropper" title="Hút màu điểm ảnh (I)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14 2l4 4L6 18l-4 4 1-5L14 2zM15 7l2 2"/></svg>
           <span class="tool-shortcut">I</span>
         </button>
         <div class="toolbar-divider"></div>
-        <button class="tool-btn" data-tool="line" title="Duong thang (L)">
-          <span>Line</span>
+        <!-- Line -->
+        <button class="tool-btn" data-tool="line" title="Đường thẳng (L)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>
           <span class="tool-shortcut">L</span>
         </button>
-        <button class="tool-btn" data-tool="rectangle" title="Hinh chu nhat (U)">
-          <span>Rect</span>
+        <!-- Rect -->
+        <button class="tool-btn" data-tool="rectangle" title="Khung hình chữ nhật (U)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
           <span class="tool-shortcut">U</span>
         </button>
-        <button class="tool-btn" data-tool="circle" title="Hinh tron (C)">
-          <span>Circle</span>
+        <!-- Circle -->
+        <button class="tool-btn" data-tool="circle" title="Hình tròn (C)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
           <span class="tool-shortcut">C</span>
         </button>
         <div class="toolbar-divider"></div>
-        <button class="tool-btn" data-tool="dither" title="To caro (J)">
-          <span>Dither</span>
+        <!-- Dither -->
+        <button class="tool-btn" data-tool="dither" title="Tô hoa văn chấm Dither (J)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="4" height="4"/><rect x="12" y="4" width="4" height="4"/><rect x="8" y="10" width="4" height="4"/><rect x="16" y="10" width="4" height="4"/><rect x="4" y="16" width="4" height="4"/><rect x="12" y="16" width="4" height="4"/></svg>
           <span class="tool-shortcut">J</span>
         </button>
-        <button class="tool-btn" data-tool="lighten" title="Lam sang (D)">
-          <span>Light</span>
+        <!-- Light -->
+        <button class="tool-btn" data-tool="lighten" title="Tăng sáng màu điểm ảnh (D)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <span class="tool-shortcut">D</span>
         </button>
-        <button class="tool-btn" data-tool="darken" title="Lam toi (K)">
-          <span>Dark</span>
+        <!-- Dark -->
+        <button class="tool-btn" data-tool="darken" title="Làm tối màu điểm ảnh (K)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <span class="tool-shortcut">K</span>
         </button>
       </aside>
@@ -138,7 +190,10 @@
         <div class="sidebar-section" style="border-bottom: none;">
           <div class="section-header">
             <span>Animation Preview</span>
-            <button class="btn btn-small" id="btn-toggle-play">Play</button>
+            <button class="btn btn-small btn-primary" id="btn-toggle-play">
+              <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Play</span>
+            </button>
           </div>
           <div class="preview-container">
             <canvas id="preview-canvas" width="96" height="96"></canvas>
@@ -151,8 +206,14 @@
     <!-- 3. Thanh dong thoi gian ben duoi -->
     <footer class="bottom-timeline">
       <div class="timeline-controls">
-        <button class="btn btn-primary btn-small" id="btn-play-pause">Play</button>
-        <button class="btn btn-small" id="btn-onion-skin">Onion: Off</button>
+        <button class="btn btn-primary btn-small" id="btn-play-pause">
+          <svg class="btn-icon" id="play-pause-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span id="play-pause-text">Play</span>
+        </button>
+        <button class="btn btn-small" id="btn-onion-skin">
+          <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>
+          <span id="onion-text">Onion: Off</span>
+        </button>
 
         <label style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
           FPS:
@@ -169,7 +230,16 @@
         <!-- Danh sach Frame cards duoc sinh tu dong -->
       </div>
 
-      <button class="btn btn-small" id="btn-add-frame" style="flex-shrink: 0;">+ Add Frame</button>
+      <div style="display: flex; gap: 6px; flex-shrink: 0;">
+        <button class="btn btn-small" id="btn-duplicate-frame" title="Nhân bản frame đang chọn">
+          <svg class="btn-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Duplicate
+        </button>
+        <button class="btn btn-small" id="btn-add-frame" title="Thêm frame mới vào clip">
+          <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          + Add Frame
+        </button>
+      </div>
     </footer>
 
     <!-- 4. Modal Sinh Chan Dung Bang AI LoRA -->
@@ -199,8 +269,33 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" id="btn-load-existing-ai" title="Nap anh 64x64 da sinh gan nhat vao canvas">Nạp Ảnh Vừa Vẽ (64x64)</button>
+          <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh 64x64 đã sinh gần nhất vào canvas">Nạp Ảnh Vừa Vẽ (64x64)</button>
           <button class="btn btn-ai" id="btn-run-ai-generate">Vẽ & Nạp Vào Canvas</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Modal Kho Luu Tru Anh (Gallery) -->
+    <div class="modal-backdrop" id="gallery-modal" style="display: none;">
+      <div class="modal-dialog modal-gallery">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3>Kho Lưu Trữ Tranh Ảnh (Gallery)</h3>
+            <span class="brand-badge" id="gallery-count-badge">0 ảnh</span>
+          </div>
+          <button class="modal-close" id="btn-close-gallery-modal">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 480px; overflow-y: auto;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 12px; color: var(--text-muted);">Danh sách toàn bộ các tác phẩm đã sinh bởi AI hoặc lưu từ Canvas:</span>
+            <button class="btn btn-small" id="btn-refresh-gallery">Làm mới</button>
+          </div>
+          <div class="gallery-grid" id="gallery-grid-container">
+            <!-- Danh sach card anh do JS render -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" id="btn-close-gallery-footer">Đóng</button>
         </div>
       </div>
     </div>

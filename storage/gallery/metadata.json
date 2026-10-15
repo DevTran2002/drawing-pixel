@@ -1,0 +1,12 @@
+[
+  {
+    "id": "item_stardew_sample",
+    "filename": "ai_portrait_stardew_sample.png",
+    "name": "Chân Dung Stardew Valley",
+    "createdAt": "2026-10-15T16:50:00.000Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, stardew portrait, white beard, glasses, looking at viewer"
+  }
+]

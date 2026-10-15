@@ -1,0 +1,183 @@
+// apps/server/src/gallery-manager.ts
+// Quan ly kho luu tru anh va metadata trong storage/gallery
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { exportPngBuffer, saveToFile } from './exporter';
+import { CanvasProject, FrameData, PixelColor } from '@pixel-draw/shared-types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export interface GalleryItem {
+  id: string;
+  filename: string;
+  name: string;
+  createdAt: string;
+  width: number;
+  height: number;
+  sourceType: 'ai' | 'custom';
+  prompt?: string;
+  thumbnailBase64?: string;
+}
+
+// Tim thu muc goc cua du an (d:\pixel_draw)
+function getProjectRoot(): string {
+  let cur = __dirname;
+  while (cur && cur !== path.dirname(cur)) {
+    if (fs.existsSync(path.join(cur, 'package.json')) && fs.existsSync(path.join(cur, 'apps'))) {
+      return cur;
+    }
+    cur = path.dirname(cur);
+  }
+  return process.cwd();
+}
+
+export class GalleryManager {
+  private galleryDir: string;
+  private metadataPath: string;
+
+  constructor() {
+    const root = getProjectRoot();
+    this.galleryDir = path.join(root, 'storage', 'gallery');
+    this.metadataPath = path.join(this.galleryDir, 'metadata.json');
+
+    if (!fs.existsSync(this.galleryDir)) {
+      fs.mkdirSync(this.galleryDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(this.metadataPath)) {
+      fs.writeFileSync(this.metadataPath, JSON.stringify([], null, 2), 'utf-8');
+    }
+  }
+
+  // Lay toan bo danh sach anh trong kho
+  getAllItems(): GalleryItem[] {
+    try {
+      if (!fs.existsSync(this.metadataPath)) return [];
+      const content = fs.readFileSync(this.metadataPath, 'utf-8');
+      const items: GalleryItem[] = JSON.parse(content || '[]');
+
+      // Gan them thumbnail base64 de frontend hien thi ngay
+      return items.map(item => {
+        const filePath = path.join(this.galleryDir, item.filename);
+        if (fs.existsSync(filePath)) {
+          const buf = fs.readFileSync(filePath);
+          return {
+            ...item,
+            thumbnailBase64: `data:image/png;base64,${buf.toString('base64')}`
+          };
+        }
+        return item;
+      });
+    } catch (err) {
+      console.error('[Gallery] Loi khi doc metadata:', err);
+      return [];
+    }
+  }
+
+  // Luu anh do AI sinh ra vao kho
+  saveAiGeneratedItem(sourcePngPath: string, prompt: string, size = 64): GalleryItem {
+    const timestamp = Date.now();
+    const filename = `ai_portrait_${timestamp}.png`;
+    const targetPath = path.join(this.galleryDir, filename);
+
+    // Sao chep tep anh vao thu muc gallery
+    if (fs.existsSync(sourcePngPath)) {
+      fs.copyFileSync(sourcePngPath, targetPath);
+    }
+
+    const newItem: GalleryItem = {
+      id: `item_${timestamp}`,
+      filename,
+      name: `AI Portrait #${timestamp.toString().slice(-4)}`,
+      createdAt: new Date().toISOString(),
+      width: size,
+      height: size,
+      sourceType: 'ai',
+      prompt
+    };
+
+    this.appendMetadata(newItem);
+    return newItem;
+  }
+
+  // Luu tac pham nguoi dung dang ve tren Canvas vao kho
+  async saveCanvasItem(project: CanvasProject, customName?: string): Promise<GalleryItem> {
+    const timestamp = Date.now();
+    const filename = `artwork_${timestamp}.png`;
+    const targetPath = path.join(this.galleryDir, filename);
+
+    // Gop cac layer cua frame hien tai thanh mot ban pixel
+    const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+    const mergedPixels: Record<string, PixelColor> = {};
+
+    if (currentFrame) {
+      for (const layer of currentFrame.layers) {
+        if (!layer.visible) continue;
+        for (const [key, color] of Object.entries(layer.pixels)) {
+          if (color) mergedPixels[key] = color;
+        }
+      }
+    }
+
+    const buffer = await exportPngBuffer(project.width, project.height, mergedPixels, 1);
+    await saveToFile(targetPath, buffer);
+
+    const newItem: GalleryItem = {
+      id: `item_${timestamp}`,
+      filename,
+      name: customName || project.name || `Artwork #${timestamp.toString().slice(-4)}`,
+      createdAt: new Date().toISOString(),
+      width: project.width,
+      height: project.height,
+      sourceType: 'custom'
+    };
+
+    this.appendMetadata(newItem);
+    return newItem;
+  }
+
+  // Xoa mot anh khoi kho
+  deleteItem(id: string): boolean {
+    try {
+      const items = this.readRawMetadata();
+      const targetIndex = items.findIndex(item => item.id === id);
+      if (targetIndex === -1) return false;
+
+      const [removed] = items.splice(targetIndex, 1);
+      const filePath = path.join(this.galleryDir, removed.filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+
+      fs.writeFileSync(this.metadataPath, JSON.stringify(items, null, 2), 'utf-8');
+      return true;
+    } catch (err) {
+      console.error('[Gallery] Loi khi xoa item:', err);
+      return false;
+    }
+  }
+
+  // Lay duong dan tep anh de nap len canvas
+  getItemFilePath(filename: string): string {
+    return path.join(this.galleryDir, filename);
+  }
+
+  private readRawMetadata(): GalleryItem[] {
+    try {
+      if (!fs.existsSync(this.metadataPath)) return [];
+      const content = fs.readFileSync(this.metadataPath, 'utf-8');
+      return JSON.parse(content || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  private appendMetadata(item: GalleryItem): void {
+    const items = this.readRawMetadata();
+    items.unshift(item); // Them vao dau danh sach de anh moi nhat len dau
+    fs.writeFileSync(this.metadataPath, JSON.stringify(items, null, 2), 'utf-8');
+  }
+}

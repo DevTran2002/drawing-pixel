@@ -404,9 +404,17 @@ function renderTimeline(): void {
     card.innerHTML = `
       <span class="frame-num">#${idx + 1}</span>
       <span class="frame-ms">${frame.durationMs}ms</span>
+      ${project.frames.length > 1 ? '<button class="frame-del-btn" title="Xóa frame này">&times;</button>' : ''}
     `;
 
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).classList.contains('frame-del-btn')) {
+        e.stopPropagation();
+        animController.deleteFrame(idx);
+        canvasEngine.rebuildBuffers();
+        renderAll();
+        return;
+      }
       project.activeFrameIndex = idx;
       canvasEngine.rebuildBuffers();
       renderAll();
@@ -416,9 +424,16 @@ function renderTimeline(): void {
   });
 }
 
+// Nut them frame moi vao clip dang hoat dong
 document.getElementById('btn-add-frame')?.addEventListener('click', () => {
-  animController.addClip(animController.getActiveClip()?.name || 'idle', 1);
-  project.activeFrameIndex = project.frames.length - 1;
+  animController.addFrameToActiveClip(true);
+  canvasEngine.rebuildBuffers();
+  renderAll();
+});
+
+// Nut nhan ban frame dang chon
+document.getElementById('btn-duplicate-frame')?.addEventListener('click', () => {
+  animController.duplicateActiveFrame();
   canvasEngine.rebuildBuffers();
   renderAll();
 });
@@ -427,12 +442,36 @@ document.getElementById('btn-add-frame')?.addEventListener('click', () => {
 const btnPlayPause = document.getElementById('btn-play-pause');
 const btnTogglePlay = document.getElementById('btn-toggle-play');
 
+function updatePlayUi(isPlaying: boolean): void {
+  const label = isPlaying ? 'Pause' : 'Play';
+  const iconSvg = isPlaying
+    ? '<svg class="btn-icon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'
+    : '<svg class="btn-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+
+  if (btnPlayPause) {
+    btnPlayPause.innerHTML = `${iconSvg} <span>${label}</span>`;
+  }
+  if (btnTogglePlay) {
+    btnTogglePlay.innerHTML = `${iconSvg} <span>${label}</span>`;
+  }
+}
+
 function togglePlayback(): void {
   const isPlaying = previewPlayer.toggle();
-  const label = isPlaying ? 'Pause' : 'Play';
-  if (btnPlayPause) btnPlayPause.innerText = label;
-  if (btnTogglePlay) btnTogglePlay.innerText = label;
+  updatePlayUi(isPlaying);
 }
+
+// Khi previewPlayer chuyen frame, dong bo ca Canvas chinh va danh dau timeline
+previewPlayer.onFrameChange = (frameIndex: number) => {
+  project.activeFrameIndex = frameIndex;
+  // Highlight the card tren timeline
+  const cards = document.querySelectorAll('.frame-card');
+  cards.forEach((c, i) => {
+    c.classList.toggle('active', i === frameIndex);
+  });
+  canvasEngine.rebuildBuffers();
+  renderAll();
+};
 
 btnPlayPause?.addEventListener('click', togglePlayback);
 btnTogglePlay?.addEventListener('click', togglePlayback);
@@ -700,8 +739,168 @@ function initAiPortraitModal(): void {
   });
 }
 
-// 10. Khoi dong ung dung
+// 10. Khoi tao Modal va ket noi Kho Luu Tru Anh (Gallery)
+function initGalleryModal(): void {
+  const modal = document.getElementById('gallery-modal');
+  const btnOpen = document.getElementById('btn-open-gallery');
+  const btnClose = document.getElementById('btn-close-gallery-modal');
+  const btnCloseFooter = document.getElementById('btn-close-gallery-footer');
+  const btnRefresh = document.getElementById('btn-refresh-gallery');
+  const btnSave = document.getElementById('btn-save-gallery');
+  const gridContainer = document.getElementById('gallery-grid-container');
+  const badgeCount = document.getElementById('gallery-count-badge');
+
+  if (!modal) return;
+
+  // Tai va render danh sach anh trong kho
+  const loadGallery = async () => {
+    if (!gridContainer) return;
+    gridContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 20px;">Đang tải danh sách tác phẩm...</div>';
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/gallery');
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.items)) {
+        gridContainer.innerHTML = '<div style="color: #ef4444; font-size: 12px;">Không thể tải dữ liệu kho ảnh.</div>';
+        return;
+      }
+
+      if (badgeCount) {
+        badgeCount.innerText = `${data.items.length} ảnh`;
+      }
+
+      if (data.items.length === 0) {
+        gridContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 20px;">Kho ảnh hiện đang trống. Hãy tạo ảnh bằng AI hoặc bấm nút Lưu Kho để lưu tác phẩm!</div>';
+        return;
+      }
+
+      gridContainer.innerHTML = '';
+      data.items.forEach((item: any) => {
+        const card = document.createElement('div');
+        card.className = 'gallery-card';
+
+        const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          day: '2-digit',
+          month: '2-digit'
+        }) : '';
+
+        const badgeClass = item.sourceType === 'ai' ? 'badge-ai' : 'badge-custom';
+        const badgeText = item.sourceType === 'ai' ? 'AI LoRA' : 'Vẽ tay';
+
+        card.innerHTML = `
+          <div class="gallery-thumb-container">
+            <span class="gallery-card-badge ${badgeClass}">${badgeText}</span>
+            <img class="gallery-thumb-img" src="${item.thumbnailBase64 || ''}" alt="${item.name}" />
+          </div>
+          <div class="gallery-card-info">
+            <div class="gallery-card-title" title="${item.name}">${item.name}</div>
+            <div class="gallery-card-meta">${item.width}x${item.height} px • ${dateStr}</div>
+            <div class="gallery-card-actions">
+              <button class="btn btn-primary btn-load-item" title="Nạp vào Canvas để chỉnh sửa">Mở</button>
+              <button class="btn btn-download-item" title="Tải ảnh PNG">Tải</button>
+              <button class="btn btn-danger btn-del-item" title="Xóa bức ảnh này">Xóa</button>
+            </div>
+          </div>
+        `;
+
+        // Nut Mo vao Canvas
+        card.querySelector('.btn-load-item')?.addEventListener('click', async () => {
+          try {
+            const loadRes = await fetch('http://127.0.0.1:3055/api/gallery/load', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: item.filename })
+            });
+            const loadData = await loadRes.json();
+            if (loadData.success) {
+              modal.style.display = 'none';
+            } else {
+              alert('Lỗi nạp ảnh: ' + (loadData.error || 'Thất bại'));
+            }
+          } catch (err: any) {
+            alert('Không thể kết nối máy chủ: ' + err.message);
+          }
+        });
+
+        // Nut Tai PNG
+        card.querySelector('.btn-download-item')?.addEventListener('click', () => {
+          if (!item.thumbnailBase64) return;
+          const a = document.createElement('a');
+          a.href = item.thumbnailBase64;
+          a.download = item.filename;
+          a.click();
+        });
+
+        // Nut Xoa
+        card.querySelector('.btn-del-item')?.addEventListener('click', async () => {
+          if (!confirm(`Bạn có chắc muốn xóa "${item.name}" khỏi kho không?`)) return;
+          try {
+            const delRes = await fetch('http://127.0.0.1:3055/api/gallery/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: item.id })
+            });
+            const delData = await delRes.json();
+            if (delData.success) {
+              loadGallery();
+            } else {
+              alert('Không thể xóa: ' + (delData.error || 'Lỗi'));
+            }
+          } catch (err: any) {
+            alert('Lỗi: ' + err.message);
+          }
+        });
+
+        gridContainer.appendChild(card);
+      });
+    } catch (err: any) {
+      gridContainer.innerHTML = `<div style="color: #ef4444; font-size: 12px; padding: 20px;">Lỗi tải kho ảnh: ${err.message}</div>`;
+    }
+  };
+
+  btnOpen?.addEventListener('click', () => {
+    modal.style.display = 'flex';
+    loadGallery();
+  });
+
+  btnClose?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  btnCloseFooter?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  btnRefresh?.addEventListener('click', loadGallery);
+
+  // Nut Luu Kho (Save to Gallery)
+  btnSave?.addEventListener('click', async () => {
+    const artName = prompt('Nhập tên cho tác phẩm cần lưu vào kho:', project.name || 'Tác phẩm mới');
+    if (artName === null) return;
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/gallery/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: artName || 'Chưa đặt tên' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Đã lưu tác phẩm thành công vào Kho Ảnh!');
+      } else {
+        alert('Lỗi lưu tác phẩm: ' + (data.error || 'Thất bại'));
+      }
+    } catch (err: any) {
+      alert('Không thể kết nối máy chủ để lưu: ' + err.message);
+    }
+  });
+}
+
+// 11. Khoi dong ung dung
 loadPalette('endesga-32');
 renderAll();
 initWebSocketBridge();
 initAiPortraitModal();
+initGalleryModal();
