@@ -533,7 +533,31 @@ function initWebSocketBridge(): void {
 
     socket.onmessage = (event) => {
       try {
-        const payload: McpDrawPayload = JSON.parse(event.data);
+        const payload: any = JSON.parse(event.data);
+
+        // Xu ly dong bo toan bo Project tu Server (vi du khi nap anh moi hoac doi kich thuoc 64x64)
+        if (payload.type === 'PROJECT_SYNC' && payload.project) {
+          const newProj = payload.project;
+          project.id = newProj.id;
+          project.name = newProj.name;
+          project.width = newProj.width;
+          project.height = newProj.height;
+          project.frames = newProj.frames;
+          project.clips = newProj.clips;
+          project.activeFrameIndex = newProj.activeFrameIndex || 0;
+          project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
+
+          canvasEngine.rebuildBuffers();
+          onionSkinRenderer.resize(project.width, project.height);
+
+          const sizeBadge = document.getElementById('canvas-size-badge');
+          if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+          const resLabel = document.getElementById('canvas-resolution');
+          if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+          renderAll();
+          return;
+        }
 
         if (payload.type === 'DRAW_PIXELS' && payload.pixels) {
           const buffer = canvasEngine.getActiveLayerBuffer();
@@ -584,7 +608,100 @@ function initWebSocketBridge(): void {
   }
 }
 
-// 9. Khoi dong ung dung
+// 9. Khoi tao Modal va ket noi AI LoRA Stardew Valley
+function initAiPortraitModal(): void {
+  const modal = document.getElementById('ai-modal');
+  const btnOpen = document.getElementById('btn-ai-portrait');
+  const btnClose = document.getElementById('btn-close-ai-modal');
+  const promptInput = document.getElementById('ai-prompt-input') as HTMLTextAreaElement;
+  const statusMsg = document.getElementById('ai-status-msg');
+  const statusText = document.getElementById('ai-status-text');
+  const btnLoad = document.getElementById('btn-load-existing-ai');
+  const btnGenerate = document.getElementById('btn-run-ai-generate');
+
+  if (!modal || !btnOpen) return;
+
+  btnOpen.addEventListener('click', () => {
+    modal.style.display = 'flex';
+  });
+
+  btnClose?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  // Gan su kien cho cac tag mau
+  const tagButtons = document.querySelectorAll('.tag-btn');
+  tagButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tag = btn.getAttribute('data-tag');
+      if (tag && promptInput) {
+        promptInput.value = tag;
+      }
+    });
+  });
+
+  // Nap anh hien co tu server
+  btnLoad?.addEventListener('click', async () => {
+    try {
+      if (statusMsg && statusText) {
+        statusMsg.style.display = 'block';
+        statusText.innerText = 'Đang nạp ảnh 64x64 vào Canvas...';
+      }
+      const res = await fetch('http://127.0.0.1:3055/api/ai/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagePath: 'th_stardew_character_pixel_64x64.png' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        modal.style.display = 'none';
+      } else {
+        alert('Lỗi: ' + (data.error || 'Không thể nạp ảnh'));
+      }
+    } catch (err: any) {
+      alert('Không thể kết nối tới Server: ' + err.message);
+    } finally {
+      if (statusMsg) statusMsg.style.display = 'none';
+    }
+  });
+
+  // Sinh anh moi bang AI LoRA
+  btnGenerate?.addEventListener('click', async () => {
+    const prompt = promptInput?.value.trim();
+    if (!prompt) {
+      alert('Vui lòng nhập mô tả nhân vật');
+      return;
+    }
+
+    try {
+      if (statusMsg && statusText) {
+        statusMsg.style.display = 'block';
+        statusText.innerText = 'Đang khởi động AI LoRA và vẽ nhân vật (khoảng 20-30s)...';
+      }
+      if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = true;
+
+      const res = await fetch('http://127.0.0.1:3055/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, steps: 15, size: 64 })
+      });
+      const data = await res.json();
+      if (data.success) {
+        modal.style.display = 'none';
+      } else {
+        alert('Lỗi sinh ảnh: ' + (data.error || 'Thao tác thất bại'));
+      }
+    } catch (err: any) {
+      alert('Lỗi kết nối máy chủ AI: ' + err.message);
+    } finally {
+      if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = false;
+      if (statusMsg) statusMsg.style.display = 'none';
+    }
+  });
+}
+
+// 10. Khoi dong ung dung
 loadPalette('endesga-32');
 renderAll();
 initWebSocketBridge();
+initAiPortraitModal();

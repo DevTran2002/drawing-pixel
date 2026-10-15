@@ -21,10 +21,13 @@ Thumbs.db
 # IDE and local configs
 .vscode/
 .idea/
-trainning/
-.trainning/
-exports/
-.exports/
-scratch/
-.scratch/
+# Datasets and AI models
 *.zip
+assets/datasets/*.zip
+assets/extracted/
+models/**/*.pt
+# models/**/*.safetensors
+
+# Storage and generated outputs
+storage/outputs/*
+!storage/outputs/.gitkeep

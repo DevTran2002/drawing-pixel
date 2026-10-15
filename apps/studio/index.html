@@ -26,7 +26,7 @@
           <span class="status-dot" id="status-dot"></span>
           <span id="status-text">Bridge: Offline</span>
         </div>
-
+        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh chan dung nhan vat Stardew Valley bang AI LoRA">AI Portrait</button>
         <button class="btn btn-primary" id="btn-export">Export</button>
       </div>
     </header>
@@ -171,6 +171,39 @@
 
       <button class="btn btn-small" id="btn-add-frame" style="flex-shrink: 0;">+ Add Frame</button>
     </footer>
+
+    <!-- 4. Modal Sinh Chan Dung Bang AI LoRA -->
+    <div class="modal-backdrop" id="ai-modal" style="display: none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Sinh Chân Dung Stardew Valley (AI LoRA)</h3>
+          <button class="modal-close" id="btn-close-ai-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 2px; display: block;">
+            Mô tả nhân vật (Prompt):
+          </label>
+          <textarea id="ai-prompt-input" rows="3" class="modal-textarea" placeholder="Ví dụ: pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background</textarea>
+          
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Mẫu gợi ý nhanh:</div>
+          <div class="preset-tags" style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">Nam áo trắng</button>
+            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background">Nữ tóc tím</button>
+            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1boy, blonde hair, blue shirt, hat, looking at viewer, simple white background">Nam tóc vàng</button>
+            <button class="tag-btn" data-tag="pixel art, stardew portrait, old man, gray beard, glasses, brown vest, smiling, simple white background">Ông lão râu bạc</button>
+            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1girl, red hair, flower in hair, smile, simple white background">Nữ tóc đỏ</button>
+          </div>
+
+          <div id="ai-status-msg" style="margin-top: 10px; font-size: 12px; color: #a855f7; display: none;">
+            <span class="spinner"></span> <span id="ai-status-text">Đang kết nối mô hình LoRA...</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" id="btn-load-existing-ai" title="Nap anh 64x64 da sinh gan nhat vao canvas">Nạp Ảnh Vừa Vẽ (64x64)</button>
+          <button class="btn btn-ai" id="btn-run-ai-generate">Vẽ & Nạp Vào Canvas</button>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="./src/main.ts"></script>
   </body>

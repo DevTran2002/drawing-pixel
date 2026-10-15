@@ -5,6 +5,7 @@ import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
+import { loadPngToPixels, generateStardewPortrait } from './ai-helper';
 
 const PORT = 3055;
 const stateStore = new StateStore();
@@ -82,6 +83,83 @@ const server = http.createServer(async (req, res) => {
         const result = await stateStore.exportSpriteSheet(outputPath, scale || 1);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, result }));
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Nap anh PNG co san (vi du anh pixel LoRA da sinh) vao Canvas
+  if (url.pathname === '/api/ai/load' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = body ? JSON.parse(body) : {};
+        const imagePath = payload.imagePath || 'th_stardew_character_pixel_64x64.png';
+        const { width, height, pixels } = loadPngToPixels(imagePath);
+
+        // Khoi tao Canvas voi kich thuoc dung bang kich thuoc anh
+        stateStore.createCanvas(width, height, 'StardewPortrait');
+        stateStore.applyPixels(pixels);
+
+        // Dong bo toan bo Studio qua WebSocket
+        const syncPayload = {
+          type: 'PROJECT_SYNC',
+          project: stateStore.getProject()
+        };
+        broadcastToStudio(syncPayload as any);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          width,
+          height,
+          pixelCount: pixels.length,
+          project: stateStore.getProject()
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Yeu cau mo hinh LoRA sinh anh moi va tu dong nap vao Canvas
+  if (url.pathname === '/api/ai/generate' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { prompt, steps, size } = JSON.parse(body);
+        if (!prompt) {
+          throw new Error('Vui long cung cap cau lenh prompt');
+        }
+
+        const outputPath = await generateStardewPortrait(prompt, steps || 15, size || 64);
+        const { width, height, pixels } = loadPngToPixels(outputPath);
+
+        stateStore.createCanvas(width, height, 'StardewPortrait');
+        stateStore.applyPixels(pixels);
+
+        const syncPayload = {
+          type: 'PROJECT_SYNC',
+          project: stateStore.getProject()
+        };
+        broadcastToStudio(syncPayload as any);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          outputPath,
+          width,
+          height,
+          pixelCount: pixels.length,
+          project: stateStore.getProject()
+        }));
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
