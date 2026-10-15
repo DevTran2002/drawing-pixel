@@ -76,11 +76,52 @@ def th_remove_background_floodfill(image, tolerance=85):
     arr[bg_mask, 3] = 0
     return Image.fromarray(arr, "RGBA")
 
+# Ham loai bo cac diem anh nhieu, hat bui lo lung xung quanh nhan vat bang thuat toan Connected Components
+def th_remove_stray_pixels(image, min_component_size=25):
+    img = image.convert("RGBA")
+    arr = np.array(img)
+    h, w, _ = arr.shape
+
+    solid_mask = arr[:, :, 3] > 20
+    visited = np.zeros((h, w), dtype=bool)
+    components = []
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+
+    for y in range(h):
+        for x in range(w):
+            if solid_mask[y, x] and not visited[y, x]:
+                comp = []
+                queue = deque([(y, x)])
+                visited[y, x] = True
+                while queue:
+                    cy, cx = queue.popleft()
+                    comp.append((cy, cx))
+                    for dy, dx in directions:
+                        ny, nx = cy + dy, cx + dx
+                        if 0 <= ny < h and 0 <= nx < w and solid_mask[ny, nx] and not visited[ny, nx]:
+                            visited[ny, nx] = True
+                            queue.append((ny, nx))
+                components.append(comp)
+
+    if not components:
+        return image
+
+    # Tim khoi lien thong lon nhat (chinh la nhan vat)
+    largest_comp = max(components, key=len)
+    
+    # Loai bo tat ca cac khoi pixel nho hon nguong cho phep
+    for comp in components:
+        if comp is not largest_comp and len(comp) < min_component_size:
+            for y, x in comp:
+                arr[y, x, 3] = 0
+
+    return Image.fromarray(arr, "RGBA")
+
 # Ham sinh anh chan dung Stardew Valley
 def th_generate_portrait(
     lora_path="models/lora/th_stardew_portrait_lora.safetensors",
     prompt="pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background",
-    negative_prompt="blurry, photorealistic, 3d, realistic, smooth, detailed background, scenery, complex background",
+    negative_prompt="blurry, photorealistic, 3d, realistic, smooth, detailed background, scenery, complex background, dust, particles, speckles, noise, floating artifacts, textured background",
     output_prefix="storage/outputs/th_stardew_character",
     steps=25,
     guidance_scale=7.5,
@@ -139,18 +180,14 @@ def th_generate_portrait(
         (target_pixel_size, target_pixel_size),
         Image.Resampling.NEAREST,
     )
-    pixel_out = f"{output_prefix}_pixel_{target_pixel_size}x{target_pixel_size}.png"
-    pixel_img.save(pixel_out)
-    print(f"Da tao thanh cong anh Pixel Art chuan {target_pixel_size}x{target_pixel_size} nen trong suot: {pixel_out}")
 
-    # Ho tro tuong thich nguoc cho ca duong dan thu muc goc (d:\pixel_draw)
-    root_pixel_file = f"th_stardew_character_pixel_{target_pixel_size}x{target_pixel_size}.png"
-    if os.path.abspath(pixel_out) != os.path.abspath(root_pixel_file):
-        try:
-            import shutil
-            shutil.copyfile(pixel_out, root_pixel_file)
-        except Exception:
-            pass
+    # 4. Loc bo toan bo cac diem anh nhiễu / hat bui lo lung xung quanh nhan vat
+    print("Dang quet sach diem anh nhieu bang Connected Components...")
+    cleaned_pixel_img = th_remove_stray_pixels(pixel_img, min_component_size=25)
+
+    pixel_out = f"{output_prefix}_pixel_{target_pixel_size}x{target_pixel_size}.png"
+    cleaned_pixel_img.save(pixel_out)
+    print(f"Da tao thanh cong anh Pixel Art chuan {target_pixel_size}x{target_pixel_size} nen trong suot: {pixel_out}")
 
     return pixel_out
 
