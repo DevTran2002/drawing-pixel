@@ -1,5 +1,45 @@
 [
   {
+    "id": "item_1792074057477",
+    "filename": "ai_portrait_1792074057477.png",
+    "name": "AI Portrait #7477",
+    "createdAt": "2026-10-15T14:20:57.478Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, stardew portrait, old man, gray beard, glasses, brown vest, smiling, simple white background"
+  },
+  {
+    "id": "item_1792073811722",
+    "filename": "ai_portrait_1792073811722.png",
+    "name": "AI Portrait #1722",
+    "createdAt": "2026-10-15T14:16:51.725Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, stardew portrait, 1girl, red hair, flower in hair, smile, simple white background"
+  },
+  {
+    "id": "item_1792073578884",
+    "filename": "ai_portrait_1792073578884.png",
+    "name": "AI Portrait #8884",
+    "createdAt": "2026-10-15T14:12:58.886Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, stardew portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background"
+  },
+  {
+    "id": "item_1792073338749",
+    "filename": "ai_portrait_1792073338749.png",
+    "name": "AI Portrait #8749",
+    "createdAt": "2026-10-15T14:08:58.753Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background"
+  },
+  {
     "id": "item_stardew_sample",
     "filename": "ai_portrait_stardew_sample.png",
     "name": "Chân Dung Stardew Valley",

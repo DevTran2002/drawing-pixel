@@ -137,12 +137,12 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { prompt, steps, size } = JSON.parse(body);
+        const { prompt, steps, size, removeBg } = JSON.parse(body);
         if (!prompt) {
           throw new Error('Vui long cung cap cau lenh prompt');
         }
 
-        const outputPath = await generateStardewPortrait(prompt, steps || 15, size || 64);
+        const outputPath = await generateStardewPortrait(prompt, steps || 22, size || 64, !!removeBg);
         const { width, height, pixels } = loadPngToPixels(outputPath);
 
         stateStore.createCanvas(width, height, 'StardewPortrait');

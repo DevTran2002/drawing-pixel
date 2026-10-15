@@ -719,10 +719,13 @@ function initAiPortraitModal(): void {
       }
       if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = true;
 
+      const removeBgCheckbox = document.getElementById('ai-remove-bg-checkbox') as HTMLInputElement | null;
+      const removeBg = removeBgCheckbox ? removeBgCheckbox.checked : false;
+
       const res = await fetch('http://127.0.0.1:3055/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, steps: 15, size: 64 })
+        body: JSON.stringify({ prompt, steps: 22, size: 64, removeBg })
       });
       const data = await res.json();
       if (data.success) {

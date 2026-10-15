@@ -19,13 +19,13 @@ from PIL import Image
 import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 
-# Ham tach nen bang thuat toan lan truyen (Flood Fill) tu cac canh vien, loai bo triet de vien tim
-def th_remove_background_floodfill(image, tolerance=85):
+# Ham tach nen an toan: chi loai bo mau nen phia ngoai, khong xam pham vao co the nhan vat
+def th_remove_background_safe(image, tolerance=22):
     img = image.convert("RGBA")
     arr = np.array(img)
     h, w, _ = arr.shape
 
-    # Tinh mau nen chu dao tu 4 goc cua anh
+    # Lay mau nen tai 4 goc ngoai cung
     corner_colors = [
         arr[0, 0, :3].astype(float),
         arr[0, w - 1, :3].astype(float),
@@ -38,21 +38,22 @@ def th_remove_background_floodfill(image, tolerance=85):
     bg_mask = np.zeros((h, w), dtype=bool)
     queue = deque()
 
-    # Dua toan bo cac diem anh tren 4 duong vien vao hang doi
+    # Dua cac diem anh vien ngoai cung co mau giong nen vao hang doi
     for y in range(h):
         for x in [0, w - 1]:
-            queue.append((y, x))
-            visited[y, x] = True
-            bg_mask[y, x] = True
-
-    for x in range(w):
-        for y in [0, h - 1]:
-            if not visited[y, x]:
+            if np.linalg.norm(arr[y, x, :3].astype(float) - bg_color) <= tolerance:
                 queue.append((y, x))
                 visited[y, x] = True
                 bg_mask[y, x] = True
 
-    # Lan truyen theo 4 huong: tiep tuc an vao nen tim cho toi khi cham vien den cua nhan vat
+    for x in range(w):
+        for y in [0, h - 1]:
+            if not visited[y, x] and np.linalg.norm(arr[y, x, :3].astype(float) - bg_color) <= tolerance:
+                queue.append((y, x))
+                visited[y, x] = True
+                bg_mask[y, x] = True
+
+    # Lan truyen can than: dung ngay khi cham outline toi mau hoac mau lech khoi mau nen
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     while queue:
         cy, cx = queue.popleft()
@@ -61,72 +62,27 @@ def th_remove_background_floodfill(image, tolerance=85):
             if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx]:
                 visited[ny, nx] = True
                 pixel = arr[ny, nx, :3].astype(float)
-                
-                # Nhan dien vien tim lech mau
-                is_purple = (pixel[2] > pixel[1] + 18) and (pixel[0] > pixel[1] + 15)
                 diff = np.linalg.norm(pixel - bg_color)
-                # Duong vien ngoai toi mau cua nhan vat (outline)
-                is_dark_outline = (pixel[0] < 50 and pixel[1] < 30 and pixel[2] < 30)
+                is_dark_outline = (pixel[0] < 55 and pixel[1] < 45 and pixel[2] < 45)
 
-                if (diff <= tolerance or is_purple) and not is_dark_outline:
+                if diff <= tolerance and not is_dark_outline:
                     bg_mask[ny, nx] = True
                     queue.append((ny, nx))
 
-    # Bien toan bo pixel thuoc nen thanh trong suot (Alpha = 0)
     arr[bg_mask, 3] = 0
     return Image.fromarray(arr, "RGBA")
 
-# Ham loai bo cac diem anh nhieu, hat bui lo lung xung quanh nhan vat bang thuat toan Connected Components
-def th_remove_stray_pixels(image, min_component_size=25):
-    img = image.convert("RGBA")
-    arr = np.array(img)
-    h, w, _ = arr.shape
-
-    solid_mask = arr[:, :, 3] > 20
-    visited = np.zeros((h, w), dtype=bool)
-    components = []
-    directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
-
-    for y in range(h):
-        for x in range(w):
-            if solid_mask[y, x] and not visited[y, x]:
-                comp = []
-                queue = deque([(y, x)])
-                visited[y, x] = True
-                while queue:
-                    cy, cx = queue.popleft()
-                    comp.append((cy, cx))
-                    for dy, dx in directions:
-                        ny, nx = cy + dy, cx + dx
-                        if 0 <= ny < h and 0 <= nx < w and solid_mask[ny, nx] and not visited[ny, nx]:
-                            visited[ny, nx] = True
-                            queue.append((ny, nx))
-                components.append(comp)
-
-    if not components:
-        return image
-
-    # Tim khoi lien thong lon nhat (chinh la nhan vat)
-    largest_comp = max(components, key=len)
-    
-    # Loai bo tat ca cac khoi pixel nho hon nguong cho phep
-    for comp in components:
-        if comp is not largest_comp and len(comp) < min_component_size:
-            for y, x in comp:
-                arr[y, x, 3] = 0
-
-    return Image.fromarray(arr, "RGBA")
-
-# Ham sinh anh chan dung Stardew Valley
+# Ham sinh anh chan dung Stardew Valley chuan chat luong cao
 def th_generate_portrait(
     lora_path="models/lora/th_stardew_portrait_lora.safetensors",
-    prompt="pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background",
-    negative_prompt="blurry, photorealistic, 3d, realistic, smooth, detailed background, scenery, complex background, dust, particles, speckles, noise, floating artifacts, textured background",
+    prompt="stardew valley style, pixel art portrait, 1boy, brown hair, white shirt, smiling, looking at viewer",
+    negative_prompt="blurry, photorealistic, 3d, realistic, smooth, noisy, distorted, disfigured, malformed, bad anatomy, artifacts, floating particles",
     output_prefix="storage/outputs/th_stardew_character",
-    steps=25,
+    steps=22,
     guidance_scale=7.5,
     seed=None,
     target_pixel_size=64,
+    remove_bg=False,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if device == "cuda" else torch.float32
@@ -136,6 +92,13 @@ def th_generate_portrait(
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
+    # Bo sung trigger keywords chuan cua LoRA Stardew Valley neu chua co
+    enriched_prompt = prompt
+    if "stardew" not in prompt.lower():
+        enriched_prompt = f"stardew valley style, pixel art portrait, {prompt}"
+    if "clean cluster shading" not in prompt.lower():
+        enriched_prompt = f"{enriched_prompt}, clean cluster shading, organic outline"
+
     print(f"Khoi tao Stable Diffusion 1.5 tren {device.upper()}...")
     pipe = StableDiffusionPipeline.from_pretrained(
         "runwayml/stable-diffusion-v1-5",
@@ -143,7 +106,7 @@ def th_generate_portrait(
         safety_checker=None,
     ).to(device)
 
-    # Su dung DPMSolver de sinh anh sieu nhanh
+    # Su dung DPMSolver de sinh anh nhanh va chat luong cao
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
 
     print(f"Nap trong so LoRA tu {lora_path}...")
@@ -153,9 +116,9 @@ def th_generate_portrait(
     if seed is not None:
         generator = torch.Generator(device).manual_seed(seed)
 
-    print(f"Dang sinh anh voi prompt: '{prompt}'...")
+    print(f"Dang sinh anh voi prompt: '{enriched_prompt}' ({steps} steps)...")
     result = pipe(
-        prompt=prompt,
+        prompt=enriched_prompt,
         negative_prompt=negative_prompt,
         num_inference_steps=steps,
         guidance_scale=guidance_scale,
@@ -166,38 +129,38 @@ def th_generate_portrait(
     # 1. Luu ban anh goc 512x512
     raw_out = f"{output_prefix}_raw_512.png"
     raw_img.save(raw_out)
-    print(f"Da luu anh goc: {raw_out}")
+    print(f"Da luu anh goc 512x512: {raw_out}")
 
-    # 2. Xu ly nen trong suot bang Flood Fill
-    print("Dang tach nen trong suot bang thuat toan Flood Fill...")
-    transparent_img = th_remove_background_floodfill(raw_img, tolerance=35)
-    trans_out = f"{output_prefix}_transparent_512.png"
-    transparent_img.save(trans_out)
-    print(f"Da luu anh 512x512 nen trong suot: {trans_out}")
+    # 2. Xu ly tach nen neu duoc yeu cau
+    processed_img = raw_img
+    if remove_bg:
+        print("Dang tach nen an toan (Safe Flood-fill)...")
+        processed_img = th_remove_background_safe(raw_img, tolerance=22)
+        trans_out = f"{output_prefix}_transparent_512.png"
+        processed_img.save(trans_out)
+        print(f"Da luu anh 512x512 nen trong suot: {trans_out}")
 
-    # 3. Thu nho ve chuan Pixel Art 64x64 voi thuat toan Nearest Neighbor de giu nguyen khoi pixel
-    pixel_img = transparent_img.resize(
+    # 3. Thu nho ve chuan Pixel Art 64x64 bang thuat toan LANCZOS de giu nguyen ven net mat va co the
+    print(f"Thu nho ve {target_pixel_size}x{target_pixel_size} voi Lanczos downsampling chat luong cao...")
+    pixel_img = processed_img.resize(
         (target_pixel_size, target_pixel_size),
-        Image.Resampling.NEAREST,
+        Image.Resampling.LANCZOS,
     )
 
-    # 4. Loc bo toan bo cac diem anh nhiễu / hat bui lo lung xung quanh nhan vat
-    print("Dang quet sach diem anh nhieu bang Connected Components...")
-    cleaned_pixel_img = th_remove_stray_pixels(pixel_img, min_component_size=25)
-
     pixel_out = f"{output_prefix}_pixel_{target_pixel_size}x{target_pixel_size}.png"
-    cleaned_pixel_img.save(pixel_out)
-    print(f"Da tao thanh cong anh Pixel Art chuan {target_pixel_size}x{target_pixel_size} nen trong suot: {pixel_out}")
+    pixel_img.save(pixel_out)
+    print(f"Da tao thanh cong anh Pixel Art chuan {target_pixel_size}x{target_pixel_size}: {pixel_out}")
 
     return pixel_out
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sinh anh chan dung Stardew Valley bang LoRA")
     parser.add_argument("--lora", default="models/lora/th_stardew_portrait_lora.safetensors", help="Duong dan tep LoRA")
-    parser.add_argument("--prompt", default="pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background", help="Mo ta nhan vat")
-    parser.add_argument("--steps", type=int, default=20, help="So buoc lay mau (15-25 buoc)")
+    parser.add_argument("--prompt", default="stardew valley style, pixel art portrait, 1boy, brown hair, white shirt, smiling, looking at viewer", help="Mo ta nhan vat")
+    parser.add_argument("--steps", type=int, default=22, help="So buoc lay mau (20-25 buoc)")
     parser.add_argument("--size", type=int, default=64, help="Kich thuoc pixel art xuat ra")
     parser.add_argument("--output_prefix", default="storage/outputs/th_stardew_character", help="Tien to duong dan tep anh dau ra")
+    parser.add_argument("--remove_bg", action="store_true", help="Co tach nen trong suot hay khong")
     args = parser.parse_args()
 
     th_generate_portrait(
@@ -206,4 +169,5 @@ if __name__ == "__main__":
         steps=args.steps,
         target_pixel_size=args.size,
         output_prefix=args.output_prefix,
+        remove_bg=args.remove_bg,
     )

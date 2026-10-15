@@ -63,14 +63,37 @@ export function loadPngToPixels(imagePath: string): { width: number; height: num
   return { width: png.width, height: png.height, pixels };
 }
 
+// Ham xac dinh lenh chay uv tren Windows/Linux de tranh loi 'uv' is not recognized
+function th_get_uv_command(): string {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (localAppData) {
+    const storeUvPath = path.join(
+      localAppData,
+      'Packages',
+      'PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0',
+      'LocalCache',
+      'local-packages',
+      'Python310',
+      'Scripts',
+      'uv.exe'
+    );
+    if (fs.existsSync(storeUvPath)) {
+      return `"${storeUvPath}"`;
+    }
+  }
+  return 'python -m uv';
+}
+
 // Goi script Python de sinh anh chan dung moi bang mo hinh LoRA
-export function generateStardewPortrait(prompt: string, steps = 15, size = 64): Promise<string> {
+export function generateStardewPortrait(prompt: string, steps = 22, size = 64, removeBg = false): Promise<string> {
   return new Promise((resolve, reject) => {
     const projectRoot = getProjectRoot();
     const pythonScript = path.join(projectRoot, 'scripts', 'th_generate_stardew_portrait.py');
     const loraPath = path.join(projectRoot, 'models', 'lora', 'th_stardew_portrait_lora.safetensors');
     const safePrompt = prompt.replace(/"/g, '\\"');
-    const cmd = `uv run "${pythonScript}" --lora "${loraPath}" --prompt "${safePrompt}" --steps ${steps} --size ${size}`;
+    const uvCmd = th_get_uv_command();
+    const removeBgFlag = removeBg ? '--remove_bg' : '';
+    const cmd = `${uvCmd} run "${pythonScript}" --lora "${loraPath}" --prompt "${safePrompt}" --steps ${steps} --size ${size} ${removeBgFlag}`.trim();
 
     console.log(`[AI Engine] Dang chay lenh sinh chan dung LoRA: ${cmd}`);
     exec(cmd, { cwd: projectRoot }, (error, stdout, stderr) => {
