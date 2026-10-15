@@ -15,6 +15,9 @@ export class PreviewPlayer {
   private lastFrameTime = 0;
   private previewFrameIndex = 0;
 
+  // Callback thong bao frame hien tai thay doi
+  public onFrameChange?: (frameIndex: number) => void;
+
   constructor(
     canvas: HTMLCanvasElement,
     project: CanvasProject,
@@ -60,6 +63,10 @@ export class PreviewPlayer {
     return this.isPlaying;
   }
 
+  getCurrentPreviewFrameIndex(): number {
+    return this.previewFrameIndex;
+  }
+
   private loop = (): void => {
     if (!this.isPlaying) return;
 
@@ -72,13 +79,18 @@ export class PreviewPlayer {
       this.lastFrameTime = now;
       this.previewFrameIndex = this.controller.getNextFrameIndex(this.previewFrameIndex);
       this.renderFrame(this.previewFrameIndex);
+
+      if (this.onFrameChange) {
+        this.onFrameChange(this.previewFrameIndex);
+      }
     }
 
     this.animationFrameId = requestAnimationFrame(this.loop);
   };
 
   renderCurrent(): void {
-    this.renderFrame(this.project.activeFrameIndex);
+    this.previewFrameIndex = this.project.activeFrameIndex;
+    this.renderFrame(this.previewFrameIndex);
   }
 
   private renderFrame(frameIndex: number): void {
@@ -99,17 +111,15 @@ export class PreviewPlayer {
 
     for (const layer of frame.layers) {
       if (!layer.visible) continue;
-      ctx.globalAlpha = layer.opacity;
-
       for (const [key, color] of Object.entries(layer.pixels)) {
         if (!color) continue;
         const [xStr, yStr] = key.split(',');
         const px = parseInt(xStr, 10);
         const py = parseInt(yStr, 10);
+
         ctx.fillStyle = color;
         ctx.fillRect(offsetX + px * scale, offsetY + py * scale, scale, scale);
       }
     }
-    ctx.globalAlpha = 1.0;
   }
 }

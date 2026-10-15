@@ -2,13 +2,16 @@
 // WebSocket Bridge va Local Hub Service tai cong 3055
 
 import http from 'http';
+import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
 import { loadPngToPixels, generateStardewPortrait } from './ai-helper';
+import { GalleryManager } from './gallery-manager';
 
 const PORT = 3055;
 const stateStore = new StateStore();
+const galleryManager = new GalleryManager();
 const connectedClients = new Set<WebSocket>();
 
 // 1. Tao HTTP Server
@@ -145,6 +148,13 @@ const server = http.createServer(async (req, res) => {
         stateStore.createCanvas(width, height, 'StardewPortrait');
         stateStore.applyPixels(pixels);
 
+        // Tu dong luu vao kho anh Gallery
+        try {
+          galleryManager.saveAiGeneratedItem(outputPath, prompt, size || 64);
+        } catch (e) {
+          console.error('[Gallery] Loi khi tu dong luu anh AI vao kho:', e);
+        }
+
         const syncPayload = {
           type: 'PROJECT_SYNC',
           project: stateStore.getProject()
@@ -162,6 +172,88 @@ const server = http.createServer(async (req, res) => {
         }));
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Lay danh sach toan bo anh trong kho
+  if (url.pathname === '/api/gallery' && req.method === 'GET') {
+    const items = galleryManager.getAllItems();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, items }));
+    return;
+  }
+
+  // API Luu tac pham Canvas hien tai vao kho
+  if (url.pathname === '/api/gallery/save' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { name } = body ? JSON.parse(body) : {};
+        const item = await galleryManager.saveCanvasItem(stateStore.getProject(), name);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, item }));
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Nap mot anh tu kho len Canvas
+  if (url.pathname === '/api/gallery/load' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { filename } = JSON.parse(body);
+        if (!filename) throw new Error('Vui long cung cap ten anh can nap');
+
+        const filePath = galleryManager.getItemFilePath(filename);
+        const { width, height, pixels } = loadPngToPixels(filePath);
+
+        stateStore.createCanvas(width, height, path.parse(filename).name);
+        stateStore.applyPixels(pixels);
+
+        const syncPayload = {
+          type: 'PROJECT_SYNC',
+          project: stateStore.getProject()
+        };
+        broadcastToStudio(syncPayload as any);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          width,
+          height,
+          pixelCount: pixels.length,
+          project: stateStore.getProject()
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Xoa mot anh khoi kho
+  if (url.pathname === '/api/gallery/delete' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { id } = JSON.parse(body);
+        if (!id) throw new Error('Vui long truyen id anh can xoa');
+        const success = galleryManager.deleteItem(id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
     });

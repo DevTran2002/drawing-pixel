@@ -565,3 +565,196 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* 5. Icons & Buttons Enhancement */
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.tool-icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-bottom: 2px;
+}
+
+.tool-btn {
+  gap: 2px;
+}
+
+.btn-gallery {
+  background-color: #0d9488;
+  color: #ffffff;
+  border-color: #14b8a6;
+}
+
+.btn-gallery:hover {
+  background-color: #14b8a6;
+}
+
+.btn-save {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.btn-save:hover {
+  background-color: #3b82f6;
+}
+
+/* 6. Gallery Modal & Grid Styles */
+.modal-gallery {
+  width: 820px;
+  max-width: 95vw;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.gallery-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.gallery-card:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.gallery-thumb-container {
+  width: 100%;
+  height: 140px;
+  background-color: #16161c;
+  background-image: 
+    linear-gradient(45deg, #22222a 25%, transparent 25%), 
+    linear-gradient(-45deg, #22222a 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #22222a 75%), 
+    linear-gradient(-45deg, transparent 75%, #22222a 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.gallery-thumb-img {
+  max-width: 90%;
+  max-height: 90%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+}
+
+.gallery-card-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.badge-ai {
+  color: #c084fc;
+  border: 1px solid #9333ea;
+}
+
+.badge-custom {
+  color: #60a5fa;
+  border: 1px solid #2563eb;
+}
+
+.gallery-card-info {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gallery-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-card-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.gallery-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.gallery-card-actions button {
+  flex: 1;
+  font-size: 11px;
+  padding: 4px 6px;
+  justify-content: center;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+/* Timeline Frame Enhancements */
+.frame-card {
+  position: relative;
+}
+
+.frame-card .frame-del-btn {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  background-color: #ef4444;
+  color: #ffffff;
+  border-radius: 50%;
+  font-size: 9px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+}
+
+.frame-card:hover .frame-del-btn {
+  display: flex;
+}
+
