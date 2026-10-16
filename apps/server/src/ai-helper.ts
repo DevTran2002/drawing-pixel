@@ -84,6 +84,7 @@ export interface AiGenerateOptions {
   size?: number;
   resample?: 'NEAREST' | 'LANCZOS';
   removeBg?: boolean;
+  seed?: number;
   onProgress?: AiProgressCallback;
 }
 
@@ -107,7 +108,7 @@ export function generatePixelArt(
   progressCallbackOrLegacySteps?: AiProgressCallback | number,
   legacySize = 64,
   legacyRemoveBg = false
-): Promise<string> {
+): Promise<{ outputPath: string; seed?: number }> {
   return new Promise((resolve, reject) => {
     const projectRoot = getProjectRoot();
     const pythonScript = path.join(projectRoot, 'scripts', 'generate_pixel_art.py');
@@ -121,6 +122,7 @@ export function generatePixelArt(
     let size = 64;
     let resample = 'NEAREST';
     let removeBg = false;
+    let seed: number | undefined = undefined;
     let onProgress: AiProgressCallback | undefined = undefined;
 
     if (typeof progressCallbackOrLegacySteps === 'function') {
@@ -145,6 +147,7 @@ export function generatePixelArt(
       if (opts.size !== undefined) size = opts.size;
       if (opts.resample !== undefined) resample = opts.resample;
       if (opts.removeBg !== undefined) removeBg = opts.removeBg;
+      if (opts.seed !== undefined) seed = opts.seed;
       if (opts.onProgress) onProgress = opts.onProgress;
     }
 
@@ -165,6 +168,9 @@ export function generatePixelArt(
     ];
     if (removeBg) {
       args.push('--remove_bg');
+    }
+    if (seed !== undefined && seed > 0) {
+      args.push('--seed', `${seed}`);
     }
 
     console.log(`[AI Engine] Dang chay script Python voi spawn: ${pythonExe} ${args.join(' ')}`);
@@ -213,6 +219,14 @@ export function generatePixelArt(
         const parts = trimmed.split(':');
         const stage = (parts[1] || 'processing').toLowerCase();
         const message = parts.slice(2).join(':');
+
+        if (stage === 'seed') {
+          const match = message.match(/(\d+)/);
+          if (match) {
+            seed = parseInt(match[1], 10);
+          }
+        }
+
         onProgress?.({
           stage,
           message
@@ -286,7 +300,211 @@ export function generatePixelArt(
       });
 
       const outputPath = `${outputPrefix}_pixel_${size}x${size}.png`;
-      resolve(outputPath);
+      resolve({ outputPath, seed });
     });
   });
 }
+
+export interface AiAnimationOptions {
+  basePrompt: string;
+  action: string;
+  frameCount: number;
+  seed?: number;
+  checkpoint?: string;
+  loraPath?: string;
+  loraScale?: number;
+  steps?: number;
+  size?: number;
+  resample?: 'NEAREST' | 'LANCZOS';
+  removeBg?: boolean;
+  onProgress?: AiProgressCallback;
+}
+
+export interface AnimationFrameResult {
+  frameIndex: number;
+  width: number;
+  height: number;
+  pixels: PixelPoint[];
+  filename: string;
+  imagePath: string;
+}
+
+export interface AiAnimationResult {
+  frameCount: number;
+  action: string;
+  frames: AnimationFrameResult[];
+  metaPath: string;
+}
+
+// Sinh chuoi hoat anh SpriteSheet dong bo va cat thanh cac frames
+export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAnimationResult> {
+  return new Promise((resolve, reject) => {
+    const projectRoot = getProjectRoot();
+    const pythonScript = path.join(projectRoot, 'scripts', 'generate_pixel_art.py');
+    const pythonExe = getPythonCommand();
+
+    const basePrompt = opts.basePrompt || '16-bit rpg hero, warrior';
+    const action = opts.action || 'walk';
+    const frameCount = opts.frameCount || 4;
+    const checkpoint = opts.checkpoint ? (path.isAbsolute(opts.checkpoint) ? opts.checkpoint : path.join(projectRoot, opts.checkpoint)) : path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
+    // Uu tien dung LoRA Pixel F2 cho Sprite hoat anh
+    const loraPath = opts.loraPath ? (path.isAbsolute(opts.loraPath) ? opts.loraPath : path.join(projectRoot, opts.loraPath)) : path.join(projectRoot, 'models', 'lora', 'pixel_f2.safetensors');
+    const loraScale = opts.loraScale !== undefined ? opts.loraScale : 0.65;
+    const steps = opts.steps || 18;
+    const size = opts.size || 64;
+    const resample = opts.resample || 'NEAREST';
+    const removeBg = opts.removeBg ?? true;
+    const onProgress = opts.onProgress;
+
+    const timestamp = Date.now();
+    const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `ai_anim_${timestamp}`);
+
+    const args = [
+      '-u',
+      pythonScript,
+      '--checkpoint', checkpoint,
+      '--lora', loraPath,
+      '--prompt', basePrompt,
+      '--steps', `${steps}`,
+      '--lora_scale', `${loraScale}`,
+      '--size', `${size}`,
+      '--resample', resample,
+      '--output_prefix', outputPrefix,
+      '--animation_mode',
+      '--frame_count', `${frameCount}`,
+      '--action', action
+    ];
+
+    if (removeBg) {
+      args.push('--remove_bg');
+    }
+    if (opts.seed !== undefined && opts.seed > 0) {
+      args.push('--seed', `${opts.seed}`);
+    }
+
+    console.log(`[AI Animation] Dang chay script tao chuoi hoat anh: ${pythonExe} ${args.join(' ')}`);
+
+    onProgress?.({
+      stage: 'init',
+      step: 0,
+      totalSteps: steps,
+      percent: 0,
+      elapsed: 0,
+      eta: 0,
+      message: `Đang khởi tạo chu kỳ ${action} (${frameCount} frames)...`
+    });
+
+    const child = spawn(pythonExe, args, { cwd: projectRoot });
+
+    let stdoutData = '';
+    let stderrData = '';
+    let metaPathResult = '';
+
+    const handleLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      if (trimmed.startsWith('AI_STEP:')) {
+        const parts = trimmed.split(':');
+        if (parts.length >= 6) {
+          const step = parseInt(parts[1], 10);
+          const totalSteps = parseInt(parts[2], 10);
+          const percent = parseInt(parts[3], 10);
+          const elapsed = parseFloat(parts[4]);
+          const eta = parseFloat(parts[5]);
+          onProgress?.({
+            stage: 'denoising',
+            step,
+            totalSteps,
+            percent,
+            elapsed,
+            eta,
+            message: `Đang tạo SpriteSheet: Bước ${step}/${totalSteps} (${percent}%)`
+          });
+        }
+      } else if (trimmed.startsWith('AI_STAGE:SLICE:')) {
+        onProgress?.({
+          stage: 'slicing',
+          percent: 92,
+          message: `Đang tự động bóc tách ${frameCount} khung hình chuyển động...`
+        });
+      } else if (trimmed.startsWith('AI_ANIM_RESULT:')) {
+        metaPathResult = trimmed.replace('AI_ANIM_RESULT:', '').trim();
+      }
+    };
+
+    let stdoutBuffer = '';
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdoutData += text;
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() || '';
+      for (const l of lines) handleLine(l);
+    });
+
+    let stderrBuffer = '';
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderrData += text;
+      stderrBuffer += text;
+      const lines = stderrBuffer.split(/[\r\n]+/);
+      stderrBuffer = lines.pop() || '';
+      for (const l of lines) handleLine(l);
+    });
+
+    child.on('error', (err) => {
+      console.error('[AI Animation] Loi spawn tien trinh Python:', err);
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      if (stdoutBuffer) handleLine(stdoutBuffer);
+      if (stderrBuffer) handleLine(stderrBuffer);
+
+      if (code !== 0) {
+        console.error(`[AI Animation] Tien trinh thoat voi ma loi ${code}:`, stderrData || stdoutData);
+        return reject(new Error(stderrData || stdoutData || `Tiến trình Python thoát với mã lỗi ${code}`));
+      }
+
+      const metaPath = metaPathResult || `${outputPrefix}_anim_meta.json`;
+      if (!fs.existsSync(metaPath)) {
+        return reject(new Error(`Không tìm thấy file metadata hoạt ảnh tại: ${metaPath}`));
+      }
+
+      try {
+        const metaContent = fs.readFileSync(metaPath, 'utf-8');
+        const meta = JSON.parse(metaContent);
+        const frameFiles: string[] = meta.frameFiles || [];
+
+        const frames: AnimationFrameResult[] = frameFiles.map((fPath, idx) => {
+          const loaded = loadPngToPixels(fPath);
+          return {
+            frameIndex: idx,
+            width: loaded.width,
+            height: loaded.height,
+            pixels: loaded.pixels,
+            filename: path.basename(fPath),
+            imagePath: fPath
+          };
+        });
+
+        onProgress?.({
+          stage: 'completed',
+          percent: 100,
+          message: `Hoàn tất tạo ${frames.length} frames hoạt cảnh!`
+        });
+
+        resolve({
+          frameCount: frames.length,
+          action,
+          frames,
+          metaPath
+        });
+      } catch (err: any) {
+        reject(new Error(`Lỗi đọc dữ liệu frames hoạt cảnh: ${err.message}`));
+      }
+    });
+  });
+}
+

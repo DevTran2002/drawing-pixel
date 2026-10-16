@@ -1,5 +1,14 @@
 [
   {
+    "id": "item_1792141253344",
+    "filename": "artwork_1792141253344.png",
+    "name": "AI Pixel (128x128)",
+    "createdAt": "2026-10-16T09:00:53.361Z",
+    "width": 128,
+    "height": 128,
+    "sourceType": "custom"
+  },
+  {
     "id": "item_1792140867697",
     "filename": "ai_portrait_1792140867697.png",
     "name": "AI Portrait #7697",

@@ -6,7 +6,7 @@ import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
-import { loadPngToPixels, generatePixelArt } from './ai-helper';
+import { loadPngToPixels, generatePixelArt, generateSpriteAnimation } from './ai-helper';
 import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
 
@@ -179,14 +179,15 @@ const server = http.createServer(async (req, res) => {
           size,
           resample,
           removeBg,
-          mode
+          mode,
+          seed
         } = payload;
 
         if (!prompt) {
           throw new Error('Vui long cung cap cau lenh prompt');
         }
 
-        const outputPath = await generatePixelArt({
+        const { outputPath, seed: resolvedSeed } = await generatePixelArt({
           prompt,
           checkpoint: checkpoint || 'models/checkpoints/AOM3A1B_orangemixs.safetensors',
           loraPath: loraPath || 'models/lora/pixel_portrait_lora.safetensors',
@@ -195,6 +196,7 @@ const server = http.createServer(async (req, res) => {
           size: size || 64,
           resample: resample || 'NEAREST',
           removeBg: !!removeBg,
+          seed: seed !== undefined ? parseInt(seed, 10) : undefined,
           onProgress: (progress) => {
             // Phat song tien trinh thoi gian thuc ve cac tab Studio dang mo
             broadcastToStudio({
@@ -207,7 +209,9 @@ const server = http.createServer(async (req, res) => {
         const { width, height, pixels } = loadPngToPixels(outputPath);
 
         // Che do them vao Layer moi hoac tao Canvas moi
-        if (mode === 'replace_canvas') {
+        if (mode === 'preview_only') {
+          // Che do chi xem truoc (khong sua Canvas chinh)
+        } else if (mode === 'replace_canvas') {
           stateStore.createCanvas(width, height, `AI Pixel (${size || 64}x${size || 64})`);
           stateStore.applyPixels(pixels);
         } else if (mode === 'new_layer_keep') {
@@ -218,18 +222,20 @@ const server = http.createServer(async (req, res) => {
           stateStore.addAiLayer(pixels, width, height, `AI Pixel (${size || 64}x${size || 64})`, true);
         }
 
-        // Tu dong luu vao kho anh Gallery
-        try {
-          galleryManager.saveAiGeneratedItem(outputPath, prompt, size || 64);
-        } catch (e) {
-          console.error('[Gallery] Loi khi tu dong luu anh AI vao kho:', e);
-        }
+        // Tu dong luu vao kho anh Gallery neu khong phai preview_only
+        if (mode !== 'preview_only') {
+          try {
+            galleryManager.saveAiGeneratedItem(outputPath, prompt, size || 64);
+          } catch (e) {
+            console.error('[Gallery] Loi khi tu dong luu anh AI vao kho:', e);
+          }
 
-        const syncPayload = {
-          type: 'PROJECT_SYNC',
-          project: stateStore.getProject()
-        };
-        broadcastToStudio(syncPayload as any);
+          const syncPayload = {
+            type: 'PROJECT_SYNC',
+            project: stateStore.getProject()
+          };
+          broadcastToStudio(syncPayload as any);
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -238,7 +244,64 @@ const server = http.createServer(async (req, res) => {
           width,
           height,
           pixelCount: pixels.length,
+          seed: resolvedSeed,
           project: stateStore.getProject()
+        }));
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Sinh chuoi hoat anh SpriteSheet dong bo va tra ve cac Frame con
+  if (url.pathname === '/api/ai/generate-animation' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(body);
+        const {
+          basePrompt,
+          action,
+          frameCount,
+          seed,
+          checkpoint,
+          loraPath,
+          loraScale,
+          steps,
+          size,
+          removeBg
+        } = payload;
+
+        const onProgress = (progress: any) => {
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            ...progress
+          } as any);
+        };
+
+        const animResult = await generateSpriteAnimation({
+          basePrompt,
+          action: action || 'walk',
+          frameCount: frameCount || 4,
+          seed: seed ? parseInt(seed, 10) : undefined,
+          checkpoint,
+          loraPath,
+          loraScale: loraScale !== undefined ? parseFloat(loraScale) : 0.65,
+          steps: steps ? parseInt(steps, 10) : 18,
+          size: size ? parseInt(size, 10) : 64,
+          removeBg: removeBg ?? true,
+          onProgress
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          action: animResult.action,
+          frameCount: animResult.frameCount,
+          frames: animResult.frames
         }));
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });

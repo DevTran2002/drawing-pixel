@@ -199,6 +199,30 @@ export const TAG_CATEGORIES: TagCategory[] = [
     ]
   },
   {
+    id: 'actions_and_poses',
+    name: 'Hành động & Tư thế',
+    tags: [
+      'walking',
+      'running',
+      'jumping',
+      'standing',
+      'attacking',
+      'slashing',
+      'swinging sword',
+      'aiming bow',
+      'casting spell',
+      'holding shield',
+      'sitting',
+      'sitting on ground',
+      'kneeling',
+      'crouching',
+      'lying down',
+      'sleeping',
+      'defeated',
+      'hurt'
+    ]
+  },
+  {
     id: 'backgrounds',
     name: 'Bối cảnh nền',
     tags: [

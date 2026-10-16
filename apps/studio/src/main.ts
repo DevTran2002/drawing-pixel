@@ -9,7 +9,10 @@ import {
   coordToKey,
   McpDrawPayload,
   LayerData,
-  LayerGroup
+  LayerGroup,
+  FrameData,
+  AnimationClip,
+  PixelPoint
 } from '@pixel-draw/shared-types';
 import { CanvasEngine } from './core/canvas-engine';
 import { HistoryManager, PixelChange } from './core/history-manager';
@@ -1997,6 +2000,357 @@ function initAiPixelModal(): void {
     } finally {
       clearInterval(localTimer);
       if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = false;
+    }
+  });
+
+  // ========================================================
+  // BỘ ĐIỀU KHIỂN TẠO HOẠT ẢNH SPRITE (SPRITE ANIMATOR 2 BƯỚC)
+  // ========================================================
+
+  // 1. Chuyen doi Tab giua Anh Tinh va Hoat Anh Sprite
+  const tabBtnStatic = document.getElementById('tab-btn-static');
+  const tabBtnAnimator = document.getElementById('tab-btn-animator');
+  const tabContentStatic = document.getElementById('ai-tab-static');
+  const tabContentAnimator = document.getElementById('ai-tab-animator');
+  const btnRunAiAnimGenerate = document.getElementById('btn-run-ai-anim-generate');
+
+  tabBtnStatic?.addEventListener('click', () => {
+    tabBtnStatic.classList.add('active');
+    tabBtnAnimator?.classList.remove('active');
+    if (tabContentStatic) tabContentStatic.style.display = 'block';
+    if (tabContentAnimator) tabContentAnimator.style.display = 'none';
+    if (btnGenerate) btnGenerate.style.display = 'inline-flex';
+    if (btnLoad) btnLoad.style.display = 'inline-flex';
+    if (btnRunAiAnimGenerate) btnRunAiAnimGenerate.style.display = 'none';
+  });
+
+  tabBtnAnimator?.addEventListener('click', () => {
+    tabBtnAnimator.classList.add('active');
+    tabBtnStatic?.classList.remove('active');
+    if (tabContentAnimator) tabContentAnimator.style.display = 'block';
+    if (tabContentStatic) tabContentStatic.style.display = 'none';
+    if (btnGenerate) btnGenerate.style.display = 'none';
+    if (btnLoad) btnLoad.style.display = 'none';
+    if (btnRunAiAnimGenerate) btnRunAiAnimGenerate.style.display = 'inline-flex';
+  });
+
+  // 2. Trang thai cua Nhan Vat Mau (Base Character)
+  interface BaseCharacterState {
+    prompt: string;
+    seed: number | null;
+    locked: boolean;
+    pixels: PixelPoint[] | null;
+    width: number;
+    height: number;
+  }
+
+  const baseCharState: BaseCharacterState = {
+    prompt: '',
+    seed: null,
+    locked: false,
+    pixels: null,
+    width: 64,
+    height: 64
+  };
+
+  let activeAction = 'walk';
+  let activeFrameCount = 4;
+
+  // Helper chuyen mang PixelPoint thanh DataURL de xem truoc
+  const renderPixelsToDataUrl = (pixels: PixelPoint[], w: number, h: number): string => {
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = w;
+    offCanvas.height = h;
+    const ctx = offCanvas.getContext('2d');
+    if (!ctx) return '';
+    for (const p of pixels) {
+      if (!p.color) continue;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 1, 1);
+    }
+    return offCanvas.toDataURL('image/png');
+  };
+
+  // 3. Buoc 1: Ve mau nhan vat ban dau (Base Pose)
+  const btnAnimDrawBase = document.getElementById('btn-anim-draw-base');
+  const btnAnimLockBase = document.getElementById('btn-anim-lock-base') as HTMLButtonElement | null;
+  const animBaseImg = document.getElementById('anim-base-preview-img') as HTMLImageElement | null;
+  const animBasePlaceholder = document.getElementById('anim-base-empty-placeholder');
+  const animBaseBadge = document.getElementById('anim-base-status-badge');
+  const animBaseSeedText = document.getElementById('anim-base-seed-text');
+
+  btnAnimDrawBase?.addEventListener('click', async () => {
+    let basePrompt = promptInput?.value.trim() || '';
+    if (!basePrompt) {
+      basePrompt = 'pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, standing, simple background';
+      if (promptInput) promptInput.value = basePrompt;
+      syncTagChips();
+    } else {
+      if (!basePrompt.toLowerCase().includes('standing')) {
+        basePrompt += ', standing';
+      }
+      if (!basePrompt.toLowerCase().includes('full body')) {
+        basePrompt += ', full body';
+      }
+    }
+
+    const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
+    const loraPath = loraSelect ? loraSelect.value : 'models/lora/pixel_f2.safetensors';
+    const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.65;
+    const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
+    const size = 64;
+
+    const barFill = document.getElementById('ai-progress-bar-fill');
+    const stepsBadge = document.getElementById('ai-steps-badge');
+    const timeElapsed = document.getElementById('ai-time-elapsed');
+    const percentText = document.getElementById('ai-percent-text');
+    const timeEta = document.getElementById('ai-time-eta');
+
+    if (statusMsg) statusMsg.style.display = 'block';
+    if (statusText) statusText.innerText = 'Đang vẽ tư thế mẫu nhân vật...';
+    if (barFill) barFill.style.width = '0%';
+    if (percentText) percentText.innerText = '0%';
+    if (stepsBadge) stepsBadge.innerText = `0 / ${steps} steps`;
+    if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
+    if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
+    if (btnAnimDrawBase) (btnAnimDrawBase as HTMLButtonElement).disabled = true;
+
+    const startTime = Date.now();
+    const baseTimer = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      if (timeElapsed) timeElapsed.innerText = `Đã chạy: ${formatTimeSec(sec)}`;
+    }, 1000);
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: basePrompt,
+          checkpoint,
+          loraPath,
+          loraScale,
+          steps,
+          size,
+          mode: 'preview_only',
+          removeBg: true
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Không thể tạo ảnh mẫu');
+      }
+
+      baseCharState.prompt = basePrompt;
+      baseCharState.seed = data.seed || null;
+      baseCharState.pixels = data.pixels || null;
+      baseCharState.width = data.width || 64;
+      baseCharState.height = data.height || 64;
+      baseCharState.locked = false;
+
+      // Hien thi anh mau
+      if (animBaseImg && data.pixels) {
+        animBaseImg.src = renderPixelsToDataUrl(data.pixels, data.width || 64, data.height || 64);
+        animBaseImg.style.display = 'block';
+      }
+      if (animBasePlaceholder) animBasePlaceholder.style.display = 'none';
+
+      // Cap nhat badge va seed
+      if (animBaseSeedText) animBaseSeedText.innerText = `Seed: #${data.seed || 'Ngẫu nhiên'}`;
+      if (animBaseBadge) {
+        animBaseBadge.innerText = 'Chưa chốt mẫu (Xem trước)';
+        animBaseBadge.style.color = '#f59e0b';
+        animBaseBadge.style.borderColor = '#d97706';
+      }
+      if (btnAnimLockBase) {
+        btnAnimLockBase.disabled = false;
+        btnAnimLockBase.innerText = 'Chốt Mẫu Này';
+      }
+
+    } catch (err: any) {
+      alert('Lỗi tạo nhân vật mẫu: ' + err.message);
+    } finally {
+      clearInterval(baseTimer);
+      if (btnAnimDrawBase) (btnAnimDrawBase as HTMLButtonElement).disabled = false;
+      if (statusMsg) statusMsg.style.display = 'none';
+    }
+  });
+
+  // Chot mau nhan vat de khoa Seed va Prompt
+  btnAnimLockBase?.addEventListener('click', () => {
+    if (!baseCharState.seed) return;
+    baseCharState.locked = true;
+
+    if (animBaseBadge) {
+      animBaseBadge.innerText = `Đã chốt mẫu #${baseCharState.seed}`;
+      animBaseBadge.style.color = '#4ade80';
+      animBaseBadge.style.borderColor = '#22c55e';
+    }
+    btnAnimLockBase.disabled = true;
+    btnAnimLockBase.innerText = 'Đã chốt mẫu';
+  });
+
+  // 4. Buoc 2: Chon hanh dong va so khung hinh
+  const actionCards = document.querySelectorAll('.anim-action-card');
+  const frameBtns = document.querySelectorAll('.anim-frame-btn');
+
+  actionCards.forEach(card => {
+    card.addEventListener('click', () => {
+      actionCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      activeAction = card.getAttribute('data-action') || 'walk';
+
+      // Goi y so frame tuong ung voi hanh dong
+      const suggestedFrames = parseInt(card.getAttribute('data-frames') || '4', 10);
+      activeFrameCount = suggestedFrames;
+
+      frameBtns.forEach(btn => {
+        const f = parseInt(btn.getAttribute('data-frames') || '4', 10);
+        btn.classList.toggle('active', f === suggestedFrames);
+      });
+    });
+  });
+
+  frameBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      frameBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFrameCount = parseInt(btn.getAttribute('data-frames') || '4', 10);
+    });
+  });
+
+  // 5. Nut Tao Sprite Hoat Anh va nap vao Timeline
+  btnRunAiAnimGenerate?.addEventListener('click', async () => {
+    if (!baseCharState.seed) {
+      alert('Vui lòng tạo mẫu nhân vật ở Bước 1 trước khi sinh hoạt ảnh!');
+      return;
+    }
+
+    const basePrompt = baseCharState.prompt || promptInput?.value.trim() || 'pixel art, 16-bit rpg hero, warrior knight, golden armor';
+    const animSize = parseInt((document.getElementById('anim-frame-size-select') as HTMLSelectElement)?.value || '64', 10);
+    const removeBg = (document.getElementById('anim-remove-bg-checkbox') as HTMLInputElement)?.checked ?? true;
+
+    const barFill = document.getElementById('ai-progress-bar-fill');
+    const stepsBadge = document.getElementById('ai-steps-badge');
+    const timeElapsed = document.getElementById('ai-time-elapsed');
+    const percentText = document.getElementById('ai-percent-text');
+    const timeEta = document.getElementById('ai-time-eta');
+
+    if (statusMsg) statusMsg.style.display = 'block';
+    if (statusText) statusText.innerText = `Đang tạo chuỗi ${activeFrameCount} frames cho hành động "${activeAction}"...`;
+    if (barFill) barFill.style.width = '0%';
+    if (percentText) percentText.innerText = '0%';
+    if (stepsBadge) stepsBadge.innerText = `0 / 18 steps`;
+    if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
+    if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
+    if (btnRunAiAnimGenerate) (btnRunAiAnimGenerate as HTMLButtonElement).disabled = true;
+
+    const startTime = Date.now();
+    const animTimer = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      if (timeElapsed) timeElapsed.innerText = `Đã chạy: ${formatTimeSec(sec)}`;
+    }, 1000);
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/ai/generate-animation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          basePrompt,
+          action: activeAction,
+          frameCount: activeFrameCount,
+          seed: baseCharState.seed,
+          size: animSize,
+          removeBg
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.frames)) {
+        throw new Error(data.error || 'Không thể tạo hoạt ảnh');
+      }
+
+      // Xoa cac frame cu va nap toan bo N frame con vao project.frames
+      project.width = animSize;
+      project.height = animSize;
+      project.frames = [];
+
+      data.frames.forEach((frameObj: any, idx: number) => {
+        const layerId = `layer_f${idx + 1}_${Date.now()}`;
+        const pixelsRecord: Record<string, PixelColor> = {};
+
+        if (Array.isArray(frameObj.pixels)) {
+          for (const p of frameObj.pixels) {
+            if (p.color) {
+              pixelsRecord[coordToKey(p.x, p.y)] = p.color;
+            }
+          }
+        }
+
+        const frameData: FrameData = {
+          id: `frame_${idx + 1}_${Date.now()}`,
+          durationMs: 120,
+          layers: [
+            {
+              id: layerId,
+              name: `Layer 1`,
+              visible: true,
+              locked: false,
+              opacity: 1.0,
+              pixels: pixelsRecord
+            }
+          ]
+        };
+        project.frames.push(frameData);
+      });
+
+      project.activeFrameIndex = 0;
+      project.activeLayerId = project.frames[0]?.layers[0]?.id || 'layer_1';
+
+      // Tao Clip hoat anh moi
+      const clipId = `clip_${activeAction}_${Date.now()}`;
+      const newClip: AnimationClip = {
+        id: clipId,
+        name: `${activeAction.toUpperCase()}`,
+        startFrame: 0,
+        endFrame: data.frames.length - 1,
+        fps: activeAction === 'sit' || activeAction === 'defeated' ? 4 : 8,
+        loop: true
+      };
+      project.clips = [newClip];
+      animController.setActiveClip(clipId);
+
+      // Dong bo kich thuoc len UI
+      const sizeBadge = document.getElementById('canvas-size-badge');
+      if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+      const resLabel = document.getElementById('canvas-resolution');
+      if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+      // Cap nhat bo dem va ve lai giao dien
+      canvasEngine.rebuildBuffers();
+      canvasEngine.centerViewport();
+      onionSkinRenderer.resize(project.width, project.height);
+      renderAll();
+
+      // Dong bo len may chu Bridge
+      syncProjectToServer();
+
+      // Tu dong khoi chay trinh phat Preview Player de nguoi dung thay hoat anh lap tuc
+      previewPlayer.play();
+      updatePlayUi(true);
+
+      // Dong modal sau khi hoan tat
+      setTimeout(() => {
+        modal.style.display = 'none';
+      }, 500);
+
+    } catch (err: any) {
+      alert('Lỗi tạo hoạt ảnh Sprite: ' + err.message);
+    } finally {
+      clearInterval(animTimer);
+      if (btnRunAiAnimGenerate) (btnRunAiAnimGenerate as HTMLButtonElement).disabled = false;
+      if (statusMsg) statusMsg.style.display = 'none';
     }
   });
 }

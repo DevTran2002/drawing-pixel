@@ -74,7 +74,6 @@ def remove_background_safe(image, tolerance=22):
     arr[bg_mask, 3] = 0
     return Image.fromarray(arr, "RGBA")
 
-# Ham sinh anh Pixel Art da nang chat luong cao
 def generate_pixel_art(
     lora_path="models/lora/pixel_portrait_lora.safetensors",
     checkpoint="models/checkpoints/AOM3A1B_orangemixs.safetensors",
@@ -88,6 +87,9 @@ def generate_pixel_art(
     target_pixel_size=64,
     resample_method="NEAREST",
     remove_bg=False,
+    animation_mode=False,
+    frame_count=4,
+    action="walk",
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if device == "cuda" else torch.float32
@@ -102,21 +104,29 @@ def generate_pixel_art(
     if not any("pixel" in t.lower() for t in tags):
         tags.insert(0, "pixel art")
 
+    # Neu o che do sinh hoat anh SpriteSheet, bo sung cac tag dan huong chuyen dong
+    if animation_mode:
+        action_clean = action.lower().strip()
+        tags.insert(1, "(character sprite sheet:1.3)")
+        tags.insert(2, f"({action_clean} animation:1.2)")
+        tags.insert(3, f"{frame_count} frames sequence")
+        tags.insert(4, "full body")
+
     # Phan loai va dua tag boi canh len dau ngay sau trigger pixel art
     bg_keywords = ["background", "white background", "simple background", "flat background", "transparent background"]
     bg_tags = [t for t in tags if any(k in t.lower() for k in bg_keywords)]
     other_tags = [t for t in tags if not any(k in t.lower() for k in bg_keywords)]
 
     # Xep lai: [pixel art triggers, boi canh uu tien nhat, cac tag con lai]
-    trigger_tags = [t for t in other_tags if "pixel" in t.lower() or "portrait" in t.lower() or "chibi" in t.lower()]
+    trigger_tags = [t for t in other_tags if "pixel" in t.lower() or "portrait" in t.lower() or "chibi" in t.lower() or "sprite" in t.lower()]
     detail_tags = [t for t in other_tags if t not in trigger_tags]
 
     sorted_tags = trigger_tags + bg_tags + detail_tags
     enriched_prompt = ", ".join(sorted_tags)
 
-    # Neu co yeu cau nen don gian, bo sung tu khoa loai tru cay coi, dao bay, moc da vao negative prompt
+    # Neu co yeu cau nen don gian hoac animation mode, loai bo cay coi dao bay moc da
     has_simple_bg = any("simple" in t.lower() or "white" in t.lower() or "flat" in t.lower() for t in bg_tags)
-    if has_simple_bg and "tree" not in negative_prompt.lower():
+    if (has_simple_bg or animation_mode) and "tree" not in negative_prompt.lower():
         negative_prompt = f"{negative_prompt}, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds"
 
     # Uu tien su dung Checkpoint cuc bo neu ton tai
@@ -141,9 +151,10 @@ def generate_pixel_art(
     print(f"AI_STAGE:LORA:Nap trong so LoRA tu {os.path.basename(lora_path)} (do manh {lora_scale})...", flush=True)
     pipe.load_lora_weights(lora_path)
 
-    generator = None
-    if seed is not None:
-        generator = torch.Generator(device).manual_seed(seed)
+    if seed is None or seed <= 0:
+        seed = int(torch.randint(1, 2147483647, (1,)).item())
+    print(f"AI_STAGE:SEED:Seed duoc chon: {seed}", flush=True)
+    generator = torch.Generator(device).manual_seed(int(seed))
 
     print(f"AI_STAGE:DENOISE_START:Bat dau sinh anh ({steps} steps)...", flush=True)
     start_denoise_time = time.time()
@@ -189,7 +200,44 @@ def generate_pixel_art(
     raw_img.save(raw_out)
     print(f"Da luu anh goc 512x512: {raw_out}", flush=True)
 
-    # 2. Xu ly tach nen neu duoc yeu cau
+    # 2. Xu ly neu o che do sinh hoat anh SpriteSheet (Animation Mode)
+    if animation_mode and frame_count > 1:
+        print(f"AI_STAGE:SLICE:Dang tu dong cat {frame_count} frames chuyen dong tu SpriteSheet...", flush=True)
+        total_w, total_h = raw_img.size
+        slice_w = total_w // frame_count
+
+        frame_files = []
+        import json
+
+        for i in range(frame_count):
+            crop_box = (i * slice_w, 0, (i + 1) * slice_w, total_h)
+            sub_img = raw_img.crop(crop_box)
+
+            if remove_bg:
+                sub_img = remove_background_safe(sub_img, tolerance=22)
+
+            # Thu nho ve target_pixel_size
+            sub_pixel = sub_img.resize((target_pixel_size, target_pixel_size), Image.Resampling.NEAREST)
+            frame_path = f"{output_prefix}_frame_{i}.png"
+            sub_pixel.save(frame_path)
+            frame_files.append(frame_path)
+
+        # Ghi file metadata JSON
+        meta_data = {
+            "frameCount": frame_count,
+            "action": action,
+            "frameFiles": frame_files,
+            "spriteSheetRaw": raw_out
+        }
+        meta_path = f"{output_prefix}_anim_meta.json"
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta_data, f, ensure_ascii=False, indent=2)
+
+        print(f"AI_ANIM_RESULT:{meta_path}", flush=True)
+        print(f"AI_STAGE:DONE:Da tao thanh cong {frame_count} frames hoat anh cho hanh dong {action}!", flush=True)
+        return frame_files[0]
+
+    # 3. Xu ly anh don le binh thuong
     processed_img = raw_img
     if remove_bg:
         print("AI_STAGE:REMOVE_BG:Dang tach nen an toan (Safe Flood-fill)...", flush=True)
@@ -198,7 +246,7 @@ def generate_pixel_art(
         processed_img.save(trans_out)
         print(f"Da luu anh 512x512 nen trong suot: {trans_out}", flush=True)
 
-    # 3. Thu nho ve chuan Pixel Art theo phuong phap chon lua (NEAREST giu net sac, LANCZOS lam muot)
+    # Thu nho ve chuan Pixel Art
     resample_filter = Image.Resampling.NEAREST if resample_method.upper() == "NEAREST" else Image.Resampling.LANCZOS
     print(f"AI_STAGE:DOWNSCALE:Thu nho ve {target_pixel_size}x{target_pixel_size} voi {resample_method.upper()} downsampling...", flush=True)
     pixel_img = processed_img.resize(
@@ -224,6 +272,10 @@ if __name__ == "__main__":
     parser.add_argument("--resample", default="NEAREST", choices=["NEAREST", "LANCZOS"], help="Thuat toan thu nho anh")
     parser.add_argument("--output_prefix", default="storage/outputs/pixel_character", help="Tien to duong dan tep anh dau ra")
     parser.add_argument("--remove_bg", action="store_true", help="Co tach nen trong suot hay khong")
+    parser.add_argument("--animation_mode", action="store_true", help="Co bat che do cat frames hoat anh SpriteSheet khong")
+    parser.add_argument("--frame_count", type=int, default=4, help="So luong khung hinh trong hoat anh (2, 3, 4, 6, 8)")
+    parser.add_argument("--action", default="walk", help="Loai hanh dong (walk, attack, idle, sit, defeated, run, jump)")
+    parser.add_argument("--seed", type=int, default=None, help="Khoa seed ngau nhien co dinh de dong nhat nhan vat")
     args = parser.parse_args()
 
     generate_pixel_art(
@@ -237,4 +289,8 @@ if __name__ == "__main__":
         resample_method=args.resample,
         output_prefix=args.output_prefix,
         remove_bg=args.remove_bg,
+        animation_mode=args.animation_mode,
+        frame_count=args.frame_count,
+        action=args.action,
+        seed=args.seed,
     )
