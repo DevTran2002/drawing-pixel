@@ -1,48 +1,112 @@
-# drawing-pixel
+# Pixel Draw
 
-Hệ sinh thái đồ họa Pixel Art và Hoạt cảnh Nhân vật (Character Spritesheet) tích hợp trí tuệ nhân tạo thông qua giao thức Model Context Protocol (MCP).
+Hệ sinh thái đồ họa Pixel Art và Hoạt cảnh Nhân vật (Character Spritesheet) tích hợp trí tuệ nhân tạo thông qua giao thức Model Context Protocol (MCP) và Stable Diffusion.
 
-Dự án cho phép AI vẽ trực tiếp lên Studio theo thời gian thực (realtime qua WebSocket) hoặc kết xuất ảnh không cần giao diện (Headless) vào các dự án game và web, sau đó người dùng có thể dùng chuột hoặc bút vẽ để chỉnh sửa tiếp trên trình duyệt.
-
----
-
-## 1. Kiến Trúc Dự Án (Monorepo)
-
-- **`apps/studio/`**: Ứng dụng web Single Page Application (Vite + TypeScript + HTML5 Canvas) lấy cảm hứng từ PixAssets Studio với giao diện Dark theme hiện đại.
-  - Hỗ trợ đầy đủ công cụ vẽ pixel: Bút chì (1-4px), Tẩy, Thùng sơn (Flood Fill), Đoạn thẳng Bresenham, Khung chữ nhật, Đường tròn Midpoint, Tô họa tiết caro (Checker Dither), Tăng/giảm độ sáng (Lighten/Darken), Đối xứng gương trục dọc/ngang.
-  - Bảng màu: Tích hợp sẵn Endesga 32, Pico-8, Game Boy Classic, DawnBringer 16.
-  - Quản lý Layers và Timeline hoạt cảnh: Phân nhóm theo nhãn (Animation Clips: `idle`, `walk`, `attack`), lớp bóng mờ Onion Skinning phân biệt màu (đỏ cho trước, xanh cho sau), cửa sổ xem trước Mini Preview Player.
-- **`apps/server/`**: Máy chủ cục bộ Node.js kết hợp WebSocket Bridge (Cổng 3055) và bộ kết xuất ảnh Nearest Neighbor sắc nét (hệ số phóng đại 1x đến 16x, xuất SpriteSheet và file JSON metadata chuẩn Game Engine).
-- **`apps/mcp/`**: Máy chủ Stdio MCP Server cung cấp 10 công cụ chuẩn hóa cho AI.
-- **`skills/pixel-artist/`**: Bộ kỹ năng AI dạng mô-đun mở rộng gồm các Hồ sơ Phong cách (`styles/`: 16-bit, 8-bit, Chibi, Cyberpunk Sci-Fi, Lineless, Custom) và Khung xương hoạt cảnh (`templates/`: nhịp thở, bước đi, giật súng, vung kiếm).
-- **`packages/shared-types/`**: Thư viện định nghĩa kiểu dữ liệu dùng chung (TypeScript types & interfaces).
+Dự án cho phép AI sinh ảnh pixel art trực tiếp, đồng bộ theo thời gian thực (realtime qua WebSocket) lên Studio web, quản lý Layer, phóng to bám tâm chuột, xoay/lật/chọn vùng, và xuất SpriteSheet chuẩn Game Engine (Phaser, Unity, Godot).
 
 ---
 
-## 2. Hướng Dẫn Cài Đặt Và Chạy Cục Bộ
+## 1. Cài Đặt Nhanh Trọn Gói (1-Click All-in-One Setup)
 
-### Yêu cầu hệ thống:
-- Node.js phiên bản 18 trở lên.
-- Trình quản lý gói npm (hoặc pnpm / yarn).
+Đối với người dùng mới clone dự án về máy:
 
-### Các bước khởi động:
-```bash
-# 1. Cài đặt các gói phụ thuộc cho toàn bộ monorepo
-npm install
+### Cách 1: Chạy file cài đặt tự động (Khuyến nghị trên Windows)
 
-# 2. Chạy đồng thời cả Server WebSocket Bridge và Studio Web App
-npm run dev
+Chỉ cần **nhấp đúp chuột** vào file **`setup.bat`** (hoặc chạy trong terminal):
 
-# Hoặc chạy riêng từng thành phần:
-npm run dev:server   # Chạy WebSocket Bridge tại http://127.0.0.1:3055
-npm run dev:studio   # Mở Studio tại http://127.0.0.1:5173
+```cmd
+setup.bat
 ```
 
-Khi mở `http://127.0.0.1:5173`, mục trạng thái phía trên sẽ hiển thị `Bridge: Online`.
+Hoặc trên PowerShell:
+```powershell
+.\setup.ps1
+```
+
+Trình cài đặt tự động sẽ thực hiện toàn bộ 5 bước:
+1. Kiểm tra môi trường Node.js (>= 18) và Python (>= 3.10).
+2. Tự động chạy `npm install` cài đặt dependencies cho toàn bộ monorepo.
+3. Khởi tạo môi trường ảo Python `.venv` và cài đặt các thư viện AI từ `requirements.txt`.
+4. Tự động kiểm tra và tải các mô hình AI Checkpoint & LoRA nặng từ Hugging Face.
+5. Biên dịch mã nguồn monorepo (`npm run build`).
 
 ---
 
-## 3. Danh Mục Công Cụ MCP (Model Context Protocol)
+### Cách 2: Cài đặt thủ công từng bước
+
+Nếu muốn tự kiểm soát từng bước qua dòng lệnh:
+
+```bash
+# 1. Cài đặt các gói phụ thuộc Node.js
+npm install
+
+# 2. Tạo môi trường ảo Python và cài đặt thư viện AI
+python -m venv .venv
+.venv\Scripts\python -m pip install --upgrade pip
+.venv\Scripts\pip install -r requirements.txt
+
+# 3. Tự động tải các Model AI cần thiết
+.venv\Scripts\python scripts/download_models.py
+
+# 4. Biên dịch toàn bộ các gói trong dự án
+npm run build
+```
+
+---
+
+## 2. Bảng Mô Hình AI & Tải Thủ Công (AI Models)
+
+Các file mô hình AI có dung lượng lớn (> 100MB) được cấu hình trong `.gitignore` để không đẩy lên GitHub. Nếu đường truyền mạng tự động gặp gián đoạn, bạn có thể tải trực tiếp từ trình duyệt hoặc phần mềm download (IDM, Aria2):
+
+| Tên mô hình | Loại | Dung lượng | Vị trí lưu trữ trong dự án | Liên kết tải trực tiếp (Hugging Face) |
+|---|---|---|---|---|
+| **AbyssOrangeMix3 (AOM3A1B)** | Checkpoint SD1.5 | ~2.13 GB | `models/checkpoints/AOM3A1B_orangemixs.safetensors` | [Tải từ Hugging Face](https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors) |
+| **Pixel F2** | LoRA đa phong cách | ~151 MB | `models/lora/pixel_f2.safetensors` | [Tải từ Hugging Face](https://huggingface.co/zenafey/pixel_f2/resolve/main/pixel_f2.safetensors) |
+| **Pixel Portrait** | LoRA chân dung | ~3.2 MB | `models/lora/pixel_portrait_lora.safetensors` | *(Đã có sẵn trong mã nguồn Git)* |
+
+> **Mẹo:** Bạn có thể chạy lệnh sau bất kỳ lúc nào để script tự động kiểm tra tính toàn vẹn và tải những model còn thiếu:
+> ```bash
+> npm run download:models
+> ```
+
+---
+
+## 3. Khởi Động Dự Án
+
+### Khởi động nhanh bằng 1-Click:
+Nhấp đúp chuột vào file **`start.bat`**. 
+Script sẽ tự động khởi động Backend WebSocket Bridge, Web Studio và tự động mở trình duyệt tại `http://localhost:5173`.
+
+### Hoặc khởi động qua dòng lệnh:
+```bash
+# Chạy đồng thời cả Server WebSocket Bridge và Studio Web App
+npm run dev
+
+# Hoặc chạy riêng từng dịch vụ:
+npm run dev:server   # WebSocket Bridge tại http://127.0.0.1:3055
+npm run dev:studio   # Studio UI tại http://127.0.0.1:5173
+```
+
+Khi mở giao diện tại `http://localhost:5173`, thanh trạng thái góc trên sẽ hiển thị `Bridge: Online`.
+
+---
+
+## 4. Kiến Trúc Dự Án (Monorepo)
+
+- **`apps/studio/`**: Ứng dụng web Single Page Application (Vite + TypeScript + Canvas) với giao diện Dark Mode hiện đại:
+  - Công cụ vẽ: Bút chì (1-4px), Tẩy, Đổ màu (Flood Fill), Đường thẳng Bresenham, Khung chữ nhật, Hình tròn Midpoint, Tô caro (Dither), Tăng/giảm độ sáng, Đối xứng gương.
+  - Quản lý Layer nâng cao: Thêm/xóa/đổi tên layer (Inline Rename), gom nhóm thư mục (Group Folders), ẩn/hiện, gộp layer (`Ctrl + E`), nhân vùng chọn sang layer mới (`Ctrl + J`).
+  - Viewport Canvas: Phóng to thu nhỏ bám tâm chuột, di chuyển khung tranh mượt mà bằng phím Space hoặc chuột giữa.
+  - Tích hợp AI Studio SD1.5 & LoRA: Sinh ảnh pixel thời gian thực kèm thanh tiến trình từng bước (`Step X/N`, phần trăm, thời gian đã chạy và ETA).
+- **`apps/server/`**: Máy chủ cục bộ Node.js kết hợp WebSocket Bridge (Cổng 3055) và bộ xuất ảnh Nearest Neighbor (hệ số phóng đại 1x đến 16x, xuất SpriteSheet và file JSON metadata chuẩn Game Engine).
+- **`apps/mcp/`**: Máy chủ Stdio MCP Server cung cấp 10 công cụ tiêu chuẩn để trợ lý AI (Antigravity, Claude Desktop) vẽ trực tiếp lên Studio.
+- **`skills/pixel-artist/`**: Bộ kỹ năng AI dạng mô-đun gồm các Hồ sơ Phong cách (`styles/`: 16-bit, 8-bit, Chibi, Cyberpunk, Lineless, Cozy Farming) và Khung xương chuyển động (`templates/`).
+- **`skills/pixel-art-styles/`**: Thư viện tri thức pixel art mở rộng (bảng màu palettes, chu kỳ tăng trưởng nông sản, dải biểu cảm chân dung, hoạt cảnh bước đi).
+- **`packages/shared-types/`**: Kiểu dữ liệu TypeScript dùng chung cho toàn bộ monorepo.
+
+---
+
+## 5. Danh Mục Công Cụ MCP (Model Context Protocol)
 
 1. `create_canvas`: Tạo canvas mới với kích thước và tên sprite.
 2. `get_canvas_state`: Lấy thông tin kích thước, layers, clips và ma trận điểm ảnh hiện có.
@@ -57,66 +121,14 @@ Khi mở `http://127.0.0.1:5173`, mục trạng thái phía trên sẽ hiển th
 
 ---
 
-## 4. Tích Hợp Custom Skill `pixel-artist`
+## 6. Sinh Ảnh Pixel Art Bằng Dòng Lệnh Python
 
-Để sử dụng skill này trong Antigravity hoặc Claude:
-1. Sao chép thư mục `skills/pixel-artist` vào thư mục Global Skills của bạn:
-   - Đường dẫn: `C:\Users\<Tên_Người_Dùng>\.gemini\config\skills\pixel-artist`
-2. Cấu hình MCP Server trong tệp `mcp_config.json`:
-   ```json
-   {
-     "mcpServers": {
-       "pixel-draw": {
-         "command": "node",
-         "args": ["d:/pixel_draw/apps/mcp/dist/index.js"]
-       }
-     }
-   }
-   ```
-3. Trong bất kỳ phiên chat nào, chỉ cần gọi:
-   > *"Dùng skill /pixel-artist vẽ cho tôi nhân vật hiệp sĩ 24x24 theo phong cách 16bit-classic có động tác idle và walk"*
+Ngoài việc sinh ảnh trực tiếp trên giao diện Studio Web, bạn có thể chạy script độc lập:
 
----
-
-## 5. Mô Hình AI Tạo Ảnh Pixel Art (Stable Diffusion & LoRA)
-
-Dự án hỗ trợ sinh ảnh nhân vật và bối cảnh Pixel Art bằng Stable Diffusion kết hợp với mô hình LoRA `pixel_f2`.
-
-### Tải Checkpoint Khuyến Nghị (AbyssOrangeMix 3 A1B)
-
-Để LoRA `pixel_f2` đạt chất lượng pixel sắc nét chuẩn 2D như trên Civitai (không bị nhòe hay méo hình), bắt buộc sử dụng checkpoint nền tảng **AbyssOrangeMix 3 A1B (AOM3A1B)**:
-
-- **Liên kết tải trực tiếp:**
-  [https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors](https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors)
-- **Thư mục lưu trữ:** `models/checkpoints/AOM3A1B_orangemixs.safetensors`
-- **Dung lượng:** Khoảng 2.13 GB (bản pruned fp16 tối ưu).
-
-#### Lệnh tải nhanh bằng PowerShell:
-```powershell
-# Tao thu muc checkpoints neu chua co
-New-Item -ItemType Directory -Force -Path "models/checkpoints"
-
-# Tai tep mo hinh ve may
-Invoke-WebRequest -Uri "https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors" -OutFile "models/checkpoints/AOM3A1B_orangemixs.safetensors"
-```
-
-#### Lệnh tải bằng curl:
 ```bash
-curl -L -o models/checkpoints/AOM3A1B_orangemixs.safetensors "https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors"
+# Sinh nhân vật RPG bằng LoRA pixel_f2
+.venv\Scripts\python scripts/generate_pixel_art.py --lora models/lora/pixel_f2.safetensors --prompt "pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, simple white background" --steps 18 --size 64 --output_prefix storage/outputs/hero_pixel
+
+# Sinh chân dung 64x64 bằng LoRA Pixel Portrait
+.venv\Scripts\python scripts/generate_pixel_art.py --lora models/lora/pixel_portrait_lora.safetensors --prompt "pixel art, character portrait, 1girl, purple hair, smiling, simple white background" --steps 16 --size 64 --output_prefix storage/outputs/portrait_pixel
 ```
-
-### Thiết Lập Và Sinh Ảnh Cục Bộ
-
-1. Cài đặt các gói phụ thuộc Python vào môi trường ảo:
-   ```powershell
-   .venv\Scripts\pip install -r requirements.txt
-   ```
-
-2. Sinh ảnh Pixel Art bằng LoRA `pixel_f2`:
-   - Trigger word chính: `pixel`, `chibi`
-   - Trọng số LoRA khuyến nghị: `0.5` đến `0.6`
-   - Lệnh mẫu:
-     ```powershell
-     .venv\Scripts\python scripts/th_generate_stardew_portrait.py --lora models/lora/pixel_f2.safetensors --prompt "pixel, chibi, 1boy, solo, armor, holding sword, brown hair, blue eyes, full body, standing, simple background, white background" --steps 18 --size 64 --output_prefix storage/outputs/th_character_pixel
-     ```
-

@@ -11,7 +11,8 @@
     "dev:studio": "npm run dev --workspace=apps/studio",
     "dev:server": "npm run dev --workspace=apps/server",
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:studio\"",
-    "build": "npm run build --workspaces"
+    "build": "npm run build --workspaces",
+    "download:models": "python scripts/download_models.py"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
