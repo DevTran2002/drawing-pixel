@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
 import { loadPngToPixels, generatePixelArt } from './ai-helper';
+import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
 
 const PORT = 3055;
@@ -126,6 +127,37 @@ const server = http.createServer(async (req, res) => {
       } catch (err: any) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Tro ly Gemini chuyen doi mo ta tu nhien thanh Danbooru tags
+  if (url.pathname === '/api/ai/gemini-prompt' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = body ? JSON.parse(body) : {};
+        const { description, model, apiKey } = payload;
+        if (!description) {
+          throw new Error('Vui lòng cung cấp nội dung mô tả');
+        }
+
+        const result = await expandPromptWithGemini(description, model || 'pixel_portrait_lora', apiKey);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          prompt: result.prompt,
+          tags: result.tags
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: false,
+          error: err.message || 'Không thể tạo tags với Gemini'
+        }));
       }
     });
     return;

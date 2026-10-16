@@ -1020,4 +1020,141 @@ body {
   color: #ffffff !important;
 }
 
+/* 7. AI Studio 2-Column Layout, Tag Picker & Gemini Assistant */
+.ai-modal-layout-2col {
+  display: flex;
+  gap: 16px;
+  min-height: 480px;
+  max-height: 72vh;
+}
+
+.ai-tag-picker-panel {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+  padding-right: 14px;
+  gap: 8px;
+}
+
+.tag-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.tag-search-box {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #ffffff;
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+
+.tag-search-box:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.25);
+}
+
+.ai-tag-categories-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.ai-tag-category {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-tag-category-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: 3px;
+}
+
+.ai-tag-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ai-tag-chip {
+  background: #181822;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1.3;
+}
+
+.ai-tag-chip:hover {
+  background: #27273a;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.ai-tag-chip.active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}
+
+.ai-tag-chip.hidden {
+  display: none !important;
+}
+
+.ai-controls-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ai-gemini-assistant-card {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(37, 99, 235, 0.08));
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.modal-input {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #ffffff;
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: #38bdf8;
+}
+
+
 

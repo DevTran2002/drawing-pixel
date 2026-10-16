@@ -282,137 +282,170 @@
 
     <!-- 4. Modal Sinh Anh Pixel Bang AI (SD 1.5 + LoRA) -->
     <div class="modal-backdrop" id="ai-modal" style="display: none;">
-      <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-dialog" style="max-width: 900px; width: 95vw;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <h3>AI Pixel Art Generator (SD1.5 & LoRA)</h3>
+            <h3>Pixel Art AI Studio (SD1.5 & LoRA)</h3>
             <span class="brand-badge" style="color: #c084fc; border-color: #9333ea;">AOM3 Checkpoint</span>
+            <span class="brand-badge" style="color: #38bdf8; border-color: #0284c7;">Gemini 1.5 Flash</span>
           </div>
           <button class="modal-close" id="btn-close-ai-modal">&times;</button>
         </div>
-        <div class="modal-body">
-          <!-- 1-Click Style Presets -->
-          <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
-            Phong cách mẫu nhanh (1-Click Presets):
-          </label>
-          <div class="ai-preset-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
-            <button class="preset-card active" id="preset-retro-char" data-preset="retro-char">
-              <div class="preset-name">Retro Character</div>
-              <div class="preset-desc">Chân dung 64x64, Pixel Portrait LoRA</div>
-            </button>
-            <button class="preset-card" id="preset-rpg" data-preset="rpg">
-              <div class="preset-name">16-bit RPG Hero</div>
-              <div class="preset-desc">Nhân vật 64x64, Pixel F2 LoRA</div>
-            </button>
-            <button class="preset-card" id="preset-scenery" data-preset="scenery">
-              <div class="preset-name">Pixel Scenery</div>
-              <div class="preset-desc">Khung cảnh 128x128 sắc nét</div>
-            </button>
-          </div>
-
-          <label style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 4px; display: block;">
-            Mô tả câu lệnh (Prompt):
-          </label>
-          <textarea id="ai-prompt-input" rows="3" class="modal-textarea" placeholder="Ví dụ: pixel art, retro character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">pixel art, retro character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background</textarea>
-          
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; margin-bottom: 4px;">Gợi ý từ khóa:</div>
-          <div class="preset-tags" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
-            <button class="tag-btn" data-tag="pixel art, character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">Nam áo trắng</button>
-            <button class="tag-btn" data-tag="pixel art, character portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background">Nữ tóc tím</button>
-            <button class="tag-btn" data-tag="pixel art, character portrait, 1boy, blonde hair, blue shirt, hat, looking at viewer, simple white background">Nam tóc vàng</button>
-            <button class="tag-btn" data-tag="pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, simple background">Hiệp sĩ RPG</button>
-            <button class="tag-btn" data-tag="pixel art, magical fantasy treehouse, floating island, lush green, retro game asset, vibrant colors">Cây thần thoại</button>
-          </div>
-
-          <!-- Nút mở cài đặt nâng cao -->
-          <div style="border-top: 1px solid var(--border-color); padding-top: 8px;">
-            <button class="btn btn-small" id="btn-toggle-ai-advanced" style="width: 100%; justify-content: space-between;">
-              <span id="ai-advanced-toggle-text">Tùy chọn nâng cao (Checkpoint, LoRA, Steps, Scale)</span>
-              <span id="ai-advanced-arrow">▼</span>
-            </button>
-          </div>
-
-          <div id="ai-advanced-panel" style="display: none; margin-top: 10px; background: #13131a; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px;">
-              <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Checkpoint:</label>
-                <select id="ai-checkpoint-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                  <option value="models/checkpoints/AOM3A1B_orangemixs.safetensors">AOM3A1B_orangemixs (SD1.5)</option>
-                </select>
+        <div class="modal-body" style="padding: 12px 16px;">
+          <div class="ai-modal-layout-2col">
+            <!-- COT TRAI: BANG NHAT TAG THEO CHU DE (TAG PICKER) -->
+            <div class="ai-tag-picker-panel">
+              <div class="tag-picker-header">
+                <span style="font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Bảng Nhặt Tag Chủ Đề</span>
+                <button class="btn btn-tiny" id="btn-clear-all-tags" title="Xóa tất cả tag đã chọn trong prompt" style="font-size: 10px; padding: 2px 6px;">Xóa tag</button>
               </div>
-              <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">LoRA Model:</label>
-                <select id="ai-lora-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                  <option value="models/lora/pixel_portrait_lora.safetensors">Pixel Portrait LoRA</option>
-                  <option value="models/lora/pixel_f2.safetensors">Pixel F2 (RPG / Sprites)</option>
-                </select>
+              <input type="text" id="tag-search-input" class="tag-search-box" placeholder="Tìm nhanh tag (vd: sword, hair...)" />
+              <div class="ai-tag-categories-scroll" id="ai-tag-categories-container">
+                <!-- Javascript se tu dong render cac nhom tag tai day -->
               </div>
             </div>
 
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
-                  <span>LoRA Scale:</span>
-                  <span id="ai-lora-scale-val">0.60</span>
-                </label>
-                <input type="range" id="ai-lora-scale" min="0.2" max="1.0" step="0.05" value="0.6" style="width: 100%;" />
+            <!-- COT PHAI: TRO LY GEMINI, PROMPT BUILDER & CONTROLS -->
+            <div class="ai-controls-panel">
+              <!-- Tro ly Gemini Flash Box -->
+              <div class="ai-gemini-assistant-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label style="font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">
+                    Trợ lý Gemini Flash (Nhập mô tả tiếng Việt):
+                  </label>
+                  <span id="gemini-status-indicator" style="font-size: 10px; color: var(--text-muted);">Sẵn sàng</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <input type="text" id="ai-gemini-desc-input" class="modal-input" placeholder="Ví dụ: Nữ hiệp sĩ tóc vàng mắt xanh mặc giáp sáng, cười tươi..." style="flex: 1; font-size: 12px;" />
+                  <button class="btn btn-primary" id="btn-gemini-expand" style="white-space: nowrap; font-size: 11px; padding: 6px 12px; background: linear-gradient(135deg, #0284c7, #2563eb);">
+                    Tạo Tags AI
+                  </button>
+                </div>
               </div>
-              <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
-                  <span>Steps (CPU):</span>
-                  <span id="ai-steps-val">16</span>
-                </label>
-                <input type="range" id="ai-steps-slider" min="10" max="25" step="1" value="16" style="width: 100%;" />
-              </div>
-            </div>
 
-            <div style="display: flex; gap: 8px;">
-              <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Kích thước xuất (Size):</label>
-                <select id="ai-size-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                  <option value="64">64 x 64 px (Portrait & RPG)</option>
-                  <option value="128">128 x 128 px (Chi tiết cao)</option>
-                  <option value="32">32 x 32 px (Icon nhỏ)</option>
-                </select>
-              </div>
-              <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Chế độ chèn Canvas:</label>
-                <select id="ai-mode-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                  <option value="replace_canvas">Tạo Canvas mới (Đúng cỡ, không đè)</option>
-                  <option value="new_layer">Thêm Layer mới (Tự ẩn tranh cũ)</option>
-                  <option value="new_layer_keep">Thêm Layer mới (Hiện cả tranh cũ)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
-                <input type="checkbox" id="ai-remove-bg-checkbox" style="cursor: pointer;">
-                <span>Tách nền trong suốt (Mặc định giữ nền hội thoại nguyên bản)</span>
+              <!-- 1-Click Style Presets -->
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-top: 10px; margin-bottom: 6px;">
+                Phong cách mẫu nhanh (1-Click Presets):
               </label>
-            </div>
-          </div>
-
-          <!-- Hop trang thai tien trinh sinh anh thoi gian thuc -->
-          <div id="ai-status-msg" class="ai-progress-card" style="display: none;">
-            <div class="ai-progress-header">
-              <div class="ai-progress-title">
-                <span class="spinner" id="ai-spinner"></span>
-                <span id="ai-status-text">Đang khởi động AI Checkpoint & LoRA...</span>
+              <div class="ai-preset-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px;">
+                <button class="preset-card active" id="preset-retro-char" data-preset="retro-char">
+                  <div class="preset-name">Retro Character</div>
+                  <div class="preset-desc">Chân dung 64x64, LoRA Portrait</div>
+                </button>
+                <button class="preset-card" id="preset-rpg" data-preset="rpg">
+                  <div class="preset-name">16-bit RPG Hero</div>
+                  <div class="preset-desc">Nhân vật 64x64, LoRA Pixel F2</div>
+                </button>
+                <button class="preset-card" id="preset-scenery" data-preset="scenery">
+                  <div class="preset-name">Pixel Scenery</div>
+                  <div class="preset-desc">Khung cảnh 128x128 sắc nét</div>
+                </button>
               </div>
-              <span class="ai-steps-badge" id="ai-steps-badge">0 / 0 steps</span>
-            </div>
 
-            <!-- Thanh tien trinh Progress Bar -->
-            <div class="ai-progress-bar-bg">
-              <div class="ai-progress-bar-fill" id="ai-progress-bar-fill" style="width: 0%;"></div>
-            </div>
+              <!-- Prompt Textarea -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 12px; font-weight: 600; color: #ffffff;">
+                  Mô tả câu lệnh (Prompt hiện tại):
+                </label>
+                <span id="prompt-tag-count" style="font-size: 11px; color: var(--text-muted);">0 tags</span>
+              </div>
+              <textarea id="ai-prompt-input" rows="3" class="modal-textarea" style="font-size: 12px; line-height: 1.4;" placeholder="Các tag Danbooru/Pixel Art sẽ hiển thị ở đây..."></textarea>
 
-            <!-- Thong so thoi gian: Da chay, % Tien do, Uoc tinh con lai -->
-            <div class="ai-progress-stats">
-              <span id="ai-time-elapsed">Đã chạy: 00:00</span>
-              <span id="ai-percent-text">0%</span>
-              <span id="ai-time-eta">Còn lại: --:--</span>
+              <!-- Nút mở cài đặt nâng cao -->
+              <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px;">
+                <button class="btn btn-small" id="btn-toggle-ai-advanced" style="width: 100%; justify-content: space-between;">
+                  <span id="ai-advanced-toggle-text">Tùy chọn nâng cao (Gemini API Key, LoRA, Checkpoint, Steps)</span>
+                  <span id="ai-advanced-arrow">▼</span>
+                </button>
+              </div>
+
+              <div id="ai-advanced-panel" style="display: none; margin-top: 8px; background: #13131a; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+                <!-- Gemini API Key input -->
+                <div>
+                  <label style="font-size: 11px; color: #38bdf8; display: block; margin-bottom: 2px;">Google Gemini API Key (Tùy chọn, ưu tiên đọc từ .env):</label>
+                  <input type="password" id="gemini-api-key-input" class="modal-input" placeholder="AIzaSy... (Để trống nếu đã cấu hình trong .env máy chủ)" style="width: 100%; font-size: 11px;" />
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Checkpoint:</label>
+                    <select id="ai-checkpoint-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                      <option value="models/checkpoints/AOM3A1B_orangemixs.safetensors">AOM3A1B_orangemixs (SD1.5)</option>
+                    </select>
+                  </div>
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">LoRA Model:</label>
+                    <select id="ai-lora-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                      <option value="models/lora/pixel_portrait_lora.safetensors">Pixel Portrait LoRA</option>
+                      <option value="models/lora/pixel_f2.safetensors">Pixel F2 (RPG / Sprites)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                      <span>LoRA Scale:</span>
+                      <span id="ai-lora-scale-val">0.60</span>
+                    </label>
+                    <input type="range" id="ai-lora-scale" min="0.2" max="1.0" step="0.05" value="0.6" style="width: 100%;" />
+                  </div>
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                      <span>Steps (CPU):</span>
+                      <span id="ai-steps-val">16</span>
+                    </label>
+                    <input type="range" id="ai-steps-slider" min="10" max="25" step="1" value="16" style="width: 100%;" />
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Kích thước xuất (Size):</label>
+                    <select id="ai-size-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                      <option value="64">64 x 64 px (Portrait & RPG)</option>
+                      <option value="128">128 x 128 px (Chi tiết cao)</option>
+                      <option value="32">32 x 32 px (Icon nhỏ)</option>
+                    </select>
+                  </div>
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Chế độ chèn Canvas:</label>
+                    <select id="ai-mode-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                      <option value="replace_canvas">Tạo Canvas mới (Đúng cỡ, không đè)</option>
+                      <option value="new_layer">Thêm Layer mới (Tự ẩn tranh cũ)</option>
+                      <option value="new_layer_keep">Thêm Layer mới (Hiện cả tranh cũ)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
+                    <input type="checkbox" id="ai-remove-bg-checkbox" style="cursor: pointer;">
+                    <span>Tách nền trong suốt (Mặc định giữ nền hội thoại nguyên bản)</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Hop trang thai tien trinh sinh anh thoi gian thuc -->
+              <div id="ai-status-msg" class="ai-progress-card" style="display: none; margin-top: 10px;">
+                <div class="ai-progress-header">
+                  <div class="ai-progress-title">
+                    <span class="spinner" id="ai-spinner"></span>
+                    <span id="ai-status-text">Đang khởi động AI Checkpoint & LoRA...</span>
+                  </div>
+                  <span class="ai-steps-badge" id="ai-steps-badge">0 / 0 steps</span>
+                </div>
+
+                <div class="ai-progress-bar-bg">
+                  <div class="ai-progress-bar-fill" id="ai-progress-bar-fill" style="width: 0%;"></div>
+                </div>
+
+                <div class="ai-progress-stats">
+                  <span id="ai-time-elapsed">Đã chạy: 00:00</span>
+                  <span id="ai-percent-text">0%</span>
+                  <span id="ai-time-eta">Còn lại: --:--</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

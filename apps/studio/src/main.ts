@@ -26,6 +26,7 @@ import { getSymmetricPoints } from './tools/symmetry-manager';
 import { PRESET_PALETTES } from './palette/palettes-data';
 import { SelectionManager } from './tools/selection-tool';
 import { flipHorizontal, flipVertical, rotate90Clockwise } from './tools/transform-tool';
+import { TAG_CATEGORIES } from './data/tags-dictionary';
 
 // 1. Khoi tao trang thai toan cuc cua Studio
 const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
@@ -1585,6 +1586,18 @@ function initAiPixelModal(): void {
   const btnLoad = document.getElementById('btn-load-existing-ai');
   const btnGenerate = document.getElementById('btn-run-ai-generate');
 
+  // Tag Picker & Search DOM
+  const tagCategoriesContainer = document.getElementById('ai-tag-categories-container');
+  const tagSearchInput = document.getElementById('tag-search-input') as HTMLInputElement | null;
+  const btnClearAllTags = document.getElementById('btn-clear-all-tags');
+  const promptTagCount = document.getElementById('prompt-tag-count');
+
+  // Gemini Assistant DOM
+  const geminiDescInput = document.getElementById('ai-gemini-desc-input') as HTMLInputElement | null;
+  const btnGeminiExpand = document.getElementById('btn-gemini-expand') as HTMLButtonElement | null;
+  const geminiStatus = document.getElementById('gemini-status-indicator');
+  const geminiApiKeyInput = document.getElementById('gemini-api-key-input') as HTMLInputElement | null;
+
   // Advanced inputs
   const btnToggleAdv = document.getElementById('btn-toggle-ai-advanced');
   const advPanel = document.getElementById('ai-advanced-panel');
@@ -1601,8 +1614,209 @@ function initAiPixelModal(): void {
 
   if (!modal || !btnOpen) return;
 
+  // Key luu tru Gemini API Key trong localStorage
+  const GEMINI_KEY_STORAGE = 'pixel_draw_gemini_api_key';
+
+  // Dong bo trang thai active cua cac chip voi prompt hien tai
+  const syncTagChips = () => {
+    if (!promptInput) return;
+    const currentText = promptInput.value.trim();
+    const tags = currentText ? currentText.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const activeTagSet = new Set(tags.map(t => t.toLowerCase()));
+
+    const allChips = document.querySelectorAll<HTMLElement>('.ai-tag-chip');
+    allChips.forEach(chip => {
+      const tag = chip.getAttribute('data-tag')?.toLowerCase();
+      if (tag && activeTagSet.has(tag)) {
+        chip.classList.add('active');
+      } else {
+        chip.classList.remove('active');
+      }
+    });
+
+    if (promptTagCount) {
+      promptTagCount.innerText = `${tags.length} tag${tags.length === 1 ? '' : 's'}`;
+    }
+  };
+
+  // Bat tat tag khi nguoi dung nhan vao mot the chip
+  const toggleTag = (tag: string) => {
+    if (!promptInput) return;
+    const currentText = promptInput.value.trim();
+    let tags = currentText ? currentText.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const lowerTag = tag.toLowerCase();
+
+    const existingIndex = tags.findIndex(t => t.toLowerCase() === lowerTag);
+    if (existingIndex >= 0) {
+      // Go bo tag khoi prompt
+      tags.splice(existingIndex, 1);
+    } else {
+      // Them tag moi vao cuoi prompt
+      tags.push(tag);
+    }
+
+    promptInput.value = tags.join(', ');
+    syncTagChips();
+  };
+
+  // Render danh sach cac nhom tag tu thu vien chuan hoa
+  const renderTagPicker = () => {
+    if (!tagCategoriesContainer) return;
+    tagCategoriesContainer.innerHTML = '';
+
+    TAG_CATEGORIES.forEach(cat => {
+      const catEl = document.createElement('div');
+      catEl.className = 'ai-tag-category';
+      catEl.setAttribute('data-category-id', cat.id);
+
+      const headerEl = document.createElement('div');
+      headerEl.className = 'ai-tag-category-title';
+      headerEl.innerHTML = `<span>${cat.name}</span><span style="font-size: 9px; opacity: 0.6;">${cat.tags.length}</span>`;
+      catEl.appendChild(headerEl);
+
+      const wrapEl = document.createElement('div');
+      wrapEl.className = 'ai-tag-chips-wrap';
+
+      cat.tags.forEach(tag => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'ai-tag-chip';
+        chip.setAttribute('data-tag', tag);
+        chip.innerText = tag;
+
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
+          toggleTag(tag);
+        });
+
+        wrapEl.appendChild(chip);
+      });
+
+      catEl.appendChild(wrapEl);
+      tagCategoriesContainer.appendChild(catEl);
+    });
+  };
+
+  // Khoi tao giao dien tag picker ban dau
+  renderTagPicker();
+
+  // Loc tag nhanh qua o tim kiem
+  tagSearchInput?.addEventListener('input', () => {
+    const query = tagSearchInput.value.trim().toLowerCase();
+    const categories = document.querySelectorAll<HTMLElement>('.ai-tag-category');
+
+    categories.forEach(cat => {
+      const chips = cat.querySelectorAll<HTMLElement>('.ai-tag-chip');
+      let visibleCount = 0;
+
+      chips.forEach(chip => {
+        const tag = chip.getAttribute('data-tag')?.toLowerCase() || '';
+        if (!query || tag.includes(query)) {
+          chip.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          chip.classList.add('hidden');
+        }
+      });
+
+      // An ca danh muc neu khong co chip nao thoa man
+      cat.style.display = visibleCount > 0 ? 'flex' : 'none';
+    });
+  });
+
+  // Nut xoa toan bo tag trong prompt
+  btnClearAllTags?.addEventListener('click', () => {
+    if (promptInput) {
+      promptInput.value = '';
+      syncTagChips();
+    }
+  });
+
+  // Dong bo chip khi nguoi dung go tay truc tiep vao textarea
+  promptInput?.addEventListener('input', () => {
+    syncTagChips();
+  });
+
+  // Xu ly tro ly Gemini Flash chuyen doi mo ta tu nhien sang prompt
+  const handleGeminiExpand = async () => {
+    const description = geminiDescInput?.value.trim();
+    if (!description) {
+      alert('Vui lòng nhập mô tả nhân vật bằng tiếng Việt (Ví dụ: Nữ hiệp sĩ tóc vàng mắt xanh cười tươi)');
+      geminiDescInput?.focus();
+      return;
+    }
+
+    const userApiKey = geminiApiKeyInput?.value.trim();
+    if (userApiKey) {
+      localStorage.setItem(GEMINI_KEY_STORAGE, userApiKey);
+    }
+
+    const currentLora = loraSelect?.value || 'models/lora/pixel_portrait_lora.safetensors';
+
+    if (geminiStatus) {
+      geminiStatus.innerText = 'Đang suy nghĩ...';
+      geminiStatus.style.color = '#38bdf8';
+    }
+    if (btnGeminiExpand) btnGeminiExpand.disabled = true;
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/ai/gemini-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description,
+          loraPath: currentLora,
+          apiKey: userApiKey || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Không nhận được kết quả từ Gemini');
+      }
+
+      if (promptInput) {
+        promptInput.value = data.prompt;
+        syncTagChips();
+      }
+
+      if (geminiStatus) {
+        geminiStatus.innerText = `Đã tạo (${data.model || 'Gemini'})`;
+        geminiStatus.style.color = '#4ade80';
+        setTimeout(() => {
+          if (geminiStatus) {
+            geminiStatus.innerText = 'Sẵn sàng';
+            geminiStatus.style.color = 'var(--text-muted)';
+          }
+        }, 4000);
+      }
+    } catch (err: any) {
+      if (geminiStatus) {
+        geminiStatus.innerText = 'Thất bại';
+        geminiStatus.style.color = '#ef4444';
+      }
+      alert('Lỗi trợ lý Gemini: ' + err.message);
+    } finally {
+      if (btnGeminiExpand) btnGeminiExpand.disabled = false;
+    }
+  };
+
+  btnGeminiExpand?.addEventListener('click', handleGeminiExpand);
+  geminiDescInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleGeminiExpand();
+    }
+  });
+
   btnOpen.addEventListener('click', () => {
     modal.style.display = 'flex';
+    // Doc API key da luu tu localStorage neu co
+    const savedKey = localStorage.getItem(GEMINI_KEY_STORAGE);
+    if (savedKey && geminiApiKeyInput && !geminiApiKeyInput.value) {
+      geminiApiKeyInput.value = savedKey;
+    }
+    syncTagChips();
   });
 
   btnClose?.addEventListener('click', () => {
@@ -1652,6 +1866,7 @@ function initAiPixelModal(): void {
         if (stepsInput) { stepsInput.value = '18'; if (stepsVal) stepsVal.innerText = '18'; }
         if (sizeSelect) sizeSelect.value = '128';
       }
+      syncTagChips();
     });
   });
 
@@ -1662,6 +1877,7 @@ function initAiPixelModal(): void {
       const tag = btn.getAttribute('data-tag');
       if (tag && promptInput) {
         promptInput.value = tag;
+        syncTagChips();
       }
     });
   });

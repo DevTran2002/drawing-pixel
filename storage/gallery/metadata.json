@@ -1,5 +1,25 @@
 [
   {
+    "id": "item_1792139821494",
+    "filename": "ai_portrait_1792139821494.png",
+    "name": "AI Portrait #1494",
+    "createdAt": "2026-10-16T08:37:01.498Z",
+    "width": 128,
+    "height": 128,
+    "sourceType": "ai",
+    "prompt": "magical fantasy treehouse, floating island, lush green, vibrant colors, pixel art, 1girl, long hair, pink hair, blue eyes, sad, crown, armor, simple background, full body"
+  },
+  {
+    "id": "item_1792139134712",
+    "filename": "ai_portrait_1792139134712.png",
+    "name": "AI Portrait #4712",
+    "createdAt": "2026-10-16T08:25:34.713Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, simple background"
+  },
+  {
     "id": "item_1792132354159",
     "filename": "ai_portrait_1792132354159.png",
     "name": "AI Portrait #4159",
