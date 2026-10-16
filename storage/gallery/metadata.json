@@ -1,5 +1,15 @@
 [
   {
+    "id": "item_1792125368950",
+    "filename": "ai_portrait_1792125368950.png",
+    "name": "AI Portrait #8950",
+    "createdAt": "2026-10-16T04:36:08.955Z",
+    "width": 128,
+    "height": 128,
+    "sourceType": "ai",
+    "prompt": "pixel art, magical fantasy treehouse, floating island, lush green, retro game asset, vibrant colors"
+  },
+  {
     "id": "item_1792074057477",
     "filename": "ai_portrait_1792074057477.png",
     "name": "AI Portrait #7477",

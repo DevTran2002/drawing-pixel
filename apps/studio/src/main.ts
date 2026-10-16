@@ -7,7 +7,9 @@ import {
   PixelColor,
   Point2D,
   coordToKey,
-  McpDrawPayload
+  McpDrawPayload,
+  LayerData,
+  LayerGroup
 } from '@pixel-draw/shared-types';
 import { CanvasEngine } from './core/canvas-engine';
 import { HistoryManager, PixelChange } from './core/history-manager';
@@ -469,8 +471,11 @@ function duplicateSelectionToNewLayer(): void {
   canvasEngine.setSelection(null);
   canvasEngine.rebuildBuffers();
   renderAll();
+  syncProjectToServer();
+}
 
-  // Dong bo WebSocket voi Server
+// Dong bo du an voi WebSocket Server
+function syncProjectToServer(): void {
   try {
     fetch('http://127.0.0.1:3055/api/draw', {
       method: 'POST',
@@ -478,6 +483,36 @@ function duplicateSelectionToNewLayer(): void {
       body: JSON.stringify({ type: 'PROJECT_SYNC', project })
     }).catch(() => {});
   } catch (_) {}
+}
+
+// Ham gop Layer hien tai xuong Layer ben duoi (Merge Down - Phim tat Ctrl+E)
+function mergeActiveLayerDown(): void {
+  const currentFrame = canvasEngine.getCurrentFrame();
+  if (!currentFrame || currentFrame.layers.length <= 1) return;
+
+  const curIdx = currentFrame.layers.findIndex(l => l.id === project.activeLayerId);
+  if (curIdx <= 0) {
+    // Dang o layer duoi cung, khong the gop xuong duoi duoc
+    return;
+  }
+
+  const activeLayer = currentFrame.layers[curIdx];
+  const lowerLayer = currentFrame.layers[curIdx - 1];
+
+  // Gop toan bo pixel cua activeLayer de len lowerLayer
+  for (const [key, color] of Object.entries(activeLayer.pixels)) {
+    if (color) {
+      lowerLayer.pixels[key] = color;
+    }
+  }
+
+  // Xoa activeLayer va chuyen active sang lowerLayer
+  currentFrame.layers.splice(curIdx, 1);
+  project.activeLayerId = lowerLayer.id;
+
+  canvasEngine.rebuildBuffers();
+  renderAll();
+  syncProjectToServer();
 }
 
 // Lang nghe phim tat toan cuc va giu phim Spacebar de bat Hand/Pan tool
@@ -596,6 +631,13 @@ window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.key === 'J')) {
     e.preventDefault();
     duplicateSelectionToNewLayer();
+    return;
+  }
+
+  // 9. Phim tat Ctrl + E: Gop Layer hien tai xuong Layer ben duoi (Merge Down)
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) {
+    e.preventDefault();
+    mergeActiveLayerDown();
     return;
   }
 
@@ -754,60 +796,407 @@ if (sizeGroup) {
   });
 }
 
-// 6. UI: Quan ly Layer
+// Helper ham doi ten truc tiep tren giao dien (Inline Rename)
+function startInlineRename(
+  targetEl: HTMLElement,
+  currentName: string,
+  onSave: (newName: string) => void
+): void {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'layer-rename-input';
+  input.value = currentName;
+
+  let isSaved = false;
+  const finish = (save: boolean) => {
+    if (isSaved) return;
+    isSaved = true;
+    const trimmed = input.value.trim();
+    if (save && trimmed && trimmed !== currentName) {
+      onSave(trimmed);
+    } else {
+      renderAll();
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    }
+  });
+
+  input.addEventListener('blur', () => {
+    finish(true);
+  });
+
+  targetEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+// Tao phan tu DOM cho 1 Layer item
+function createLayerItemElement(layer: LayerData, isInGroup = false): HTMLElement {
+  const item = document.createElement('div');
+  item.className = `layer-item ${layer.id === project.activeLayerId ? 'active' : ''} ${isInGroup ? 'in-group' : ''}`;
+  item.dataset.layerId = layer.id;
+
+  const currentFrame = canvasEngine.getCurrentFrame();
+  const layerIndex = currentFrame?.layers.findIndex(l => l.id === layer.id) ?? -1;
+  const hasLowerLayer = layerIndex > 0;
+  const hasGroups = (project.groups && project.groups.length > 0);
+
+  item.innerHTML = `
+    <div class="layer-title-box">
+      <span class="layer-name-text" title="Double click hoặc bấm nút sửa để đổi tên">${layer.name}</span>
+      <button class="layer-btn-icon" data-act="rename-layer" title="Đổi tên layer">Edit</button>
+    </div>
+    <div class="layer-actions">
+      ${hasLowerLayer ? `<button class="layer-btn-icon" data-act="merge-down" title="Gộp xuống layer dưới (Ctrl+E)">Merge</button>` : ''}
+      ${layer.groupId ? `<button class="layer-btn-icon" data-act="leave-group" title="Rời khỏi nhóm">Out</button>` : (hasGroups ? `<button class="layer-btn-icon" data-act="join-group" title="Đưa vào nhóm">+Grp</button>` : '')}
+      <button class="btn btn-small" data-act="toggle-vis" title="Ẩn/Hiện layer">${layer.visible ? 'Vis' : 'Hide'}</button>
+      ${(currentFrame && currentFrame.layers.length > 1) ? `<button class="layer-btn-icon" data-act="delete-layer" title="Xóa layer">Del</button>` : ''}
+    </div>
+  `;
+
+  // Xu ly su kien click tren layer
+  item.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const act = target.closest('[data-act]')?.getAttribute('data-act');
+
+    if (act === 'toggle-vis') {
+      e.stopPropagation();
+      layer.visible = !layer.visible;
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    if (act === 'rename-layer') {
+      e.stopPropagation();
+      const nameSpan = item.querySelector('.layer-name-text') as HTMLElement;
+      if (nameSpan) {
+        startInlineRename(nameSpan, layer.name, (newName) => {
+          layer.name = newName;
+          renderAll();
+          syncProjectToServer();
+        });
+      }
+      return;
+    }
+
+    if (act === 'merge-down') {
+      e.stopPropagation();
+      project.activeLayerId = layer.id;
+      mergeActiveLayerDown();
+      return;
+    }
+
+    if (act === 'leave-group') {
+      e.stopPropagation();
+      layer.groupId = null;
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    if (act === 'join-group') {
+      e.stopPropagation();
+      if (!project.groups || project.groups.length === 0) return;
+      if (project.groups.length === 1) {
+        layer.groupId = project.groups[0].id;
+      } else {
+        const names = project.groups.map((g, i) => `${i + 1}. ${g.name}`).join('\n');
+        const choice = prompt(`Chọn nhóm để đưa "${layer.name}" vào:\n${names}\n\nNhập số thứ tự nhóm:`, '1');
+        if (choice) {
+          const idx = parseInt(choice, 10) - 1;
+          if (idx >= 0 && idx < project.groups.length) {
+            layer.groupId = project.groups[idx].id;
+          }
+        }
+      }
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    if (act === 'delete-layer') {
+      e.stopPropagation();
+      if (!currentFrame || currentFrame.layers.length <= 1) return;
+      if (!confirm(`Bạn có chắc muốn xóa "${layer.name}" không?`)) return;
+      const idx = currentFrame.layers.findIndex(l => l.id === layer.id);
+      if (idx !== -1) {
+        currentFrame.layers.splice(idx, 1);
+        if (project.activeLayerId === layer.id) {
+          project.activeLayerId = currentFrame.layers[Math.max(0, idx - 1)].id;
+        }
+        canvasEngine.rebuildBuffers();
+        renderAll();
+        syncProjectToServer();
+      }
+      return;
+    }
+
+    // Chon lam active layer
+    project.activeLayerId = layer.id;
+    renderAll();
+  });
+
+  // Double click de doi ten
+  item.querySelector('.layer-name-text')?.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    const nameSpan = e.currentTarget as HTMLElement;
+    startInlineRename(nameSpan, layer.name, (newName) => {
+      layer.name = newName;
+      renderAll();
+      syncProjectToServer();
+    });
+  });
+
+  return item;
+}
+
+// Tao phan tu DOM cho 1 Layer Group container
+function createGroupContainerElement(group: LayerGroup, groupLayers: LayerData[]): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'layer-group-container';
+  container.dataset.groupId = group.id;
+
+  const isCollapsed = !!group.collapsed;
+  const isVisible = group.visible !== false;
+
+  const header = document.createElement('div');
+  header.className = 'layer-group-header';
+  header.innerHTML = `
+    <div class="layer-group-title" title="Bấm để đóng/mở nhóm, double-click để đổi tên">
+      <span class="layer-group-toggle">${isCollapsed ? '>' : 'v'}</span>
+      <span class="layer-name-text">${group.name}</span>
+      <button class="layer-btn-icon" data-act="rename-group" title="Đổi tên nhóm">Edit</button>
+      <span style="font-size: 10px; color: #a78bfa; margin-left: 2px;">(${groupLayers.length})</span>
+    </div>
+    <div class="layer-group-actions">
+      <button class="layer-btn-icon" data-act="add-to-group" title="Thêm Layer vào nhóm này">+L</button>
+      <button class="btn btn-small" data-act="toggle-group-vis" title="Ẩn/Hiện cả nhóm">${isVisible ? 'Vis' : 'Hide'}</button>
+      <button class="layer-btn-icon" data-act="ungroup" title="Rã nhóm (giải phóng các layer)">Out</button>
+      <button class="layer-btn-icon" data-act="delete-group" title="Xóa nhóm">Del</button>
+    </div>
+  `;
+
+  // Header click events
+  header.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const act = target.closest('[data-act]')?.getAttribute('data-act');
+
+    if (act === 'toggle-group-vis') {
+      e.stopPropagation();
+      group.visible = !isVisible;
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    if (act === 'rename-group') {
+      e.stopPropagation();
+      const nameSpan = header.querySelector('.layer-name-text') as HTMLElement;
+      if (nameSpan) {
+        startInlineRename(nameSpan, group.name, (newName) => {
+          group.name = newName;
+          renderAll();
+          syncProjectToServer();
+        });
+      }
+      return;
+    }
+
+    if (act === 'add-to-group') {
+      e.stopPropagation();
+      const currentFrame = canvasEngine.getCurrentFrame();
+      if (!currentFrame) return;
+
+      const newId = `layer_${Date.now()}`;
+      const newLayer: LayerData = {
+        id: newId,
+        name: `Layer ${currentFrame.layers.length + 1}`,
+        visible: true,
+        locked: false,
+        opacity: 1.0,
+        pixels: {},
+        groupId: group.id
+      };
+      currentFrame.layers.push(newLayer);
+      project.activeLayerId = newId;
+      group.collapsed = false;
+      canvasEngine.rebuildBuffers();
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    if (act === 'ungroup') {
+      e.stopPropagation();
+      groupLayers.forEach(l => { l.groupId = null; });
+      project.groups = (project.groups || []).filter(g => g.id !== group.id);
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    if (act === 'delete-group') {
+      e.stopPropagation();
+      const currentFrame = canvasEngine.getCurrentFrame();
+      if (!confirm(`Bạn có chắc muốn xóa nhóm "${group.name}" và toàn bộ ${groupLayers.length} layer bên trong không?`)) return;
+      if (currentFrame) {
+        const remainingCount = currentFrame.layers.filter(l => l.groupId !== group.id).length;
+        if (remainingCount === 0) {
+          alert('Không thể xóa toàn bộ layer của bức tranh. Hãy tạo một layer khác trước.');
+          return;
+        }
+        currentFrame.layers = currentFrame.layers.filter(l => l.groupId !== group.id);
+        if (!currentFrame.layers.some(l => l.id === project.activeLayerId)) {
+          project.activeLayerId = currentFrame.layers[0].id;
+        }
+      }
+      project.groups = (project.groups || []).filter(g => g.id !== group.id);
+      canvasEngine.rebuildBuffers();
+      renderAll();
+      syncProjectToServer();
+      return;
+    }
+
+    // Toggle dong/mo nhom
+    group.collapsed = !group.collapsed;
+    renderAll();
+  });
+
+  // Double click doi ten group
+  header.querySelector('.layer-name-text')?.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    const nameSpan = e.currentTarget as HTMLElement;
+    startInlineRename(nameSpan, group.name, (newName) => {
+      group.name = newName;
+      renderAll();
+      syncProjectToServer();
+    });
+  });
+
+  container.appendChild(header);
+
+  // Danh sach cac layer con
+  const childrenContainer = document.createElement('div');
+  childrenContainer.className = `layer-group-children ${isCollapsed ? 'collapsed' : ''}`;
+
+  if (groupLayers.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'font-size: 11px; color: var(--text-muted); padding: 4px 6px; font-style: italic;';
+    emptyMsg.innerText = 'Nhóm trống (+L để thêm layer)';
+    childrenContainer.appendChild(emptyMsg);
+  } else {
+    groupLayers.forEach(layer => {
+      const layerEl = createLayerItemElement(layer, true);
+      childrenContainer.appendChild(layerEl);
+    });
+  }
+
+  container.appendChild(childrenContainer);
+  return container;
+}
+
+// 6. UI: Quan ly Layer & Group
 function renderLayers(): void {
   const container = document.getElementById('layers-list');
   if (!container) return;
   container.innerHTML = '';
 
+  project.groups = project.groups || [];
   const currentFrame = canvasEngine.getCurrentFrame();
   if (!currentFrame) return;
 
+  const renderedGroupIds = new Set<string>();
+
+  // Duyet tu tren xuong duoi (index giam dan)
   for (let i = currentFrame.layers.length - 1; i >= 0; i--) {
     const layer = currentFrame.layers[i];
-    const item = document.createElement('div');
-    item.className = `layer-item ${layer.id === project.activeLayerId ? 'active' : ''}`;
 
-    item.innerHTML = `
-      <span>${layer.name}</span>
-      <div class="layer-actions">
-        <button class="btn btn-small" data-act="toggle-vis">${layer.visible ? 'Vis' : 'Hide'}</button>
-      </div>
-    `;
-
-    item.addEventListener('click', (e) => {
-      const act = (e.target as HTMLElement).dataset.act;
-      if (act === 'toggle-vis') {
-        layer.visible = !layer.visible;
-        renderAll();
-        return;
+    if (layer.groupId) {
+      const group = project.groups.find(g => g.id === layer.groupId);
+      if (group) {
+        if (!renderedGroupIds.has(group.id)) {
+          renderedGroupIds.add(group.id);
+          const groupLayers = currentFrame.layers
+            .filter(l => l.groupId === group.id)
+            .reverse();
+          const groupEl = createGroupContainerElement(group, groupLayers);
+          container.appendChild(groupEl);
+        }
+        continue;
+      } else {
+        layer.groupId = null;
       }
-      project.activeLayerId = layer.id;
-      renderAll();
-    });
+    }
 
+    // Layer doc lap khong thuoc group
+    const item = createLayerItemElement(layer, false);
     container.appendChild(item);
+  }
+
+  // Render cac nhom rong (chua co layer con)
+  for (const group of project.groups) {
+    if (!renderedGroupIds.has(group.id)) {
+      const groupEl = createGroupContainerElement(group, []);
+      container.appendChild(groupEl);
+    }
   }
 }
 
+// Nut them Group moi
+document.getElementById('btn-add-group')?.addEventListener('click', () => {
+  project.groups = project.groups || [];
+  const newGroupId = `group_${Date.now()}`;
+  const newGroup: LayerGroup = {
+    id: newGroupId,
+    name: `Group ${project.groups.length + 1}`,
+    collapsed: false,
+    visible: true,
+    locked: false
+  };
+  project.groups.push(newGroup);
+
+  // Tu dong dua layer dang active vao group moi neu chua thuoc group nao
+  const currentFrame = canvasEngine.getCurrentFrame();
+  const activeLayer = currentFrame?.layers.find(l => l.id === project.activeLayerId);
+  if (activeLayer && !activeLayer.groupId) {
+    activeLayer.groupId = newGroupId;
+  }
+
+  renderAll();
+  syncProjectToServer();
+});
+
+// Nut them Layer moi
 document.getElementById('btn-add-layer')?.addEventListener('click', () => {
   const currentFrame = canvasEngine.getCurrentFrame();
   if (!currentFrame) return;
 
   const newId = `layer_${Date.now()}`;
-  const newLayer = {
+  const newLayer: LayerData = {
     id: newId,
     name: `Layer ${currentFrame.layers.length + 1}`,
     visible: true,
     locked: false,
     opacity: 1.0,
-    pixels: {}
+    pixels: {},
+    groupId: null
   };
 
   currentFrame.layers.push(newLayer);
   project.activeLayerId = newId;
   canvasEngine.rebuildBuffers();
   renderAll();
+  syncProjectToServer();
 });
 
 // 7. UI: Dòng thời gian Timeline & Animation
@@ -1680,6 +2069,10 @@ function initExportModal(): void {
       // Ve lan luot cac visible layers
       for (const layer of activeFrame.layers) {
         if (!layer.visible) continue;
+        if (layer.groupId) {
+          const group = project.groups?.find(g => g.id === layer.groupId);
+          if (group && group.visible === false) continue;
+        }
         const buffer = canvasEngine.getLayerBuffer(layer.id);
         if (!buffer) continue;
 

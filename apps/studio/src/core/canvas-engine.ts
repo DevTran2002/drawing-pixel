@@ -156,6 +156,11 @@ export class CanvasEngine {
     if (currentFrame) {
       for (const layer of currentFrame.layers) {
         if (!layer.visible) continue;
+        // Neu layer thuoc group va group bi an thi khong ve
+        if (layer.groupId) {
+          const group = this.project.groups?.find(g => g.id === layer.groupId);
+          if (group && group.visible === false) continue;
+        }
         const buffer = this.layerBuffers.get(layer.id);
         if (!buffer) continue;
 

@@ -111,6 +111,10 @@ export class PreviewPlayer {
 
     for (const layer of frame.layers) {
       if (!layer.visible) continue;
+      if (layer.groupId) {
+        const grp = this.project.groups?.find(g => g.id === layer.groupId);
+        if (grp && grp.visible === false) continue;
+      }
       for (const [key, color] of Object.entries(layer.pixels)) {
         if (!color) continue;
         const [xStr, yStr] = key.split(',');

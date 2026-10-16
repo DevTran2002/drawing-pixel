@@ -8,6 +8,14 @@ export interface PixelPoint {
   color: PixelColor;
 }
 
+export interface LayerGroup {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+  visible?: boolean;
+  locked?: boolean;
+}
+
 export interface LayerData {
   id: string;
   name: string;
@@ -16,6 +24,7 @@ export interface LayerData {
   opacity: number; // 0.0 den 1.0
   // Luu du lieu pixel dang Record voi key la 'x,y' de de dang serialize qua JSON/WebSocket
   pixels: Record<string, PixelColor>;
+  groupId?: string | null; // Id cua nhom chua layer nay (neu co)
 }
 
 export interface FrameData {
@@ -48,6 +57,7 @@ export interface CanvasProject {
   frames: FrameData[];
   activeFrameIndex: number;
   activeLayerId: string;
+  groups?: LayerGroup[]; // Danh sach cac nhom layer
 }
 
 // Chuyen doi toa do sang key luu tru dang chuoi
@@ -109,7 +119,8 @@ export function createDefaultProject(
     clips: [defaultClip],
     frames: [initialFrame],
     activeFrameIndex: 0,
-    activeLayerId: defaultLayerId
+    activeLayerId: defaultLayerId,
+    groups: []
   };
 }
 
