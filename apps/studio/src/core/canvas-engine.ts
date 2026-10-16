@@ -77,6 +77,37 @@ export class CanvasEngine {
     };
   }
 
+  // Thay doi kich thuoc canvas viewport phu hop voi container thuc te
+  resizeToContainer(width: number, height: number): void {
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      const isInitial = this.panOffset.x === 0 && this.panOffset.y === 0;
+      const dx = (width - this.canvas.width) / 2;
+      const dy = (height - this.canvas.height) / 2;
+
+      this.canvas.width = width;
+      this.canvas.height = height;
+
+      if (isInitial) {
+        this.centerViewport();
+      } else {
+        this.panOffset.x = Math.round(this.panOffset.x + dx);
+        this.panOffset.y = Math.round(this.panOffset.y + dy);
+      }
+    }
+  }
+
+  // Thu phong giu vi tri diem anh duoi con tro chuot
+  zoomAt(clientX: number, clientY: number, deltaZoom: number): void {
+    const targetPixelX = (clientX - this.panOffset.x) / this.zoom;
+    const targetPixelY = (clientY - this.panOffset.y) / this.zoom;
+    const oldZoom = this.zoom;
+    this.zoom = Math.max(2, Math.min(64, this.zoom + deltaZoom));
+    if (this.zoom !== oldZoom) {
+      this.panOffset.x = Math.round(clientX - targetPixelX * this.zoom);
+      this.panOffset.y = Math.round(clientY - targetPixelY * this.zoom);
+    }
+  }
+
   // Chuyen doi toa do chuot tren canvas sang toa do pixel thuc
   screenToPixel(screenX: number, screenY: number): Point2D | null {
     const rect = this.canvas.getBoundingClientRect();
@@ -98,7 +129,7 @@ export class CanvasEngine {
     ctx.imageSmoothingEnabled = false; // Luon giu pixelated sac canh
 
     // 1. Xoa nen toan bo khung canvas voi mau toi studio
-    ctx.fillStyle = '#18181b';
+    ctx.fillStyle = '#121215';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.save();
@@ -109,6 +140,11 @@ export class CanvasEngine {
 
     // 2. Ve nen caro trong suot (checkerboard) cho vung lam viec
     this.renderCheckerboard(artWidth, artHeight);
+
+    // Vien vien nhe bao quanh buc tranh de de nhan dien vung ve
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-0.5, -0.5, artWidth + 1, artHeight + 1);
 
     // 3. Neu co Onion Skin, ve len truoc
     if (onionSkinCanvas) {
@@ -146,11 +182,43 @@ export class CanvasEngine {
       this.renderPivotMarker(this.project.pivot.x, this.project.pivot.y);
     }
 
-    // 7. Ve duong vien bao quanh toan bo canvas
+    // 7. Ve vung chon dang hoat dong (Selection Overlay)
+    if (this.selectionRect) {
+      this.renderSelectionOverlay(this.selectionRect);
+    }
+
+    // 8. Ve duong vien bao quanh toan bo canvas
     ctx.strokeStyle = '#3f3f46';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, artWidth, artHeight);
 
+    ctx.restore();
+  }
+
+  // Thuoc tinh luu tru vung chon diem anh
+  public selectionRect: { x: number; y: number; width: number; height: number } | null = null;
+
+  public setSelection(rect: { x: number; y: number; width: number; height: number } | null): void {
+    this.selectionRect = rect;
+  }
+
+  private renderSelectionOverlay(rect: { x: number; y: number; width: number; height: number }): void {
+    const ctx = this.ctx;
+    const rx = rect.x * this.zoom;
+    const ry = rect.y * this.zoom;
+    const rw = rect.width * this.zoom;
+    const rh = rect.height * this.zoom;
+
+    // Phu mau xanh duong nhe
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
+    ctx.fillRect(rx, ry, rw, rh);
+
+    // Vien net dut marching ants
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(rx, ry, rw, rh);
     ctx.restore();
   }
 

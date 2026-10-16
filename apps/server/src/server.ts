@@ -101,7 +101,7 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const payload = body ? JSON.parse(body) : {};
-        const imagePath = payload.imagePath || 'th_stardew_character_pixel_64x64.png';
+        const imagePath = payload.imagePath || 'th_stardew_test_pixel_64x64.png';
         const { width, height, pixels } = loadPngToPixels(imagePath);
 
         // Khoi tao Canvas voi kich thuoc dung bang kich thuoc anh
@@ -137,16 +137,44 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { prompt, steps, size, removeBg } = JSON.parse(body);
+        const payload = JSON.parse(body);
+        const {
+          prompt,
+          checkpoint,
+          loraPath,
+          loraScale,
+          steps,
+          size,
+          resample,
+          removeBg,
+          mode
+        } = payload;
+
         if (!prompt) {
           throw new Error('Vui long cung cap cau lenh prompt');
         }
 
-        const outputPath = await generateStardewPortrait(prompt, steps || 22, size || 64, !!removeBg);
+        const outputPath = await generateStardewPortrait({
+          prompt,
+          checkpoint: checkpoint || 'models/checkpoints/AOM3A1B_orangemixs.safetensors',
+          loraPath: loraPath || 'models/lora/th_stardew_portrait_lora.safetensors',
+          loraScale: typeof loraScale === 'number' ? loraScale : 0.6,
+          steps: steps || 16,
+          size: size || 64,
+          resample: resample || 'NEAREST',
+          removeBg: !!removeBg
+        });
+
         const { width, height, pixels } = loadPngToPixels(outputPath);
 
-        stateStore.createCanvas(width, height, 'StardewPortrait');
-        stateStore.applyPixels(pixels);
+        // Che do them vao Layer moi (mac dinh theo yeu cau user) hoac tao Canvas moi
+        if (mode === 'replace_canvas') {
+          stateStore.createCanvas(width, height, 'StardewPortrait');
+          stateStore.applyPixels(pixels);
+        } else {
+          // Tu dong tao layer moi va co gian canvas neu anh lon hon
+          stateStore.addAiLayer(pixels, width, height, `AI Stardew (${size || 64}x${size || 64})`);
+        }
 
         // Tu dong luu vao kho anh Gallery
         try {
@@ -172,6 +200,37 @@ const server = http.createServer(async (req, res) => {
         }));
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Thay doi kich thuoc Canvas va can le
+  if (url.pathname === '/api/canvas/resize' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { width, height, anchor } = JSON.parse(body);
+        const w = parseInt(width, 10);
+        const h = parseInt(height, 10);
+        if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0 || w > 512 || h > 512) {
+          throw new Error('Kich thuoc Canvas phai la so nguyen tu 1 den 512');
+        }
+
+        stateStore.resizeCanvas(w, h, anchor || 'center');
+
+        const syncPayload = {
+          type: 'PROJECT_SYNC',
+          project: stateStore.getProject()
+        };
+        broadcastToStudio(syncPayload as any);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, project: stateStore.getProject() }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
     });

@@ -11,8 +11,8 @@
     <header class="top-nav">
       <div class="brand-section">
         <span class="brand-title">Pixel Studio</span>
-        <span class="brand-badge" id="canvas-size-badge">24x24 px</span>
-        <span class="brand-badge" id="canvas-zoom-badge">1600%</span>
+        <button class="brand-badge brand-badge-btn" id="canvas-size-badge" title="Nhấn để đổi kích thước Canvas">24x24 px</button>
+        <span class="brand-badge" id="canvas-zoom-badge" title="Nhấn để căn giữa Canvas">1600%</span>
       </div>
 
       <div class="nav-actions">
@@ -26,6 +26,23 @@
           <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-6-6M21 10l-6 6"/></svg>
           Redo
         </button>
+
+        <!-- Transformations: Flip & Rotate -->
+        <div class="nav-btn-group">
+          <button class="btn btn-small" id="btn-flip-h" title="Lật ngang (Flip Horizontal)">
+            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5V7zm8 0v10l5-5-5-5zM12 3v18"/></svg>
+            Flip H
+          </button>
+          <button class="btn btn-small" id="btn-flip-v" title="Lật dọc (Flip Vertical)">
+            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 8l5-5 5 5H7zm0 8h10l-5 5-5-5zM3 12h18"/></svg>
+            Flip V
+          </button>
+          <button class="btn btn-small" id="btn-rotate-90" title="Xoay 90 độ (Rotate 90°)">
+            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Rot 90°
+          </button>
+        </div>
+
         <!-- Grid -->
         <button class="btn btn-small" id="btn-toggle-grid" title="Bật/tắt lưới">
           <svg class="btn-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
@@ -47,6 +64,13 @@
           <span id="status-text">Bridge: Offline</span>
         </div>
 
+        <!-- Nhập ảnh (Import) -->
+        <button class="btn btn-small" id="btn-import-image" title="Nhập ảnh từ máy tính thành Layer mới">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Import
+        </button>
+        <input type="file" id="image-import-input" accept="image/png,image/jpeg,image/webp" style="display: none;" />
+
         <!-- Kho Ảnh (Gallery) -->
         <button class="btn btn-gallery" id="btn-open-gallery" title="Mở kho lưu trữ và lịch sử tranh ảnh đã tạo">
           <svg class="btn-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -59,14 +83,14 @@
           Lưu Kho
         </button>
 
-        <!-- AI Portrait -->
-        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh chân dung nhân vật Stardew Valley bằng AI LoRA">
+        <!-- AI Studio -->
+        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh ảnh pixel Stardew / RPG / Scenery bằng AI SD1.5 & LoRA">
           <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>
-          AI Portrait
+          AI Studio
         </button>
 
         <!-- Export -->
-        <button class="btn btn-primary" id="btn-export" title="Xuất file ảnh SpriteSheet">
+        <button class="btn btn-primary" id="btn-export" title="Xuất file ảnh PNG hoặc SpriteSheet">
           <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           Export
         </button>
@@ -77,6 +101,17 @@
     <main class="studio-body">
       <!-- 2.1 Thanh cong cu ben trai (Co Icon SVG truc quan) -->
       <aside class="left-toolbar" id="toolbar">
+        <!-- Selection -->
+        <button class="tool-btn" data-tool="select" title="Chọn vùng hình chữ nhật (S) - Ctrl+C / Ctrl+V / Delete">
+          <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/></svg>
+          <span class="tool-shortcut">S</span>
+        </button>
+        <!-- Move -->
+        <button class="tool-btn" data-tool="move" title="Di chuyển vùng chọn hoặc Layer (M)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+          <span class="tool-shortcut">M</span>
+        </button>
+        <div class="toolbar-divider"></div>
         <!-- Pen -->
         <button class="tool-btn active" data-tool="pencil" title="Bút chì vẽ pixel (P)">
           <svg class="tool-icon" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -242,47 +277,207 @@
       </div>
     </footer>
 
-    <!-- 4. Modal Sinh Chan Dung Bang AI LoRA -->
+    <!-- 4. Modal Sinh Anh Pixel Bang AI (SD 1.5 + LoRA) -->
     <div class="modal-backdrop" id="ai-modal" style="display: none;">
-      <div class="modal-dialog">
+      <div class="modal-dialog" style="max-width: 540px;">
         <div class="modal-header">
-          <h3>Sinh Chân Dung Stardew Valley (AI LoRA)</h3>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3>AI Pixel Art Generator (SD1.5 & LoRA)</h3>
+            <span class="brand-badge" style="color: #c084fc; border-color: #9333ea;">AOM3 Checkpoint</span>
+          </div>
           <button class="modal-close" id="btn-close-ai-modal">&times;</button>
         </div>
         <div class="modal-body">
-          <label style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 2px; display: block;">
-            Mô tả nhân vật (Prompt):
+          <!-- 1-Click Style Presets -->
+          <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+            Phong cách mẫu nhanh (1-Click Presets):
+          </label>
+          <div class="ai-preset-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
+            <button class="preset-card active" id="preset-stardew" data-preset="stardew">
+              <div class="preset-name">Stardew Valley</div>
+              <div class="preset-desc">Chân dung 64x64, màu sắc ấm cúng</div>
+            </button>
+            <button class="preset-card" id="preset-rpg" data-preset="rpg">
+              <div class="preset-name">16-bit RPG Hero</div>
+              <div class="preset-desc">Nhân vật 64x64, LoRA Pixel F2</div>
+            </button>
+            <button class="preset-card" id="preset-scenery" data-preset="scenery">
+              <div class="preset-name">Scenery / Item</div>
+              <div class="preset-desc">Khung cảnh 128x128 sắc nét</div>
+            </button>
+          </div>
+
+          <label style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 4px; display: block;">
+            Mô tả câu lệnh (Prompt):
           </label>
           <textarea id="ai-prompt-input" rows="3" class="modal-textarea" placeholder="Ví dụ: pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background</textarea>
           
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Mẫu gợi ý nhanh:</div>
-          <div class="preset-tags" style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; margin-bottom: 4px;">Gợi ý từ khóa:</div>
+          <div class="preset-tags" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
             <button class="tag-btn" data-tag="pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">Nam áo trắng</button>
             <button class="tag-btn" data-tag="pixel art, stardew portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background">Nữ tóc tím</button>
             <button class="tag-btn" data-tag="pixel art, stardew portrait, 1boy, blonde hair, blue shirt, hat, looking at viewer, simple white background">Nam tóc vàng</button>
-            <button class="tag-btn" data-tag="pixel art, stardew portrait, old man, gray beard, glasses, brown vest, smiling, simple white background">Ông lão râu bạc</button>
-            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1girl, red hair, flower in hair, smile, simple white background">Nữ tóc đỏ</button>
+            <button class="tag-btn" data-tag="pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, simple background">Hiệp sĩ RPG</button>
+            <button class="tag-btn" data-tag="pixel art, magical fantasy treehouse, floating island, lush green, retro game asset, vibrant colors">Cây thần thoại</button>
           </div>
 
-          <div style="margin-top: 10px;">
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #e2e8f0; cursor: pointer;">
-              <input type="checkbox" id="ai-remove-bg-checkbox" style="cursor: pointer;">
-              <span>Tách nền trong suốt (Mặc định giữ nguyên phông nền hội thoại Stardew nguyên bản sắc nét)</span>
-            </label>
+          <!-- Nút mở cài đặt nâng cao -->
+          <div style="border-top: 1px solid var(--border-color); padding-top: 8px;">
+            <button class="btn btn-small" id="btn-toggle-ai-advanced" style="width: 100%; justify-content: space-between;">
+              <span id="ai-advanced-toggle-text">Tùy chọn nâng cao (Checkpoint, LoRA, Steps, Scale)</span>
+              <span id="ai-advanced-arrow">▼</span>
+            </button>
           </div>
 
-          <div id="ai-status-msg" style="margin-top: 10px; font-size: 12px; color: #a855f7; display: none;">
-            <span class="spinner"></span> <span id="ai-status-text">Đang kết nối mô hình LoRA...</span>
+          <div id="ai-advanced-panel" style="display: none; margin-top: 10px; background: #13131a; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px;">
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Checkpoint:</label>
+                <select id="ai-checkpoint-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                  <option value="models/checkpoints/AOM3A1B_orangemixs.safetensors">AOM3A1B_orangemixs (SD1.5)</option>
+                </select>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">LoRA Model:</label>
+                <select id="ai-lora-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                  <option value="models/lora/th_stardew_portrait_lora.safetensors">Stardew Portrait LoRA</option>
+                  <option value="models/lora/pixel_f2.safetensors">Pixel F2 (RPG / Sprites)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                  <span>LoRA Scale:</span>
+                  <span id="ai-lora-scale-val">0.60</span>
+                </label>
+                <input type="range" id="ai-lora-scale" min="0.2" max="1.0" step="0.05" value="0.6" style="width: 100%;" />
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                  <span>Steps (CPU):</span>
+                  <span id="ai-steps-val">16</span>
+                </label>
+                <input type="range" id="ai-steps-slider" min="10" max="25" step="1" value="16" style="width: 100%;" />
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Kích thước xuất (Size):</label>
+                <select id="ai-size-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                  <option value="64">64 x 64 px (Chuẩn Stardew)</option>
+                  <option value="128">128 x 128 px (Chi tiết cao)</option>
+                  <option value="32">32 x 32 px (Icon nhỏ)</option>
+                </select>
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Chế độ chèn Canvas:</label>
+                <select id="ai-mode-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                  <option value="new_layer">Thêm Layer mới (Giữ tranh cũ)</option>
+                  <option value="replace_canvas">Tạo mới toàn bộ Canvas</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
+                <input type="checkbox" id="ai-remove-bg-checkbox" style="cursor: pointer;">
+                <span>Tách nền trong suốt (Mặc định giữ nền hội thoại nguyên bản)</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="ai-status-msg" style="margin-top: 10px; font-size: 12px; color: #c084fc; display: none;">
+            <span class="spinner"></span> <span id="ai-status-text">Đang kết nối mô hình SD1.5 & LoRA (Khoảng ~60s trên CPU)...</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh 64x64 đã sinh gần nhất vào canvas">Nạp Ảnh Vừa Vẽ (64x64)</button>
+          <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất">Nạp Ảnh Vừa Vẽ (Gần nhất)</button>
           <button class="btn btn-ai" id="btn-run-ai-generate">Vẽ & Nạp Vào Canvas</button>
         </div>
       </div>
     </div>
 
-    <!-- 5. Modal Kho Luu Tru Anh (Gallery) -->
+    <!-- 5. Modal Thay Doi Kich Thuoc Canvas (Canvas Resize) -->
+    <div class="modal-backdrop" id="resize-modal" style="display: none;">
+      <div class="modal-dialog" style="max-width: 400px;">
+        <div class="modal-header">
+          <h3>Đổi Kích Thước Canvas (Resize)</h3>
+          <button class="modal-close" id="btn-close-resize-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+            <div style="flex: 1;">
+              <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Chiều rộng (px):</label>
+              <input type="number" id="resize-width-input" class="modal-input" min="8" max="512" value="24" style="width: 100%; padding: 6px; background: #13131a; color: #fff; border: 1px solid var(--border-color); border-radius: 4px;" />
+            </div>
+            <div style="flex: 1;">
+              <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Chiều cao (px):</label>
+              <input type="number" id="resize-height-input" class="modal-input" min="8" max="512" value="24" style="width: 100%; padding: 6px; background: #13131a; color: #fff; border: 1px solid var(--border-color); border-radius: 4px;" />
+            </div>
+          </div>
+
+          <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Kích thước tiêu chuẩn:</label>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+            <button class="tag-btn resize-preset-btn" data-w="16" data-h="16">16 x 16</button>
+            <button class="tag-btn resize-preset-btn" data-w="24" data-h="24">24 x 24</button>
+            <button class="tag-btn resize-preset-btn" data-w="32" data-h="32">32 x 32</button>
+            <button class="tag-btn resize-preset-btn" data-w="48" data-h="48">48 x 48</button>
+            <button class="tag-btn resize-preset-btn" data-w="64" data-h="64">64 x 64</button>
+            <button class="tag-btn resize-preset-btn" data-w="128" data-h="128">128 x 128</button>
+          </div>
+
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Vị trí neo tranh cũ (Anchor):</label>
+          <select id="resize-anchor-select" class="btn btn-small" style="width: 100%; padding: 6px;">
+            <option value="center">Chính giữa (Center)</option>
+            <option value="top-left">Góc trên bên trái (Top-Left)</option>
+            <option value="bottom-center">Giữa dưới chân (Bottom-Center)</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" id="btn-cancel-resize">Hủy</button>
+          <button class="btn btn-primary" id="btn-apply-resize">Áp dụng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Modal Xuat File Anh (Export Modal) -->
+    <div class="modal-backdrop" id="export-modal" style="display: none;">
+      <div class="modal-dialog" style="max-width: 440px;">
+        <div class="modal-header">
+          <h3>Xuất File Tác Phẩm (Export)</h3>
+          <button class="modal-close" id="btn-close-export-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tỷ lệ phóng to (Upscale Ratio):</label>
+          <div class="export-scale-group" style="display: flex; gap: 6px; margin-bottom: 12px;">
+            <button class="tag-btn export-scale-btn active" data-scale="1">1x (Gốc)</button>
+            <button class="tag-btn export-scale-btn" data-scale="2">2x</button>
+            <button class="tag-btn export-scale-btn" data-scale="4">4x</button>
+            <button class="tag-btn export-scale-btn" data-scale="8">8x</button>
+            <button class="tag-btn export-scale-btn" data-scale="16">16x</button>
+          </div>
+
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Định dạng xuất:</label>
+          <select id="export-type-select" class="btn btn-small" style="width: 100%; padding: 6px; margin-bottom: 12px;">
+            <option value="current_frame">Frame hiện tại (PNG sắc nét)</option>
+            <option value="spritesheet">SpriteSheet toàn bộ Frames + JSON</option>
+          </select>
+
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; background: #13131a; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+            Tranh pixel sẽ được giữ nguyên thuật toán Nearest Neighbor sắc cạnh, không bị mờ nhòe.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" id="btn-export-server" title="Lưu trực tiếp vào thư mục dự án trên máy chủ">Lưu vào Dự án (Server)</button>
+          <button class="btn btn-primary" id="btn-download-png" title="Tải ảnh PNG trực tiếp về máy">Tải PNG về máy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Modal Kho Luu Tru Anh (Gallery) -->
     <div class="modal-backdrop" id="gallery-modal" style="display: none;">
       <div class="modal-dialog modal-gallery">
         <div class="modal-header">

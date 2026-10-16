@@ -63,46 +63,87 @@ export function loadPngToPixels(imagePath: string): { width: number; height: num
   return { width: png.width, height: png.height, pixels };
 }
 
-// Ham xac dinh lenh chay uv tren Windows/Linux de tranh loi 'uv' is not recognized
-function th_get_uv_command(): string {
-  const localAppData = process.env.LOCALAPPDATA || '';
-  if (localAppData) {
-    const storeUvPath = path.join(
-      localAppData,
-      'Packages',
-      'PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0',
-      'LocalCache',
-      'local-packages',
-      'Python310',
-      'Scripts',
-      'uv.exe'
-    );
-    if (fs.existsSync(storeUvPath)) {
-      return `"${storeUvPath}"`;
-    }
-  }
-  return 'python -m uv';
+export interface AiGenerateOptions {
+  prompt: string;
+  checkpoint?: string;
+  loraPath?: string;
+  loraScale?: number;
+  steps?: number;
+  size?: number;
+  resample?: 'NEAREST' | 'LANCZOS';
+  removeBg?: boolean;
 }
 
-// Goi script Python de sinh anh chan dung moi bang mo hinh LoRA
-export function generateStardewPortrait(prompt: string, steps = 22, size = 64, removeBg = false): Promise<string> {
+// Ham xac dinh trinh thuc thi Python cua moi truong ao .venv
+function th_get_python_command(): string {
+  const projectRoot = getProjectRoot();
+  const venvPythonWin = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
+  if (fs.existsSync(venvPythonWin)) {
+    return `"${venvPythonWin}"`;
+  }
+  const venvPythonUnix = path.join(projectRoot, '.venv', 'bin', 'python');
+  if (fs.existsSync(venvPythonUnix)) {
+    return `"${venvPythonUnix}"`;
+  }
+  return 'python';
+}
+
+// Goi script Python de sinh anh chan dung/sprite moi bang mo hinh Checkpoint va LoRA
+export function generateStardewPortrait(
+  opts: AiGenerateOptions | string,
+  legacySteps = 16,
+  legacySize = 64,
+  legacyRemoveBg = false
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const projectRoot = getProjectRoot();
     const pythonScript = path.join(projectRoot, 'scripts', 'th_generate_stardew_portrait.py');
-    const loraPath = path.join(projectRoot, 'models', 'lora', 'th_stardew_portrait_lora.safetensors');
-    const safePrompt = prompt.replace(/"/g, '\\"');
-    const uvCmd = th_get_uv_command();
-    const removeBgFlag = removeBg ? '--remove_bg' : '';
-    const cmd = `${uvCmd} run "${pythonScript}" --lora "${loraPath}" --prompt "${safePrompt}" --steps ${steps} --size ${size} ${removeBgFlag}`.trim();
+    const pythonCmd = th_get_python_command();
 
-    console.log(`[AI Engine] Dang chay lenh sinh chan dung LoRA: ${cmd}`);
+    let prompt = '';
+    let checkpoint = path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
+    let loraPath = path.join(projectRoot, 'models', 'lora', 'th_stardew_portrait_lora.safetensors');
+    let loraScale = 0.55;
+    let steps = 16;
+    let size = 64;
+    let resample = 'NEAREST';
+    let removeBg = false;
+
+    if (typeof opts === 'string') {
+      prompt = opts;
+      steps = legacySteps;
+      size = legacySize;
+      removeBg = legacyRemoveBg;
+    } else {
+      prompt = opts.prompt;
+      if (opts.checkpoint) {
+        checkpoint = path.isAbsolute(opts.checkpoint) ? opts.checkpoint : path.join(projectRoot, opts.checkpoint);
+      }
+      if (opts.loraPath) {
+        loraPath = path.isAbsolute(opts.loraPath) ? opts.loraPath : path.join(projectRoot, opts.loraPath);
+      }
+      if (opts.loraScale !== undefined) loraScale = opts.loraScale;
+      if (opts.steps !== undefined) steps = opts.steps;
+      if (opts.size !== undefined) size = opts.size;
+      if (opts.resample !== undefined) resample = opts.resample;
+      if (opts.removeBg !== undefined) removeBg = opts.removeBg;
+    }
+
+    const timestamp = Date.now();
+    const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `th_ai_gen_${timestamp}`);
+    const safePrompt = prompt.replace(/"/g, '\\"');
+    const removeBgFlag = removeBg ? '--remove_bg' : '';
+
+    const cmd = `${pythonCmd} "${pythonScript}" --checkpoint "${checkpoint}" --lora "${loraPath}" --prompt "${safePrompt}" --steps ${steps} --lora_scale ${loraScale} --size ${size} --resample ${resample} --output_prefix "${outputPrefix}" ${removeBgFlag}`.trim();
+
+    console.log(`[AI Engine] Dang chay lenh sinh anh: ${cmd}`);
     exec(cmd, { cwd: projectRoot }, (error, stdout, stderr) => {
       if (error) {
         console.error('[AI Engine] Loi khi sinh anh bang LoRA:', stderr || error.message);
         return reject(new Error(stderr || error.message));
       }
       console.log('[AI Engine] Ket qua sinh anh hoan tat.');
-      const outputPath = path.join(projectRoot, 'storage', 'outputs', `th_stardew_character_pixel_${size}x${size}.png`);
+      const outputPath = `${outputPrefix}_pixel_${size}x${size}.png`;
       resolve(outputPath);
     });
   });

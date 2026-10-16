@@ -22,11 +22,14 @@ import { applyDitherPattern } from './tools/dither-tool';
 import { adjustBrightness } from './tools/shade-tool';
 import { getSymmetricPoints } from './tools/symmetry-manager';
 import { PRESET_PALETTES } from './palette/palettes-data';
+import { SelectionManager } from './tools/selection-tool';
+import { flipHorizontal, flipVertical, rotate90Clockwise } from './tools/transform-tool';
 
 // 1. Khoi tao trang thai toan cuc cua Studio
 const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
 const history = new HistoryManager(50);
 const animController = new AnimationController(project);
+const selectionManager = new SelectionManager();
 
 // Lay cac phan tu DOM
 const mainCanvas = document.getElementById('main-canvas') as HTMLCanvasElement;
@@ -42,6 +45,21 @@ const canvasEngine = new CanvasEngine({
 const onionSkinRenderer = new OnionSkinRenderer(project.width, project.height);
 const previewPlayer = new PreviewPlayer(previewCanvas, project, animController);
 
+// Theo doi thay doi kich thuoc cua Viewport de co gian Canvas toan man hinh
+const viewportContainer = document.getElementById('viewport');
+if (viewportContainer) {
+  const resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) {
+        canvasEngine.resizeToContainer(Math.floor(width), Math.floor(height));
+        renderAll();
+      }
+    }
+  });
+  resizeObserver.observe(viewportContainer);
+}
+
 // Trang thai cong cu va co ve
 let activeTool: ToolType = 'pencil';
 let primaryColor: PixelColor = '#ec4899';
@@ -50,6 +68,11 @@ let brushSize = 1;
 let symmetryX = false;
 let symmetryY = false;
 let onionSkinEnabled = false;
+
+// Trang thai giu phim Space va lia chuot (Pan/Hand tool)
+let isSpacePressed = false;
+let isPanning = false;
+let lastPanPoint = { x: 0, y: 0 };
 
 let isPointerDown = false;
 let pointerStartPoint: Point2D | null = null;
@@ -121,8 +144,19 @@ function applyBrushAt(
   }
 }
 
+// Bien theo doi vi tri di chuyen diem anh (Move tool)
+let lastMovePoint: Point2D | null = null;
+
 // Su kien chuot tren Canvas
 mainCanvas.addEventListener('pointerdown', (e) => {
+  // 1. Xu ly Pan/Hand Tool khi giu Space hoac nhan chuot giua (Middle click)
+  if (isSpacePressed || e.button === 1) {
+    isPanning = true;
+    lastPanPoint = { x: e.clientX, y: e.clientY };
+    mainCanvas.style.cursor = 'grabbing';
+    return;
+  }
+
   const pt = canvasEngine.screenToPixel(e.clientX, e.clientY);
   if (!pt) return;
 
@@ -131,6 +165,20 @@ mainCanvas.addEventListener('pointerdown', (e) => {
   currentStrokeChanges = [];
 
   const isRightClick = e.button === 2;
+
+  // Cong cu chon vung (Selection)
+  if (activeTool === 'select') {
+    selectionManager.setSelection({ x: pt.x, y: pt.y, width: 1, height: 1 });
+    canvasEngine.setSelection(selectionManager.getSelection());
+    renderAll();
+    return;
+  }
+
+  // Cong cu di chuyen (Move)
+  if (activeTool === 'move') {
+    lastMovePoint = pt;
+    return;
+  }
 
   if (activeTool === 'eyedropper') {
     const buffer = canvasEngine.getActiveLayerBuffer();
@@ -172,6 +220,17 @@ mainCanvas.addEventListener('pointerdown', (e) => {
 });
 
 mainCanvas.addEventListener('pointermove', (e) => {
+  // 1. Neu dang o che do Pan viewport bang phim Space
+  if (isPanning) {
+    const dx = e.clientX - lastPanPoint.x;
+    const dy = e.clientY - lastPanPoint.y;
+    lastPanPoint = { x: e.clientX, y: e.clientY };
+    canvasEngine.panOffset.x += dx;
+    canvasEngine.panOffset.y += dy;
+    renderAll();
+    return;
+  }
+
   const pt = canvasEngine.screenToPixel(e.clientX, e.clientY);
 
   const coordLabel = document.getElementById('cursor-coord');
@@ -180,6 +239,43 @@ mainCanvas.addEventListener('pointermove', (e) => {
   }
 
   if (!isPointerDown || !pt) return;
+
+  // Xu ly keo vung chon
+  if (activeTool === 'select' && pointerStartPoint) {
+    const minX = Math.min(pointerStartPoint.x, pt.x);
+    const minY = Math.min(pointerStartPoint.y, pt.y);
+    const w = Math.abs(pt.x - pointerStartPoint.x) + 1;
+    const h = Math.abs(pt.y - pointerStartPoint.y) + 1;
+    selectionManager.setSelection({ x: minX, y: minY, width: w, height: h });
+    canvasEngine.setSelection(selectionManager.getSelection());
+    renderAll();
+    return;
+  }
+
+  // Xu ly di chuyen diem anh (Move tool)
+  if (activeTool === 'move' && lastMovePoint) {
+    const dx = pt.x - lastMovePoint.x;
+    const dy = pt.y - lastMovePoint.y;
+    if (dx !== 0 || dy !== 0) {
+      const buffer = canvasEngine.getActiveLayerBuffer();
+      const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+      if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+        const changes = selectionManager.movePixels(
+          buffer,
+          dx,
+          dy,
+          project.activeLayerId,
+          project.activeFrameIndex,
+          currentLayer.pixels
+        );
+        currentStrokeChanges.push(...changes);
+        canvasEngine.setSelection(selectionManager.getSelection());
+        lastMovePoint = pt;
+        renderAll();
+      }
+    }
+    return;
+  }
 
   if (activeTool === 'line' || activeTool === 'rectangle' || activeTool === 'circle') {
     // Khong ve pixel truc tiep luc di chuyen hinh hoc
@@ -192,8 +288,31 @@ mainCanvas.addEventListener('pointermove', (e) => {
 });
 
 window.addEventListener('pointerup', (e) => {
+  if (isPanning) {
+    isPanning = false;
+    mainCanvas.style.cursor = isSpacePressed ? 'grab' : 'crosshair';
+  }
+
   if (!isPointerDown) return;
   isPointerDown = false;
+
+  if (activeTool === 'select') {
+    canvasEngine.setSelection(selectionManager.getSelection());
+    renderAll();
+    pointerStartPoint = null;
+    return;
+  }
+
+  if (activeTool === 'move') {
+    lastMovePoint = null;
+    pointerStartPoint = null;
+    if (currentStrokeChanges.length > 0) {
+      history.pushStep(currentStrokeChanges);
+      currentStrokeChanges = [];
+    }
+    renderAll();
+    return;
+  }
 
   const isRightClick = e.button === 2;
   const endPt = canvasEngine.screenToPixel(e.clientX, e.clientY);
@@ -229,23 +348,175 @@ window.addEventListener('pointerup', (e) => {
   renderAll();
 });
 
+// Lang nghe phim tat toan cuc va giu phim Spacebar de bat Hand/Pan tool
+window.addEventListener('keydown', (e) => {
+  const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName);
+  if (isInput) return;
+
+  // 1. Giu Space: Hand/Pan tool
+  if (e.code === 'Space') {
+    if (!isSpacePressed) {
+      isSpacePressed = true;
+      mainCanvas.style.cursor = 'grab';
+    }
+    e.preventDefault();
+    return;
+  }
+
+  // 2. Phim tat Shift + 0: Can giua buc tranh vao trung tam
+  if (e.shiftKey && (e.code === 'Digit0' || e.key === '0')) {
+    e.preventDefault();
+    canvasEngine.centerViewport();
+    renderAll();
+    return;
+  }
+
+  // 3. Phim tat Ctrl + Z (Undo) / Ctrl + Y (Redo)
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    if (e.shiftKey) {
+      document.getElementById('btn-redo')?.click();
+    } else {
+      document.getElementById('btn-undo')?.click();
+    }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+    e.preventDefault();
+    document.getElementById('btn-redo')?.click();
+    return;
+  }
+
+  // 4. Phim tat Ctrl + C (Sao chep vung chon)
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    if (buffer) {
+      const ok = selectionManager.copySelection(buffer);
+      if (ok) {
+        // Hieu ung thong bao nhe bang chuot
+        console.log('Da sao chep pixel trong vung chon');
+      }
+    }
+    return;
+  }
+
+  // 5. Phim tat Ctrl + V (Dan vung chon)
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+      const sel = selectionManager.getSelection();
+      const targetX = sel ? sel.x : 0;
+      const targetY = sel ? sel.y : 0;
+      const changes = selectionManager.pasteSelection(
+        buffer,
+        targetX,
+        targetY,
+        project.activeLayerId,
+        project.activeFrameIndex,
+        currentLayer.pixels
+      );
+      if (changes.length > 0) {
+        history.pushStep(changes);
+        canvasEngine.setSelection(selectionManager.getSelection());
+        renderAll();
+      }
+    }
+    return;
+  }
+
+  // 6. Phim Delete / Backspace: Xoa pixel trong vung chon
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+      const changes = selectionManager.deleteSelection(
+        buffer,
+        project.activeLayerId,
+        project.activeFrameIndex,
+        currentLayer.pixels
+      );
+      if (changes.length > 0) {
+        history.pushStep(changes);
+        renderAll();
+      }
+    }
+    return;
+  }
+
+  // 7. Phim Escape: Huy vung chon
+  if (e.key === 'Escape') {
+    selectionManager.clearSelection();
+    canvasEngine.setSelection(null);
+    renderAll();
+    return;
+  }
+
+  // 8. Chon nhanh cong cu ve qua ban phim
+  const keyToTool: Record<string, ToolType> = {
+    s: 'select',
+    m: 'move',
+    p: 'pencil',
+    e: 'eraser',
+    g: 'bucket',
+    i: 'eyedropper',
+    l: 'line',
+    u: 'rectangle',
+    c: 'circle',
+    j: 'dither',
+    d: 'lighten',
+    k: 'darken'
+  };
+
+  const toolKey = e.key.toLowerCase();
+  if (keyToTool[toolKey]) {
+    activeTool = keyToTool[toolKey];
+    toolbar?.querySelectorAll('.tool-btn').forEach(btn => {
+      const b = btn as HTMLElement;
+      b.classList.toggle('active', b.dataset.tool === activeTool);
+    });
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') {
+    isSpacePressed = false;
+    if (!isPanning) {
+      mainCanvas.style.cursor = 'crosshair';
+    }
+  }
+});
+
 // Chặn menu chuột phải mặc định trên canvas
 mainCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-// Cuộn chuột để thu phóng (Zoom)
+// Cuộn chuột để thu phóng (Zoom bám theo tâm con trỏ chuột)
 mainCanvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  if (e.deltaY < 0) {
-    canvasEngine.zoom = Math.min(64, canvasEngine.zoom + 2);
-  } else {
-    canvasEngine.zoom = Math.max(2, canvasEngine.zoom - 2);
-  }
+  const rect = mainCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const deltaZoom = e.deltaY < 0 ? 2 : -2;
+
+  canvasEngine.zoomAt(mouseX, mouseY, deltaZoom);
+
   const zoomBadge = document.getElementById('canvas-zoom-badge');
   if (zoomBadge) {
     zoomBadge.innerText = `${canvasEngine.zoom * 100}%`;
   }
   renderAll();
 }, { passive: false });
+
+// Click vao badge zoom de can giua nhanh
+const zoomBadge = document.getElementById('canvas-zoom-badge');
+if (zoomBadge) {
+  zoomBadge.style.cursor = 'pointer';
+  zoomBadge.title = 'Click để căn giữa tranh (Shift + 0)';
+  zoomBadge.addEventListener('click', () => {
+    canvasEngine.centerViewport();
+    renderAll();
+  });
+}
 
 // 4. UI: Thanh cong cu ben trai (Toolbar)
 const toolbar = document.getElementById('toolbar');
@@ -551,6 +822,67 @@ btnSym?.addEventListener('click', () => {
   }
 });
 
+// Transformations: Flip Horizontal, Flip Vertical, Rotate 90
+document.getElementById('btn-flip-h')?.addEventListener('click', () => {
+  const buffer = canvasEngine.getActiveLayerBuffer();
+  const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+  if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+    const changes = flipHorizontal(
+      buffer,
+      project.width,
+      project.height,
+      project.activeLayerId,
+      project.activeFrameIndex,
+      currentLayer.pixels,
+      selectionManager.getSelection()
+    );
+    if (changes.length > 0) {
+      history.pushStep(changes);
+      renderAll();
+    }
+  }
+});
+
+document.getElementById('btn-flip-v')?.addEventListener('click', () => {
+  const buffer = canvasEngine.getActiveLayerBuffer();
+  const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+  if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+    const changes = flipVertical(
+      buffer,
+      project.width,
+      project.height,
+      project.activeLayerId,
+      project.activeFrameIndex,
+      currentLayer.pixels,
+      selectionManager.getSelection()
+    );
+    if (changes.length > 0) {
+      history.pushStep(changes);
+      renderAll();
+    }
+  }
+});
+
+document.getElementById('btn-rotate-90')?.addEventListener('click', () => {
+  const buffer = canvasEngine.getActiveLayerBuffer();
+  const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+  if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+    const changes = rotate90Clockwise(
+      buffer,
+      project.width,
+      project.height,
+      project.activeLayerId,
+      project.activeFrameIndex,
+      currentLayer.pixels,
+      selectionManager.getSelection()
+    );
+    if (changes.length > 0) {
+      history.pushStep(changes);
+      renderAll();
+    }
+  }
+});
+
 // 8. WebSocket Client ket noi voi Local Server (MCP Bridge)
 function initWebSocketBridge(): void {
   const statusDot = document.getElementById('status-dot');
@@ -647,7 +979,7 @@ function initWebSocketBridge(): void {
   }
 }
 
-// 9. Khoi tao Modal va ket noi AI LoRA Stardew Valley
+// 9. Khoi tao Modal va ket noi AI LoRA Stardew Valley & Pixel Presets
 function initAiPortraitModal(): void {
   const modal = document.getElementById('ai-modal');
   const btnOpen = document.getElementById('btn-ai-portrait');
@@ -657,6 +989,20 @@ function initAiPortraitModal(): void {
   const statusText = document.getElementById('ai-status-text');
   const btnLoad = document.getElementById('btn-load-existing-ai');
   const btnGenerate = document.getElementById('btn-run-ai-generate');
+
+  // Advanced inputs
+  const btnToggleAdv = document.getElementById('btn-toggle-ai-advanced');
+  const advPanel = document.getElementById('ai-advanced-panel');
+  const advArrow = document.getElementById('ai-advanced-arrow');
+  const checkpointSelect = document.getElementById('ai-checkpoint-select') as HTMLSelectElement | null;
+  const loraSelect = document.getElementById('ai-lora-select') as HTMLSelectElement | null;
+  const loraScaleInput = document.getElementById('ai-lora-scale') as HTMLInputElement | null;
+  const loraScaleVal = document.getElementById('ai-lora-scale-val');
+  const stepsInput = document.getElementById('ai-steps-slider') as HTMLInputElement | null;
+  const stepsVal = document.getElementById('ai-steps-val');
+  const sizeSelect = document.getElementById('ai-size-select') as HTMLSelectElement | null;
+  const modeSelect = document.getElementById('ai-mode-select') as HTMLSelectElement | null;
+  const removeBgCheckbox = document.getElementById('ai-remove-bg-checkbox') as HTMLInputElement | null;
 
   if (!modal || !btnOpen) return;
 
@@ -668,8 +1014,54 @@ function initAiPortraitModal(): void {
     modal.style.display = 'none';
   });
 
+  // Toggle Advanced Settings
+  let isAdvOpen = false;
+  btnToggleAdv?.addEventListener('click', () => {
+    isAdvOpen = !isAdvOpen;
+    if (advPanel) advPanel.style.display = isAdvOpen ? 'flex' : 'none';
+    if (advArrow) advArrow.innerText = isAdvOpen ? '▲' : '▼';
+  });
+
+  // Cap nhat nhan hien thi cua thanh truot
+  loraScaleInput?.addEventListener('input', () => {
+    if (loraScaleVal) loraScaleVal.innerText = parseFloat(loraScaleInput.value).toFixed(2);
+  });
+  stepsInput?.addEventListener('input', () => {
+    if (stepsVal) stepsVal.innerText = stepsInput.value;
+  });
+
+  // 1-Click Style Presets
+  const presetCards = document.querySelectorAll('.preset-card');
+  presetCards.forEach(card => {
+    card.addEventListener('click', () => {
+      presetCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+
+      const preset = card.getAttribute('data-preset');
+      if (preset === 'stardew') {
+        if (promptInput) promptInput.value = 'pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background';
+        if (loraSelect) loraSelect.value = 'models/lora/th_stardew_portrait_lora.safetensors';
+        if (loraScaleInput) { loraScaleInput.value = '0.6'; if (loraScaleVal) loraScaleVal.innerText = '0.60'; }
+        if (stepsInput) { stepsInput.value = '16'; if (stepsVal) stepsVal.innerText = '16'; }
+        if (sizeSelect) sizeSelect.value = '64';
+      } else if (preset === 'rpg') {
+        if (promptInput) promptInput.value = 'pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, simple background';
+        if (loraSelect) loraSelect.value = 'models/lora/pixel_f2.safetensors';
+        if (loraScaleInput) { loraScaleInput.value = '0.7'; if (loraScaleVal) loraScaleVal.innerText = '0.70'; }
+        if (stepsInput) { stepsInput.value = '16'; if (stepsVal) stepsVal.innerText = '16'; }
+        if (sizeSelect) sizeSelect.value = '64';
+      } else if (preset === 'scenery') {
+        if (promptInput) promptInput.value = 'pixel art, magical fantasy treehouse, floating island, lush green, retro game asset, vibrant colors';
+        if (loraSelect) loraSelect.value = 'models/lora/pixel_f2.safetensors';
+        if (loraScaleInput) { loraScaleInput.value = '0.65'; if (loraScaleVal) loraScaleVal.innerText = '0.65'; }
+        if (stepsInput) { stepsInput.value = '18'; if (stepsVal) stepsVal.innerText = '18'; }
+        if (sizeSelect) sizeSelect.value = '128';
+      }
+    });
+  });
+
   // Gan su kien cho cac tag mau
-  const tagButtons = document.querySelectorAll('.tag-btn');
+  const tagButtons = document.querySelectorAll('.preset-tags .tag-btn');
   tagButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const tag = btn.getAttribute('data-tag');
@@ -684,12 +1076,12 @@ function initAiPortraitModal(): void {
     try {
       if (statusMsg && statusText) {
         statusMsg.style.display = 'block';
-        statusText.innerText = 'Đang nạp ảnh 64x64 vào Canvas...';
+        statusText.innerText = 'Đang nạp ảnh gần nhất vào Canvas...';
       }
       const res = await fetch('http://127.0.0.1:3055/api/ai/load', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imagePath: 'th_stardew_character_pixel_64x64.png' })
+        body: JSON.stringify({ imagePath: 'th_stardew_test_pixel_64x64.png' })
       });
       const data = await res.json();
       if (data.success) {
@@ -704,29 +1096,54 @@ function initAiPortraitModal(): void {
     }
   });
 
-  // Sinh anh moi bang AI LoRA
+  // Sinh anh moi bang mo hinh SD1.5 Checkpoint & LoRA
   btnGenerate?.addEventListener('click', async () => {
     const prompt = promptInput?.value.trim();
     if (!prompt) {
-      alert('Vui lòng nhập mô tả nhân vật');
+      alert('Vui lòng nhập mô tả nhân vật hoặc khung cảnh');
       return;
     }
+
+    let timerInterval: any = null;
+    let elapsedSeconds = 0;
 
     try {
       if (statusMsg && statusText) {
         statusMsg.style.display = 'block';
-        statusText.innerText = 'Đang khởi động AI LoRA và vẽ nhân vật (khoảng 20-30s)...';
+        statusText.innerText = 'Đang khởi động AI Checkpoint & LoRA (0s trôi qua, khoảng ~60s trên CPU)...';
       }
       if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = true;
 
-      const removeBgCheckbox = document.getElementById('ai-remove-bg-checkbox') as HTMLInputElement | null;
+      timerInterval = setInterval(() => {
+        elapsedSeconds++;
+        if (statusText) {
+          statusText.innerText = `Đang sinh ảnh bằng SD1.5 & LoRA (${elapsedSeconds}s trôi qua, khoảng ~60s trên CPU)...`;
+        }
+      }, 1000);
+
+      const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
+      const loraPath = loraSelect ? loraSelect.value : 'models/lora/th_stardew_portrait_lora.safetensors';
+      const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.6;
+      const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
+      const size = sizeSelect ? parseInt(sizeSelect.value, 10) : 64;
+      const mode = modeSelect ? modeSelect.value : 'new_layer';
       const removeBg = removeBgCheckbox ? removeBgCheckbox.checked : false;
 
       const res = await fetch('http://127.0.0.1:3055/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, steps: 22, size: 64, removeBg })
+        body: JSON.stringify({
+          prompt,
+          checkpoint,
+          loraPath,
+          loraScale,
+          steps,
+          size,
+          mode,
+          removeBg
+        })
       });
+
       const data = await res.json();
       if (data.success) {
         modal.style.display = 'none';
@@ -736,6 +1153,7 @@ function initAiPortraitModal(): void {
     } catch (err: any) {
       alert('Lỗi kết nối máy chủ AI: ' + err.message);
     } finally {
+      if (timerInterval) clearInterval(timerInterval);
       if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = false;
       if (statusMsg) statusMsg.style.display = 'none';
     }
@@ -901,9 +1319,272 @@ function initGalleryModal(): void {
   });
 }
 
-// 11. Khoi dong ung dung
+// 11. Modal Thay Doi Kich Thuoc Canvas (Canvas Resize)
+function initResizeModal(): void {
+  const modal = document.getElementById('resize-modal');
+  const btnOpen = document.getElementById('canvas-size-badge');
+  const btnClose = document.getElementById('btn-close-resize-modal');
+  const btnCancel = document.getElementById('btn-cancel-resize');
+  const btnApply = document.getElementById('btn-apply-resize');
+  const widthInput = document.getElementById('resize-width-input') as HTMLInputElement | null;
+  const heightInput = document.getElementById('resize-height-input') as HTMLInputElement | null;
+  const anchorSelect = document.getElementById('resize-anchor-select') as HTMLSelectElement | null;
+
+  if (!modal) return;
+
+  btnOpen?.addEventListener('click', () => {
+    if (widthInput) widthInput.value = `${project.width}`;
+    if (heightInput) heightInput.value = `${project.height}`;
+    modal.style.display = 'flex';
+  });
+
+  const closeModal = () => { modal.style.display = 'none'; };
+  btnClose?.addEventListener('click', closeModal);
+  btnCancel?.addEventListener('click', closeModal);
+
+  // Preset buttons
+  document.querySelectorAll('.resize-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const w = btn.getAttribute('data-w');
+      const h = btn.getAttribute('data-h');
+      if (w && widthInput) widthInput.value = w;
+      if (h && heightInput) heightInput.value = h;
+    });
+  });
+
+  btnApply?.addEventListener('click', async () => {
+    const w = parseInt(widthInput?.value || '0', 10);
+    const h = parseInt(heightInput?.value || '0', 10);
+    const anchor = anchorSelect ? anchorSelect.value : 'center';
+
+    if (w <= 0 || h <= 0 || w > 512 || h > 512) {
+      alert('Kích thước Canvas phải từ 8 đến 512 px');
+      return;
+    }
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/canvas/resize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ width: w, height: h, anchor })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Lỗi từ máy chủ');
+      }
+    } catch (err: any) {
+      // Local fallback nếu server chưa bật
+      project.width = w;
+      project.height = h;
+      canvasEngine.rebuildBuffers();
+      onionSkinRenderer.resize(w, h);
+    }
+
+    const sizeBadge = document.getElementById('canvas-size-badge');
+    if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+    const resLabel = document.getElementById('canvas-resolution');
+    if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+    canvasEngine.centerViewport();
+    renderAll();
+    closeModal();
+  });
+}
+
+// 12. Nhap anh tu may tinh thanh Layer moi (Image Import)
+function initImageImport(): void {
+  const btnImport = document.getElementById('btn-import-image');
+  const fileInput = document.getElementById('image-import-input') as HTMLInputElement | null;
+
+  if (!btnImport || !fileInput) return;
+
+  btnImport.addEventListener('click', () => {
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = img.width;
+        offCanvas.height = img.height;
+        const ctx = offCanvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, img.width, img.height);
+        const data = imgData.data;
+
+        // Mo rong canvas neu can
+        if (img.width > project.width || img.height > project.height) {
+          project.width = Math.max(img.width, project.width);
+          project.height = Math.max(img.height, project.height);
+          const sizeBadge = document.getElementById('canvas-size-badge');
+          if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+          const resLabel = document.getElementById('canvas-resolution');
+          if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+          onionSkinRenderer.resize(project.width, project.height);
+        }
+
+        const offsetX = Math.floor((project.width - img.width) / 2);
+        const offsetY = Math.floor((project.height - img.height) / 2);
+
+        const newLayerId = `layer_${Date.now()}`;
+        const activeFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+        const newLayer = {
+          id: newLayerId,
+          name: `Import: ${file.name.slice(0, 12)}`,
+          visible: true,
+          locked: false,
+          opacity: 1.0,
+          pixels: {} as Record<string, PixelColor>
+        };
+
+        for (let y = 0; y < img.height; y++) {
+          for (let x = 0; x < img.width; x++) {
+            const idx = (y * img.width + x) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const a = data[idx + 3];
+            if (a > 20) {
+              const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+              newLayer.pixels[coordToKey(x + offsetX, y + offsetY)] = hex;
+            }
+          }
+        }
+
+        activeFrame.layers.push(newLayer);
+        project.activeLayerId = newLayerId;
+        canvasEngine.rebuildBuffers();
+        canvasEngine.centerViewport();
+        renderAll();
+
+        // Dong bo voi server
+        try {
+          fetch('http://127.0.0.1:3055/api/draw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'PROJECT_SYNC', project })
+          }).catch(() => {});
+        } catch (_) {}
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 13. Modal Xuat File Tac Pham (Export)
+function initExportModal(): void {
+  const modal = document.getElementById('export-modal');
+  const btnOpen = document.getElementById('btn-export');
+  const btnClose = document.getElementById('btn-close-export-modal');
+  const btnDownload = document.getElementById('btn-download-png');
+  const btnServer = document.getElementById('btn-export-server');
+  const typeSelect = document.getElementById('export-type-select') as HTMLSelectElement | null;
+
+  let currentScale = 1;
+
+  if (!modal || !btnOpen) return;
+
+  btnOpen.addEventListener('click', () => {
+    modal.style.display = 'flex';
+  });
+
+  btnClose?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  // Chon ti le phong to
+  const scaleBtns = document.querySelectorAll('.export-scale-btn');
+  scaleBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      scaleBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentScale = parseInt(btn.getAttribute('data-scale') || '1', 10);
+    });
+  });
+
+  // Tai truc tiep file PNG sac net ve may tinh
+  btnDownload?.addEventListener('click', () => {
+    const exportType = typeSelect ? typeSelect.value : 'current_frame';
+
+    if (exportType === 'current_frame') {
+      const activeFrame = canvasEngine.getCurrentFrame();
+      if (!activeFrame) return;
+
+      const outW = project.width * currentScale;
+      const outH = project.height * currentScale;
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = outW;
+      offCanvas.height = outH;
+      const ctx = offCanvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.imageSmoothingEnabled = false;
+
+      // Ve lan luot cac visible layers
+      for (const layer of activeFrame.layers) {
+        if (!layer.visible) continue;
+        const buffer = canvasEngine.getLayerBuffer(layer.id);
+        if (!buffer) continue;
+
+        ctx.save();
+        ctx.globalAlpha = layer.opacity;
+        const pixels = buffer.getAllPixels();
+        for (const p of pixels) {
+          if (!p.color) continue;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x * currentScale, p.y * currentScale, currentScale, currentScale);
+        }
+        ctx.restore();
+      }
+
+      const link = document.createElement('a');
+      link.download = `${project.name || 'pixel_art'}_frame${project.activeFrameIndex + 1}_${outW}x${outH}.png`;
+      link.href = offCanvas.toDataURL('image/png');
+      link.click();
+      modal.style.display = 'none';
+    } else {
+      btnServer?.click();
+    }
+  });
+
+  // Luu vao thu muc du an server
+  btnServer?.addEventListener('click', async () => {
+    try {
+      const outputPath = `storage/outputs/${project.name || 'SpriteSheet'}_${Date.now()}.png`;
+      const res = await fetch('http://127.0.0.1:3055/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outputPath, scale: currentScale })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Đã xuất SpriteSheet thành công tại: ${outputPath}`);
+        modal.style.display = 'none';
+      } else {
+        alert('Lỗi xuất file: ' + (data.error || 'Thao tác thất bại'));
+      }
+    } catch (err: any) {
+      alert('Lỗi kết nối máy chủ xuất file: ' + err.message);
+    }
+  });
+}
+
+// 14. Khoi dong ung dung
 loadPalette('endesga-32');
 renderAll();
 initWebSocketBridge();
 initAiPortraitModal();
 initGalleryModal();
+initResizeModal();
+initImageImport();
+initExportModal();

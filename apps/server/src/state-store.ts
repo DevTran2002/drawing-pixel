@@ -33,6 +33,121 @@ export class StateStore {
     return this.project;
   }
 
+  // Thay doi kich thuoc Canvas va can chinh vi tri pixel cu
+  resizeCanvas(newWidth: number, newHeight: number, anchor = 'center'): CanvasProject {
+    const oldWidth = this.project.width;
+    const oldHeight = this.project.height;
+
+    let dx = 0;
+    let dy = 0;
+
+    switch (anchor) {
+      case 'top-left':
+        dx = 0;
+        dy = 0;
+        break;
+      case 'top-center':
+        dx = Math.floor((newWidth - oldWidth) / 2);
+        dy = 0;
+        break;
+      case 'top-right':
+        dx = newWidth - oldWidth;
+        dy = 0;
+        break;
+      case 'center-left':
+        dx = 0;
+        dy = Math.floor((newHeight - oldHeight) / 2);
+        break;
+      case 'center':
+      default:
+        dx = Math.floor((newWidth - oldWidth) / 2);
+        dy = Math.floor((newHeight - oldHeight) / 2);
+        break;
+      case 'center-right':
+        dx = newWidth - oldWidth;
+        dy = Math.floor((newHeight - oldHeight) / 2);
+        break;
+      case 'bottom-left':
+        dx = 0;
+        dy = newHeight - oldHeight;
+        break;
+      case 'bottom-center':
+        dx = Math.floor((newWidth - oldWidth) / 2);
+        dy = newHeight - oldHeight;
+        break;
+      case 'bottom-right':
+        dx = newWidth - oldWidth;
+        dy = newHeight - oldHeight;
+        break;
+    }
+
+    for (const frame of this.project.frames) {
+      for (const layer of frame.layers) {
+        const newPixels: Record<string, PixelColor> = {};
+        for (const [key, color] of Object.entries(layer.pixels)) {
+          const coord = keyToCoord(key);
+          const nx = coord.x + dx;
+          const ny = coord.y + dy;
+          if (nx >= 0 && nx < newWidth && ny >= 0 && ny < newHeight) {
+            newPixels[coordToKey(nx, ny)] = color;
+          }
+        }
+        layer.pixels = newPixels;
+      }
+    }
+
+    this.project.width = newWidth;
+    this.project.height = newHeight;
+    this.project.pivot = {
+      x: Math.floor(newWidth / 2),
+      y: newHeight
+    };
+
+    return this.project;
+  }
+
+  // Them layer chua anh sinh boi AI vao Canvas, tu dong tang kich thuoc neu can
+  addAiLayer(pixels: PixelPoint[], width: number, height: number, layerName?: string): string {
+    // Neu kich thuoc anh lon hon canvas hien tai thi mo rong canvas
+    if (width > this.project.width || height > this.project.height) {
+      const targetW = Math.max(width, this.project.width);
+      const targetH = Math.max(height, this.project.height);
+      this.resizeCanvas(targetW, targetH, 'center');
+    }
+
+    const offsetX = Math.floor((this.project.width - width) / 2);
+    const offsetY = Math.floor((this.project.height - height) / 2);
+
+    const newLayerId = `layer_${Date.now()}`;
+    const newLayerName = layerName || 'AI Generated';
+
+    const activeFrame = this.project.frames[this.project.activeFrameIndex] || this.project.frames[0];
+    if (!activeFrame) return newLayerId;
+
+    const newLayer = {
+      id: newLayerId,
+      name: newLayerName,
+      visible: true,
+      locked: false,
+      opacity: 1.0,
+      pixels: {} as Record<string, PixelColor>
+    };
+
+    for (const p of pixels) {
+      const targetX = p.x + offsetX;
+      const targetY = p.y + offsetY;
+      if (targetX >= 0 && targetX < this.project.width && targetY >= 0 && targetY < this.project.height) {
+        if (p.color) {
+          newLayer.pixels[coordToKey(targetX, targetY)] = p.color;
+        }
+      }
+    }
+
+    activeFrame.layers.push(newLayer);
+    this.project.activeLayerId = newLayerId;
+    return newLayerId;
+  }
+
   // Ap dung danh sach pixel
   applyPixels(pixels: PixelPoint[], layerId?: string, frameIndex?: number): void {
     const fIdx = frameIndex !== undefined ? frameIndex : this.project.activeFrameIndex;
