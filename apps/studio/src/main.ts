@@ -1704,7 +1704,7 @@ function initAiPortraitModal(): void {
     const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.6;
     const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
     const size = sizeSelect ? parseInt(sizeSelect.value, 10) : 64;
-    const mode = modeSelect ? modeSelect.value : 'new_layer';
+    const mode = modeSelect ? modeSelect.value : 'replace_canvas';
     const removeBg = removeBgCheckbox ? removeBgCheckbox.checked : false;
 
     // Khoi tao cac phan tu DOM cua hop tien do

@@ -107,7 +107,13 @@ export class StateStore {
   }
 
   // Them layer chua anh sinh boi AI vao Canvas, tu dong tang kich thuoc neu can
-  addAiLayer(pixels: PixelPoint[], width: number, height: number, layerName?: string): string {
+  addAiLayer(
+    pixels: PixelPoint[],
+    width: number,
+    height: number,
+    layerName?: string,
+    hidePrevious = true
+  ): string {
     // Neu kich thuoc anh lon hon canvas hien tai thi mo rong canvas
     if (width > this.project.width || height > this.project.height) {
       const targetW = Math.max(width, this.project.width);
@@ -123,6 +129,13 @@ export class StateStore {
 
     const activeFrame = this.project.frames[this.project.activeFrameIndex] || this.project.frames[0];
     if (!activeFrame) return newLayerId;
+
+    // Tu dong tam an cac layer cu de tranh bi chong hinh len nhau
+    if (hidePrevious) {
+      for (const layer of activeFrame.layers) {
+        layer.visible = false;
+      }
+    }
 
     const newLayer = {
       id: newLayerId,

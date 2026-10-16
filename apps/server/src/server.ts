@@ -174,13 +174,16 @@ const server = http.createServer(async (req, res) => {
 
         const { width, height, pixels } = loadPngToPixels(outputPath);
 
-        // Che do them vao Layer moi (mac dinh theo yeu cau user) hoac tao Canvas moi
+        // Che do them vao Layer moi hoac tao Canvas moi
         if (mode === 'replace_canvas') {
-          stateStore.createCanvas(width, height, 'StardewPortrait');
+          stateStore.createCanvas(width, height, `AI Stardew (${size || 64}x${size || 64})`);
           stateStore.applyPixels(pixels);
+        } else if (mode === 'new_layer_keep') {
+          // Them layer moi va giu nguyen hien thi ca layer cu
+          stateStore.addAiLayer(pixels, width, height, `AI Stardew (${size || 64}x${size || 64})`, false);
         } else {
-          // Tu dong tao layer moi va co gian canvas neu anh lon hon
-          stateStore.addAiLayer(pixels, width, height, `AI Stardew (${size || 64}x${size || 64})`);
+          // Mac dinh (new_layer): Them layer moi va tu dong an cac layer cu de khong bi chong hinh len nhau
+          stateStore.addAiLayer(pixels, width, height, `AI Stardew (${size || 64}x${size || 64})`, true);
         }
 
         // Tu dong luu vao kho anh Gallery
