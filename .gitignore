@@ -26,7 +26,7 @@ Thumbs.db
 assets/datasets/*.zip
 assets/extracted/
 models/**/*.pt
-# models/**/*.safetensors
+models/**/*.safetensors
 
 # Storage and generated outputs
 storage/outputs/*
@@ -34,3 +34,6 @@ storage/outputs/*
 exports/
 scratch/
 trainning/
+venv/
+.venv/
+.env

@@ -75,3 +75,48 @@ Khi mở `http://127.0.0.1:5173`, mục trạng thái phía trên sẽ hiển th
    ```
 3. Trong bất kỳ phiên chat nào, chỉ cần gọi:
    > *"Dùng skill /pixel-artist vẽ cho tôi nhân vật hiệp sĩ 24x24 theo phong cách 16bit-classic có động tác idle và walk"*
+
+---
+
+## 5. Mô Hình AI Tạo Ảnh Pixel Art (Stable Diffusion & LoRA)
+
+Dự án hỗ trợ sinh ảnh nhân vật và bối cảnh Pixel Art bằng Stable Diffusion kết hợp với mô hình LoRA `pixel_f2`.
+
+### Tải Checkpoint Khuyến Nghị (AbyssOrangeMix 3 A1B)
+
+Để LoRA `pixel_f2` đạt chất lượng pixel sắc nét chuẩn 2D như trên Civitai (không bị nhòe hay méo hình), bắt buộc sử dụng checkpoint nền tảng **AbyssOrangeMix 3 A1B (AOM3A1B)**:
+
+- **Liên kết tải trực tiếp:**
+  [https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors](https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors)
+- **Thư mục lưu trữ:** `models/checkpoints/AOM3A1B_orangemixs.safetensors`
+- **Dung lượng:** Khoảng 2.13 GB (bản pruned fp16 tối ưu).
+
+#### Lệnh tải nhanh bằng PowerShell:
+```powershell
+# Tao thu muc checkpoints neu chua co
+New-Item -ItemType Directory -Force -Path "models/checkpoints"
+
+# Tai tep mo hinh ve may
+Invoke-WebRequest -Uri "https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors" -OutFile "models/checkpoints/AOM3A1B_orangemixs.safetensors"
+```
+
+#### Lệnh tải bằng curl:
+```bash
+curl -L -o models/checkpoints/AOM3A1B_orangemixs.safetensors "https://huggingface.co/WarriorMama777/OrangeMixs/resolve/main/Models/AbyssOrangeMix3/AOM3A1B_orangemixs.safetensors"
+```
+
+### Thiết Lập Và Sinh Ảnh Cục Bộ
+
+1. Cài đặt các gói phụ thuộc Python vào môi trường ảo:
+   ```powershell
+   .venv\Scripts\pip install -r requirements.txt
+   ```
+
+2. Sinh ảnh Pixel Art bằng LoRA `pixel_f2`:
+   - Trigger word chính: `pixel`, `chibi`
+   - Trọng số LoRA khuyến nghị: `0.5` đến `0.6`
+   - Lệnh mẫu:
+     ```powershell
+     .venv\Scripts\python scripts/th_generate_stardew_portrait.py --lora models/lora/pixel_f2.safetensors --prompt "pixel, chibi, 1boy, solo, armor, holding sword, brown hair, blue eyes, full body, standing, simple background, white background" --steps 18 --size 64 --output_prefix storage/outputs/th_character_pixel
+     ```
+
