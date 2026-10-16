@@ -30,7 +30,7 @@ Kỹ năng được thiết kế theo cấu trúc mô-đun mở rộng. Khi nh�
 - **`chibi-rpg`**: Đầu to, thân nhỏ, mắt to lấp lánh, phong cách dễ thương.
 - **`cyberpunk-scifi`**: Gam màu tối kim loại phối hợp với vệt sáng neon (cyan, magenta, yellow), tối ưu cho súng đạn và binh lính viễn tưởng.
 - **`lineless-modern`**: Phong cách đồ họa phẳng hiện đại, không sử dụng đường viền ngoài.
-- **`stardew-pixel-art`**: Phong cách nông trại ấm cúng (cozy farming RPG), góc nhìn top-down 3/4, viền nâu sẫm hữu cơ #3A2010, đổ bóng mảng cụm sạch sẽ.
+- **`cozy-farming`**: Phong cách nông trại ấm cúng (cozy farming RPG), góc nhìn top-down 3/4, viền nâu sẫm hữu cơ #3A2010, đổ bóng mảng cụm sạch sẽ.
 - **`custom-template`**: Mẫu để tiếp nhận và tạo nhanh phong cách mới do người dùng mô tả tự do.
 
 ---

@@ -6,7 +6,7 @@ import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
-import { loadPngToPixels, generateStardewPortrait } from './ai-helper';
+import { loadPngToPixels, generatePixelArt } from './ai-helper';
 import { GalleryManager } from './gallery-manager';
 
 const PORT = 3055;
@@ -101,11 +101,11 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const payload = body ? JSON.parse(body) : {};
-        const imagePath = payload.imagePath || 'th_stardew_test_pixel_64x64.png';
+        const imagePath = payload.imagePath || 'sample_pixel_64x64.png';
         const { width, height, pixels } = loadPngToPixels(imagePath);
 
         // Khoi tao Canvas voi kich thuoc dung bang kich thuoc anh
-        stateStore.createCanvas(width, height, 'StardewPortrait');
+        stateStore.createCanvas(width, height, 'PixelPortrait');
         stateStore.applyPixels(pixels);
 
         // Dong bo toan bo Studio qua WebSocket
@@ -154,10 +154,10 @@ const server = http.createServer(async (req, res) => {
           throw new Error('Vui long cung cap cau lenh prompt');
         }
 
-        const outputPath = await generateStardewPortrait({
+        const outputPath = await generatePixelArt({
           prompt,
           checkpoint: checkpoint || 'models/checkpoints/AOM3A1B_orangemixs.safetensors',
-          loraPath: loraPath || 'models/lora/th_stardew_portrait_lora.safetensors',
+          loraPath: loraPath || 'models/lora/pixel_portrait_lora.safetensors',
           loraScale: typeof loraScale === 'number' ? loraScale : 0.6,
           steps: steps || 16,
           size: size || 64,
@@ -176,14 +176,14 @@ const server = http.createServer(async (req, res) => {
 
         // Che do them vao Layer moi hoac tao Canvas moi
         if (mode === 'replace_canvas') {
-          stateStore.createCanvas(width, height, `AI Stardew (${size || 64}x${size || 64})`);
+          stateStore.createCanvas(width, height, `AI Pixel (${size || 64}x${size || 64})`);
           stateStore.applyPixels(pixels);
         } else if (mode === 'new_layer_keep') {
           // Them layer moi va giu nguyen hien thi ca layer cu
-          stateStore.addAiLayer(pixels, width, height, `AI Stardew (${size || 64}x${size || 64})`, false);
+          stateStore.addAiLayer(pixels, width, height, `AI Pixel (${size || 64}x${size || 64})`, false);
         } else {
           // Mac dinh (new_layer): Them layer moi va tu dong an cac layer cu de khong bi chong hinh len nhau
-          stateStore.addAiLayer(pixels, width, height, `AI Stardew (${size || 64}x${size || 64})`, true);
+          stateStore.addAiLayer(pixels, width, height, `AI Pixel (${size || 64}x${size || 64})`, true);
         }
 
         // Tu dong luu vao kho anh Gallery

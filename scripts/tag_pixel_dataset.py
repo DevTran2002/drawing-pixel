@@ -21,7 +21,7 @@ from huggingface_hub import hf_hub_download
 from tqdm.auto import tqdm
 
 # Ham khoi tao mo hinh WD14 Tagger
-def th_load_tagger_model():
+def load_tagger_model():
     repo_id = "SmilingWolf/wd-v1-4-convnext-tagger-v2"
     print("Dang tai mo hinh WD14 ConvNeXt V2 tu Hugging Face...")
     model_path = hf_hub_download(repo_id=repo_id, filename="model.onnx")
@@ -42,7 +42,7 @@ def th_load_tagger_model():
     return session, tag_names, general_indices
 
 # Ham tien xu ly 1 anh cho model WD14
-def th_preprocess_single_image(path, target_size=448):
+def preprocess_single_image(path, target_size=448):
     try:
         img = Image.open(path).convert("RGBA")
         canvas = Image.new("RGBA", img.size, (255, 255, 255, 255))
@@ -59,9 +59,27 @@ def th_preprocess_single_image(path, target_size=448):
         print(f"Loi khi doc anh {path}: {err}")
         return None
 
+# Ham dong goi toan bo anh va nhan vao file zip
+def create_tagged_zip(image_dir, output_zip="assets/datasets/pixel_portraits_tagged.zip"):
+    print(f"Dang dong goi toan bo anh va nhan vao {output_zip}...")
+    zip_dir = os.path.dirname(output_zip)
+    if zip_dir:
+        os.makedirs(zip_dir, exist_ok=True)
+
+    zip_start = time.time()
+    all_files = glob.glob(os.path.join(image_dir, "**", "*.*"), recursive=True)
+    target_files = [f for f in all_files if f.endswith(".png") or f.endswith(".txt")]
+    
+    with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in tqdm(target_files, desc="Nen zip"):
+            rel_path = os.path.relpath(f, os.path.dirname(image_dir))
+            zf.write(f, rel_path)
+            
+    print(f"Da tao thanh cong {output_zip} ({len(target_files)} tep) trong {time.time() - zip_start:.2f} giay.")
+
 # Ham gan nhan toan bo danh sach anh
-def th_tag_dataset(image_dir, confidence_threshold=0.35, max_images=None, auto_zip=True):
-    session, tag_names, general_indices = th_load_tagger_model()
+def tag_dataset(image_dir, confidence_threshold=0.35, max_images=None, auto_zip=True):
+    session, tag_names, general_indices = load_tagger_model()
     input_name = session.get_inputs()[0].name
 
     all_images = glob.glob(os.path.join(image_dir, "**", "*.png"), recursive=True)
@@ -77,7 +95,7 @@ def th_tag_dataset(image_dir, confidence_threshold=0.35, max_images=None, auto_z
     processed_count = 0
 
     for path in pending_images:
-        input_data = th_preprocess_single_image(path)
+        input_data = preprocess_single_image(path)
         if input_data is None:
             continue
 
@@ -90,11 +108,11 @@ def th_tag_dataset(image_dir, confidence_threshold=0.35, max_images=None, auto_z
                 clean_tag = tag_names[idx].replace("_", " ")
                 selected_tags.append(clean_tag)
 
-        # Trich xuat ten nhan vat tu ten file neu co (vi du: Abigail_Beach -> Abigail)
+        # Trich xuat ten nhan vat tu ten file neu co (vi du: Hero_Battle -> Hero)
         filename = os.path.basename(path)
         char_prefix = filename.split("_")[0]
         
-        tags_to_save = ["pixel art", "stardew portrait"]
+        tags_to_save = ["pixel art", "character portrait"]
         if char_prefix and not char_prefix.isdigit():
             tags_to_save.append(char_prefix.lower())
         tags_to_save.extend(selected_tags)
@@ -114,28 +132,10 @@ def th_tag_dataset(image_dir, confidence_threshold=0.35, max_images=None, auto_z
     print(f"Hoan thanh xu ly trong {time.time() - start_time:.2f} giay.")
 
     if auto_zip:
-        th_create_tagged_zip(image_dir)
-
-# Ham dong goi toan bo anh va nhan vao file zip
-def th_create_tagged_zip(image_dir, output_zip="assets/datasets/stardew_portraits_tagged.zip"):
-    print(f"Dang dong goi toan bo anh va nhan vao {output_zip}...")
-    zip_dir = os.path.dirname(output_zip)
-    if zip_dir:
-        os.makedirs(zip_dir, exist_ok=True)
-
-    zip_start = time.time()
-    all_files = glob.glob(os.path.join(image_dir, "**", "*.*"), recursive=True)
-    target_files = [f for f in all_files if f.endswith(".png") or f.endswith(".txt")]
-    
-    with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in tqdm(target_files, desc="Nen zip"):
-            rel_path = os.path.relpath(f, os.path.dirname(image_dir))
-            zf.write(f, rel_path)
-            
-    print(f"Da tao thanh cong {output_zip} ({len(target_files)} tep) trong {time.time() - zip_start:.2f} giay.")
+        create_tagged_zip(image_dir)
 
 if __name__ == "__main__":
     import sys
-    target_dir = sys.argv[1] if len(sys.argv) > 1 else "stardew_portraits/portraits_64x64"
+    target_dir = sys.argv[1] if len(sys.argv) > 1 else "pixel_portraits/portraits_64x64"
     max_count = int(sys.argv[2]) if len(sys.argv) > 2 else None
-    th_tag_dataset(target_dir, max_images=max_count)
+    tag_dataset(target_dir, max_images=max_count)

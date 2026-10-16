@@ -1,12 +1,12 @@
 {
-  "th_template_name": "Stardew NPC Portrait Grid 64x64",
-  "th_frame_size": { "width": 64, "height": 64 },
-  "th_layout": {
+  "template_name": "Pixel NPC Portrait Grid 64x64",
+  "frame_size": { "width": 64, "height": 64 },
+  "layout": {
     "columns": 2,
     "rows": 3,
     "total_size": { "width": 128, "height": 192 }
   },
-  "th_expressions": [
+  "expressions": [
     { "index": 0, "col": 0, "row": 0, "name": "neutral", "description": "Biểu cảm mặc định, mỉm cười nhẹ" },
     { "index": 1, "col": 1, "row": 0, "name": "happy", "description": "Cười tươi, mắt nheo lại tạo đường cong, má hơi ửng hồng" },
     { "index": 2, "col": 0, "row": 1, "name": "sad", "description": "Khóe miệng trĩu xuống, chân mày nhíu lại thể hiện lo lắng" },

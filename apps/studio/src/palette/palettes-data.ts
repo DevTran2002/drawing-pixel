@@ -36,8 +36,8 @@ export const PRESET_PALETTES: PalettePreset[] = [
     ]
   },
   {
-    id: 'stardew-valley',
-    name: 'Stardew Cozy Farming (24 Colors)',
+    id: 'cozy-farming',
+    name: 'Cozy Farming RPG (24 Colors)',
     colors: [
       '#3a2010', '#523624', '#945b3a', '#b87b4e', '#deb887', '#e8e2d5', '#ffffff', '#8b3a1a',
       '#d95726', '#f29e38', '#fce068', '#ffee88', '#1e3f20', '#386b2e', '#5c9e3d', '#8fcf4f',

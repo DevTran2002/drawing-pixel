@@ -22,7 +22,7 @@ import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 
 # Ham tach nen an toan: chi loai bo mau nen phia ngoai, khong xam pham vao co the nhan vat
-def th_remove_background_safe(image, tolerance=22):
+def remove_background_safe(image, tolerance=22):
     img = image.convert("RGBA")
     arr = np.array(img)
     h, w, _ = arr.shape
@@ -74,13 +74,13 @@ def th_remove_background_safe(image, tolerance=22):
     arr[bg_mask, 3] = 0
     return Image.fromarray(arr, "RGBA")
 
-# Ham sinh anh chan dung Stardew Valley chuan chat luong cao
-def th_generate_portrait(
-    lora_path="models/lora/th_stardew_portrait_lora.safetensors",
+# Ham sinh anh Pixel Art da nang chat luong cao
+def generate_pixel_art(
+    lora_path="models/lora/pixel_portrait_lora.safetensors",
     checkpoint="models/checkpoints/AOM3A1B_orangemixs.safetensors",
-    prompt="stardew valley style, pixel art portrait, 1boy, brown hair, white shirt, smiling, looking at viewer",
+    prompt="pixel art, character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer",
     negative_prompt="blurry, photorealistic, 3d, realistic, smooth, noisy, distorted, disfigured, malformed, bad anatomy, artifacts, floating particles",
-    output_prefix="storage/outputs/th_stardew_character",
+    output_prefix="storage/outputs/pixel_character",
     steps=22,
     guidance_scale=7.5,
     lora_scale=0.55,
@@ -97,13 +97,10 @@ def th_generate_portrait(
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    # Chi bo sung trigger keywords cua Stardew neu dang su dung LoRA Stardew
+    # Chuan hoa tu khoa pixel art neu trong prompt chua co
     enriched_prompt = prompt
-    if "stardew" in lora_path.lower():
-        if "stardew" not in prompt.lower():
-            enriched_prompt = f"stardew valley style, pixel art portrait, {prompt}"
-        if "clean cluster shading" not in prompt.lower():
-            enriched_prompt = f"{enriched_prompt}, clean cluster shading, organic outline"
+    if "pixel" not in prompt.lower():
+        enriched_prompt = f"pixel art, {prompt}"
 
     # Uu tien su dung Checkpoint cuc bo neu ton tai
     if checkpoint and os.path.exists(checkpoint):
@@ -134,7 +131,7 @@ def th_generate_portrait(
     print(f"AI_STAGE:DENOISE_START:Bat dau sinh anh ({steps} steps)...", flush=True)
     start_denoise_time = time.time()
 
-    def th_step_callback(pipe_ref, step_index, timestep, callback_kwargs):
+    def step_callback(pipe_ref, step_index, timestep, callback_kwargs):
         curr_step = step_index + 1
         elapsed = time.time() - start_denoise_time
         pct = int(round((curr_step / steps) * 100))
@@ -155,7 +152,7 @@ def th_generate_portrait(
 
     sig_params = inspect.signature(pipe.__call__).parameters
     if "callback_on_step_end" in sig_params:
-        call_kwargs["callback_on_step_end"] = th_step_callback
+        call_kwargs["callback_on_step_end"] = step_callback
     elif "callback" in sig_params:
         def legacy_cb(s, t, latents):
             curr_step = s + 1
@@ -179,7 +176,7 @@ def th_generate_portrait(
     processed_img = raw_img
     if remove_bg:
         print("AI_STAGE:REMOVE_BG:Dang tach nen an toan (Safe Flood-fill)...", flush=True)
-        processed_img = th_remove_background_safe(raw_img, tolerance=22)
+        processed_img = remove_background_safe(raw_img, tolerance=22)
         trans_out = f"{output_prefix}_transparent_512.png"
         processed_img.save(trans_out)
         print(f"Da luu anh 512x512 nen trong suot: {trans_out}", flush=True)
@@ -199,20 +196,20 @@ def th_generate_portrait(
     return pixel_out
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Sinh anh Pixel Art va chan dung bang LoRA va Checkpoint")
-    parser.add_argument("--lora", default="models/lora/th_stardew_portrait_lora.safetensors", help="Duong dan tep LoRA")
+    parser = argparse.ArgumentParser(description="Sinh anh Pixel Art da nang bang LoRA va Checkpoint")
+    parser.add_argument("--lora", default="models/lora/pixel_portrait_lora.safetensors", help="Duong dan tep LoRA")
     parser.add_argument("--checkpoint", default="models/checkpoints/AOM3A1B_orangemixs.safetensors", help="Duong dan tep Checkpoint base")
-    parser.add_argument("--prompt", default="stardew valley style, pixel art portrait, 1boy, brown hair, white shirt, smiling, looking at viewer", help="Mo ta nhan vat")
+    parser.add_argument("--prompt", default="pixel art, character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer", help="Mo ta buc tranh")
     parser.add_argument("--negative_prompt", default="blurry, photorealistic, 3d, realistic, smooth, noisy, distorted, disfigured, malformed, bad anatomy, artifacts, floating particles", help="Tu khoa loai tru")
     parser.add_argument("--lora_scale", type=float, default=0.55, help="Do manh cua LoRA (0.5 - 0.7 la toi uu)")
     parser.add_argument("--steps", type=int, default=18, help="So buoc lay mau (15-22 buoc)")
     parser.add_argument("--size", type=int, default=64, help="Kich thuoc pixel art xuat ra")
     parser.add_argument("--resample", default="NEAREST", choices=["NEAREST", "LANCZOS"], help="Thuat toan thu nho anh")
-    parser.add_argument("--output_prefix", default="storage/outputs/th_character_pixel", help="Tien to duong dan tep anh dau ra")
+    parser.add_argument("--output_prefix", default="storage/outputs/pixel_character", help="Tien to duong dan tep anh dau ra")
     parser.add_argument("--remove_bg", action="store_true", help="Co tach nen trong suot hay khong")
     args = parser.parse_args()
 
-    th_generate_portrait(
+    generate_pixel_art(
         lora_path=args.lora,
         checkpoint=args.checkpoint,
         prompt=args.prompt,

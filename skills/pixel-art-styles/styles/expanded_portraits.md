@@ -1,6 +1,6 @@
 # Phong Cách Chân Dung Đối Thoại Mở Rộng (Expanded NPC Portraits)
 
-Phong cách chân dung hộp thoại kích thước chuẩn 64x64 pixel từ phiên bản gốc và các bản mở rộng nổi tiếng (Stardew Valley Expanded, Ridgeside Village, East Scarp, TDIT).
+Phong cách chân dung hộp thoại kích thước chuẩn 64x64 pixel cho các tựa game RPG và visual novel 16-bit chi tiết cao.
 
 ## 1. Thông Số Lưới Và Bố Cục
 - **Kích thước mỗi khung hình biểu cảm:** 64x64 pixel.

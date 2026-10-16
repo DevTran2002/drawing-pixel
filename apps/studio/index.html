@@ -84,7 +84,7 @@
         </button>
 
         <!-- AI Studio -->
-        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh ảnh pixel Stardew / RPG / Scenery bằng AI SD1.5 & LoRA">
+        <button class="btn btn-ai" id="btn-ai-portrait" title="Sinh ảnh Pixel Art đa phong cách bằng AI SD1.5 & LoRA">
           <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>
           AI Studio
         </button>
@@ -186,7 +186,7 @@
             <span>Color Palette</span>
             <select id="palette-select" class="btn btn-small" style="padding: 2px 4px; font-size: 11px;">
               <option value="endesga-32">Endesga 32</option>
-              <option value="stardew-valley">Stardew Valley</option>
+              <option value="cozy-farming">Cozy Farming RPG</option>
               <option value="pico-8">Pico-8</option>
               <option value="gameboy">Game Boy</option>
               <option value="dawnbringer-16">DawnBringer 16</option>
@@ -296,16 +296,16 @@
             Phong cách mẫu nhanh (1-Click Presets):
           </label>
           <div class="ai-preset-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
-            <button class="preset-card active" id="preset-stardew" data-preset="stardew">
-              <div class="preset-name">Stardew Valley</div>
-              <div class="preset-desc">Chân dung 64x64, màu sắc ấm cúng</div>
+            <button class="preset-card active" id="preset-retro-char" data-preset="retro-char">
+              <div class="preset-name">Retro Character</div>
+              <div class="preset-desc">Chân dung 64x64, Pixel Portrait LoRA</div>
             </button>
             <button class="preset-card" id="preset-rpg" data-preset="rpg">
               <div class="preset-name">16-bit RPG Hero</div>
-              <div class="preset-desc">Nhân vật 64x64, LoRA Pixel F2</div>
+              <div class="preset-desc">Nhân vật 64x64, Pixel F2 LoRA</div>
             </button>
             <button class="preset-card" id="preset-scenery" data-preset="scenery">
-              <div class="preset-name">Scenery / Item</div>
+              <div class="preset-name">Pixel Scenery</div>
               <div class="preset-desc">Khung cảnh 128x128 sắc nét</div>
             </button>
           </div>
@@ -313,13 +313,13 @@
           <label style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 4px; display: block;">
             Mô tả câu lệnh (Prompt):
           </label>
-          <textarea id="ai-prompt-input" rows="3" class="modal-textarea" placeholder="Ví dụ: pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background</textarea>
+          <textarea id="ai-prompt-input" rows="3" class="modal-textarea" placeholder="Ví dụ: pixel art, retro character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">pixel art, retro character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background</textarea>
           
           <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; margin-bottom: 4px;">Gợi ý từ khóa:</div>
           <div class="preset-tags" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
-            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">Nam áo trắng</button>
-            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background">Nữ tóc tím</button>
-            <button class="tag-btn" data-tag="pixel art, stardew portrait, 1boy, blonde hair, blue shirt, hat, looking at viewer, simple white background">Nam tóc vàng</button>
+            <button class="tag-btn" data-tag="pixel art, character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background">Nam áo trắng</button>
+            <button class="tag-btn" data-tag="pixel art, character portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background">Nữ tóc tím</button>
+            <button class="tag-btn" data-tag="pixel art, character portrait, 1boy, blonde hair, blue shirt, hat, looking at viewer, simple white background">Nam tóc vàng</button>
             <button class="tag-btn" data-tag="pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, simple background">Hiệp sĩ RPG</button>
             <button class="tag-btn" data-tag="pixel art, magical fantasy treehouse, floating island, lush green, retro game asset, vibrant colors">Cây thần thoại</button>
           </div>
@@ -343,7 +343,7 @@
               <div style="flex: 1;">
                 <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">LoRA Model:</label>
                 <select id="ai-lora-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                  <option value="models/lora/th_stardew_portrait_lora.safetensors">Stardew Portrait LoRA</option>
+                  <option value="models/lora/pixel_portrait_lora.safetensors">Pixel Portrait LoRA</option>
                   <option value="models/lora/pixel_f2.safetensors">Pixel F2 (RPG / Sprites)</option>
                 </select>
               </div>
@@ -370,7 +370,7 @@
               <div style="flex: 1;">
                 <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Kích thước xuất (Size):</label>
                 <select id="ai-size-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                  <option value="64">64 x 64 px (Chuẩn Stardew)</option>
+                  <option value="64">64 x 64 px (Portrait & RPG)</option>
                   <option value="128">128 x 128 px (Chi tiết cao)</option>
                   <option value="32">32 x 32 px (Icon nhỏ)</option>
                 </select>

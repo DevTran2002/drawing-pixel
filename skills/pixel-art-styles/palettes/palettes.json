@@ -1,15 +1,15 @@
 {
-  "th_name": "Stardew Master Pixel Art Palettes",
-  "th_version": "1.0.0",
-  "th_palettes": {
-    "th_outlines": {
+  "name": "Master Pixel Art Palettes",
+  "version": "1.0.0",
+  "palettes": {
+    "outlines": {
       "organic_deep_brown": "#3a2010",
       "dark_plum_shadow": "#2d1624",
       "rich_bark_brown": "#22130c",
       "slate_iron_dark": "#1f242b",
       "leaf_deep_moss": "#142813"
     },
-    "th_skin_tones": {
+    "skin_tones": {
       "fair": {
         "highlight": "#fff5eb",
         "mid": "#fcd0a1",
@@ -29,7 +29,7 @@
         "sel_out": "#2e1208"
       }
     },
-    "th_earth_and_wood": {
+    "earth_and_wood": {
       "tilled_soil_dark": "#4a2d18",
       "tilled_soil_mid": "#6e4423",
       "tilled_soil_light": "#966136",
@@ -38,26 +38,26 @@
       "wood_plank_light": "#b88351",
       "wood_highlight": "#deb887"
     },
-    "th_foliage_and_nature": {
+    "foliage_and_nature": {
       "spring_leaf": ["#1e3f20", "#386b2e", "#5c9e3d", "#8fcf4f"],
       "summer_deep_green": ["#163219", "#245229", "#417c38", "#6fb04d"],
       "fall_orange_gold": ["#4a1f0a", "#8c3b12", "#c96618", "#f2a638"],
       "winter_frost_pine": ["#142426", "#25444a", "#3f6e73", "#7aa9ab"]
     },
-    "th_sun_and_fruits": {
+    "sun_and_fruits": {
       "ruby_red": ["#4a0d18", "#8b1828", "#c92a3e", "#f26374"],
       "sun_gold": ["#5a3a0a", "#9c6812", "#e09c1b", "#fae052"],
       "purple_eggplant": ["#230e2e", "#491d5e", "#7b369c", "#af65cc"],
       "berry_blue": ["#0e1e3b", "#1a3b6e", "#2c64ad", "#609ee8"]
     },
-    "th_water_and_sky": {
+    "water_and_sky": {
       "ocean_deep": "#122538",
       "ocean_mid": "#24496b",
       "ocean_surface": "#43789e",
       "foam_white": "#aee3fa",
       "river_bright": "#5bb6d6"
     },
-    "th_metal_and_stone": {
+    "metal_and_stone": {
       "iron_dark": "#2b313b",
       "iron_mid": "#4d5666",
       "iron_light": "#7c899c",

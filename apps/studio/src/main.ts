@@ -1574,8 +1574,8 @@ function handleAiProgressEvent(payload: any): void {
   }
 }
 
-// 9. Khoi tao Modal va ket noi AI LoRA Stardew Valley & Pixel Presets
-function initAiPortraitModal(): void {
+// 9. Khoi tao Modal va ket noi AI Checkpoint & LoRA Pixel Art
+function initAiPixelModal(): void {
   const modal = document.getElementById('ai-modal');
   const btnOpen = document.getElementById('btn-ai-portrait');
   const btnClose = document.getElementById('btn-close-ai-modal');
@@ -1633,9 +1633,9 @@ function initAiPortraitModal(): void {
       card.classList.add('active');
 
       const preset = card.getAttribute('data-preset');
-      if (preset === 'stardew') {
-        if (promptInput) promptInput.value = 'pixel art, stardew portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background';
-        if (loraSelect) loraSelect.value = 'models/lora/th_stardew_portrait_lora.safetensors';
+      if (preset === 'retro-char') {
+        if (promptInput) promptInput.value = 'pixel art, retro character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background';
+        if (loraSelect) loraSelect.value = 'models/lora/pixel_portrait_lora.safetensors';
         if (loraScaleInput) { loraScaleInput.value = '0.6'; if (loraScaleVal) loraScaleVal.innerText = '0.60'; }
         if (stepsInput) { stepsInput.value = '16'; if (stepsVal) stepsVal.innerText = '16'; }
         if (sizeSelect) sizeSelect.value = '64';
@@ -1676,7 +1676,7 @@ function initAiPortraitModal(): void {
       const res = await fetch('http://127.0.0.1:3055/api/ai/load', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imagePath: 'th_stardew_test_pixel_64x64.png' })
+        body: JSON.stringify({ imagePath: 'sample_pixel_64x64.png' })
       });
       const data = await res.json();
       if (data.success) {
@@ -1700,7 +1700,7 @@ function initAiPortraitModal(): void {
     }
 
     const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
-    const loraPath = loraSelect ? loraSelect.value : 'models/lora/th_stardew_portrait_lora.safetensors';
+    const loraPath = loraSelect ? loraSelect.value : 'models/lora/pixel_portrait_lora.safetensors';
     const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.6;
     const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
     const size = sizeSelect ? parseInt(sizeSelect.value, 10) : 64;
@@ -2193,7 +2193,7 @@ function initExportModal(): void {
 loadPalette('endesga-32');
 renderAll();
 initWebSocketBridge();
-initAiPortraitModal();
+initAiPixelModal();
 initGalleryModal();
 initResizeModal();
 initImageImport();

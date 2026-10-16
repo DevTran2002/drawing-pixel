@@ -1,5 +1,5 @@
 // apps/server/src/ai-helper.ts
-// Module xu ly ket noi voi mo hinh AI LoRA Stardew Valley va doc anh pixel PNG
+// Module xu ly ket noi voi mo hinh AI Checkpoint va LoRA de sinh anh Pixel Art
 
 import fs from 'fs';
 import path from 'path';
@@ -88,7 +88,7 @@ export interface AiGenerateOptions {
 }
 
 // Ham xac dinh duong dan file thuc thi Python cua moi truong ao .venv
-function th_get_python_command(): string {
+function getPythonCommand(): string {
   const projectRoot = getProjectRoot();
   const venvPythonWin = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
   if (fs.existsSync(venvPythonWin)) {
@@ -101,8 +101,8 @@ function th_get_python_command(): string {
   return 'python';
 }
 
-// Goi script Python de sinh anh chan dung/sprite moi bang mo hinh Checkpoint va LoRA
-export function generateStardewPortrait(
+// Goi script Python de sinh anh pixel art moi bang mo hinh Checkpoint va LoRA
+export function generatePixelArt(
   opts: AiGenerateOptions | string,
   progressCallbackOrLegacySteps?: AiProgressCallback | number,
   legacySize = 64,
@@ -110,12 +110,12 @@ export function generateStardewPortrait(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const projectRoot = getProjectRoot();
-    const pythonScript = path.join(projectRoot, 'scripts', 'th_generate_stardew_portrait.py');
-    const pythonExe = th_get_python_command();
+    const pythonScript = path.join(projectRoot, 'scripts', 'generate_pixel_art.py');
+    const pythonExe = getPythonCommand();
 
     let prompt = '';
     let checkpoint = path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
-    let loraPath = path.join(projectRoot, 'models', 'lora', 'th_stardew_portrait_lora.safetensors');
+    let loraPath = path.join(projectRoot, 'models', 'lora', 'pixel_portrait_lora.safetensors');
     let loraScale = 0.55;
     let steps = 16;
     let size = 64;
@@ -149,7 +149,7 @@ export function generateStardewPortrait(
     }
 
     const timestamp = Date.now();
-    const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `th_ai_gen_${timestamp}`);
+    const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `ai_gen_${timestamp}`);
 
     const args = [
       '-u', // Che do unbuffered binary stream giup nhan output ngay lap tuc
@@ -218,7 +218,7 @@ export function generateStardewPortrait(
           message
         });
       }
-      // 3. Fallback nhan dien tqdm tu stderr: e.g. "22/22 [01:55<00:00, 5.24s/it]"
+      // 3. Fallback nhan dien tqdm tu stderr
       else {
         const tqdmMatch = trimmed.match(/(\d+)\/(\d+)\s*\[([^<]+)<([^,]+),\s*([^\]]+)\]/);
         if (tqdmMatch) {

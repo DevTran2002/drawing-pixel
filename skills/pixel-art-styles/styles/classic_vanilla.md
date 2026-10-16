@@ -1,6 +1,6 @@
-# Phong Cách Stardew Cổ Điển (Classic Vanilla 16-Bit)
+# Phong Cách Pixel Art Cổ Điển (Classic Vanilla 16-Bit)
 
-Phong cách đồ họa nền tảng của Stardew Valley, tái hiện vẻ đẹp nông trại mộc mạc, yên bình với góc nhìn Top-Down 3/4.
+Phong cách đồ họa nền tảng 16-bit RPG cổ điển, tái hiện vẻ đẹp mộc mạc, yên bình với góc nhìn Top-Down 3/4.
 
 ## 1. Thông Số Cốt Lõi
 - **Lưới nhân vật (NPC):** 16x32 pixel (chiều rộng 16px, chiều cao 32px).

@@ -1,6 +1,6 @@
 # Phong Cách Nông Sản, Cây Trồng & Thảo Mộc (Crops, Flora & Cornucopia)
 
-Tổng hợp từ hệ thống nông sản phong phú bậc nhất Stardew Valley và bộ mở rộng Cornucopia More Crops (hàng trăm loại rau củ, thảo mộc, hoa quả mới).
+Hệ thống nông sản phong phú chuẩn 16-bit cho game mô phỏng và nhập vai (hàng trăm loại rau củ, thảo mộc, hoa quả và chu kỳ phát triển).
 
 ## 1. Chu Kỳ Sinh Trưởng 5 Giai Đoạn (5-Stage Growth Cycle)
 Mỗi cây trồng nông trại được thiết kế trên lưới dọc hoặc ngang với 5 khung hình nối tiếp:

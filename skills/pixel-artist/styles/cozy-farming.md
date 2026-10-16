@@ -1,12 +1,12 @@
-# Hồ Sơ Phong Cách: Stardew Pixel Art (16-Bit Cozy Farming & Top-down RPG)
+# Hồ Sơ Phong Cách: Cozy Farming (16-Bit Cozy Farming & Top-down RPG)
 
-Tạo tài nguyên đồ họa pixel 16-bit phong cách ấm cúng (cozy), hoạt cảnh đa khung hình (sprite sheets) và mã tích hợp game engine theo thẩm mỹ kinh điển của Stardew Valley.
+Tạo tài nguyên đồ họa pixel 16-bit phong cách ấm cúng (cozy), hoạt cảnh đa khung hình (sprite sheets) và mã tích hợp game engine theo thẩm mỹ kinh điển của game nông trại và phiêu lưu 16-bit.
 
 ## 1. Khi Nào Nên Sử Dụng
 - Người dùng yêu cầu tạo tài nguyên đồ họa pixel cho game thể loại nông trại (farming), mô phỏng đời sống (life-sim) hoặc nhập vai 2D nhẹ nhàng (vật nuôi, nông sản, nhân vật, công trình, nông cụ, biểu tượng hoặc bộ ô đất tileset).
 - Người dùng yêu cầu hoạt cảnh sprite sheet đa khung hình (bước đi, nhịp thở, gà mổ thóc, chạy, các giai đoạn phát triển của cây trồng).
 - Cần sự đồng bộ nhất quán về mặt thị giác trên toàn bộ dự án.
-- **Tham khảo bộ kỹ năng chuyên sâu:** Để xem đầy đủ 6 phong cách mở rộng (Chibi 4 mùa, Chân dung 64x64 SVE/Ridgeside, Giả tưởng Sword & Sorcery, Hoạt cảnh đồ vật), sử dụng kỹ năng chuyên sâu `stardew-pixel-styles`.
+- **Tham khảo bộ kỹ năng chuyên sâu:** Để xem đầy đủ 6 phong cách mở rộng (Chibi 4 mùa, Chân dung 64x64, Giả tưởng, Hoạt cảnh đồ vật), sử dụng kỹ năng chuyên sâu `pixel-art-styles`.
 
 ## 2. Quy Chuẩn Thẩm Mỹ Thị Giác (Visual Style Guidelines)
 
@@ -35,7 +35,7 @@ Tạo tài nguyên đồ họa pixel 16-bit phong cách ấm cúng (cozy), hoạ
   3. Cây trưởng thành bắt đầu ra nụ hoặc trổ hoa.
   4. Cây chín rộ trĩu quả hoặc trĩu hạt sẵn sàng thu hoạch.
 
-### Bước 2: Bảng Màu Tiêu Biểu Cho Phong Cách Stardew
+### Bước 2: Bảng Màu Tiêu Biểu Cho Phong Cách Cozy Farming RPG
 - Viền nâu ấm: #3a2010
 - Đất cày & Gỗ: #523624, #945b3a, #b87b4e, #deb887
 - Cây cỏ & Lá: #1e3f20, #386b2e, #5c9e3d, #8fcf4f

@@ -1,7 +1,7 @@
 {
-  "th_template_name": "Stardew 5-Stage Crop Growth Cycle",
-  "th_tile_size": { "width": 16, "height": 32 },
-  "th_stages": [
+  "template_name": "Cozy Farming 5-Stage Crop Growth Cycle",
+  "tile_size": { "width": 16, "height": 32 },
+  "stages": [
     {
       "stage": 1,
       "name": "seedling",
