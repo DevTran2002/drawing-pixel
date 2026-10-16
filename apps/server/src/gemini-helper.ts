@@ -125,17 +125,17 @@ MÔ HÌNH VÀ PHONG CÁCH:
 DANH MỤC TAG THAM KHẢO HỢP LỆ:
 ${tagDictionaryText}
 
-HƯỚNG DẪN TRÍCH XUẤT TOÀN DIỆN:
-Phân tích kỹ lưỡng mô tả của người dùng và chọn các tag tiếng Anh tương ứng từ các nhóm sau:
+HƯỚNG DẪN TRÍCH XUẤT TOÀN DIỆN (THEO THỨ TỰ ƯU TIÊN):
 1. Mở đầu: Bắt buộc là "${triggerPrefix}".
-2. Đối tượng: 1girl hoặc 1boy, solo, nghề nghiệp (knight, warrior, mage, archer, cleric, rogue, villager, ...).
-3. Tóc: Màu tóc (blonde hair, brown hair, black hair, red hair, white hair, ...) và kiểu tóc nếu có (long hair, short hair, ponytail, twin braids, bangs, ...).
-4. Mắt: Màu mắt (blue eyes, green eyes, brown eyes, red eyes, golden eyes, ...).
-5. Biểu cảm: smiling, smile, happy, serious, neutral expression, blushing, smirk, ...
-6. Trang phục & Giáp: plate armor, golden armor, silver armor, chainmail, leather armor, cloak, robe, tunic, white shirt, ...
-7. Khuôn mặt & Phụ kiện: helmet, hood, glasses, beard, earrings, ...
-8. Vật phẩm / Vũ khí (nếu mô tả có nhắc): holding sword, holding shield, holding staff, holding bow, holding dagger, ...
-9. Góc nhìn & Bối cảnh: looking at viewer, ${isPortraitMode ? 'bust shot' : 'full body'}, simple white background.
+2. Bối cảnh nền (ƯU TIÊN HÀNG ĐẦU): Luôn đặt bối cảnh nền lên đầu tiên ngay sau "${triggerPrefix}" (ví dụ: simple white background, white background, flat background).
+3. Đối tượng: 1girl hoặc 1boy, solo, nghề nghiệp (knight, warrior, mage, archer, cleric, rogue, villager, ...).
+4. Tóc: Màu tóc (blonde hair, brown hair, black hair, red hair, white hair, ...) và kiểu tóc nếu có (long hair, short hair, ponytail, twin braids, bangs, ...).
+5. Mắt: Màu mắt (blue eyes, green eyes, brown eyes, red eyes, golden eyes, ...).
+6. Biểu cảm: smiling, smile, happy, serious, neutral expression, blushing, smirk, ...
+7. Trang phục & Giáp: plate armor, golden armor, silver armor, chainmail, leather armor, cloak, robe, tunic, white shirt, ...
+8. Khuôn mặt & Phụ kiện: helmet, hood, glasses, beard, earrings, ...
+9. Vật phẩm / Vũ khí (nếu mô tả có nhắc): holding sword, holding shield, holding staff, holding bow, holding dagger, ...
+10. Góc nhìn: looking at viewer, ${isPortraitMode ? 'bust shot' : 'full body'}.
 
 QUY TẮC ĐỊNH DẠNG:
 - Trả về DUY NHẤT một chuỗi các tag tiếng Anh phân tách bằng dấu phẩy.
@@ -232,29 +232,50 @@ QUY TẮC ĐỊNH DẠNG:
     cleanedText = `${triggerPrefix}, ${cleanedText}`;
   }
 
-  // Dam bao co simple white background o cuoi
-  if (!cleanedText.toLowerCase().includes('background')) {
-    cleanedText = `${cleanedText}, simple white background`;
-  }
-
   // Tach danh sach cac tag rieng biet
-  const tags = cleanedText
+  const rawTags = cleanedText
     .split(',')
     .map((t: string) => t.trim().toLowerCase())
     .filter((t: string) => t.length > 0);
 
   // Loai bo cac tag bi trung lap
   const uniqueTags: string[] = [];
-  for (const t of tags) {
+  for (const t of rawTags) {
     if (!uniqueTags.includes(t)) {
       uniqueTags.push(t);
     }
   }
 
-  const finalPrompt = uniqueTags.join(', ');
+  // Phan loai de uu tien dua boi canh len dau tien ngay sau trigger phong cach
+  const triggerTags: string[] = [];
+  const backgroundTags: string[] = [];
+  const otherTags: string[] = [];
+
+  const triggerKeywords = ['pixel art', 'pixel', 'chibi', 'character portrait', 'retro game asset'];
+  const bgKeywords = ['background', 'white background', 'simple background', 'flat background', 'transparent background'];
+
+  for (const tag of uniqueTags) {
+    if (triggerKeywords.includes(tag)) {
+      triggerTags.push(tag);
+    } else if (bgKeywords.some(bg => tag.includes(bg))) {
+      backgroundTags.push(tag);
+    } else {
+      otherTags.push(tag);
+    }
+  }
+
+  // Neu chua co tag boi canh nao, mac dinh bo sung simple white background vao nhom boi canh
+  if (backgroundTags.length === 0) {
+    backgroundTags.push('simple white background');
+  }
+
+  // Xep theo thu tu: [Phong cach, Boi canh uu tien nhat, Nhan vat va chi tiet]
+  const sortedTags = [...triggerTags, ...backgroundTags, ...otherTags];
+
+  const finalPrompt = sortedTags.join(', ');
 
   return {
     prompt: finalPrompt,
-    tags: uniqueTags
+    tags: sortedTags
   };
 }

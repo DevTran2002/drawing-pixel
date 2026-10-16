@@ -1639,7 +1639,7 @@ function initAiPixelModal(): void {
     }
   };
 
-  // Bat tat tag khi nguoi dung nhan vao mot the chip
+  // Bat tat tag khi nguoi dung nhan vao mot the chip (uu tien dua boi canh len dau cau)
   const toggleTag = (tag: string) => {
     if (!promptInput) return;
     const currentText = promptInput.value.trim();
@@ -1651,8 +1651,27 @@ function initAiPixelModal(): void {
       // Go bo tag khoi prompt
       tags.splice(existingIndex, 1);
     } else {
-      // Them tag moi vao cuoi prompt
-      tags.push(tag);
+      const isBackgroundTag = lowerTag.includes('background') || lowerTag.includes('forest') || lowerTag.includes('tavern') || lowerTag.includes('dungeon');
+      if (isBackgroundTag) {
+        // Chen tag boi canh len vi tri dau de dat do uu tien cao nhat
+        let lastTriggerIdx = -1;
+        for (let i = tags.length - 1; i >= 0; i--) {
+          const lt = tags[i].toLowerCase();
+          if (lt.includes('pixel') || lt.includes('portrait') || lt.includes('chibi') || lt.includes('16-bit')) {
+            lastTriggerIdx = i;
+            break;
+          }
+        }
+
+        if (lastTriggerIdx >= 0) {
+          tags.splice(lastTriggerIdx + 1, 0, tag);
+        } else {
+          tags.unshift(tag);
+        }
+      } else {
+        // Them cac tag dac diem khac vao sau
+        tags.push(tag);
+      }
     }
 
     promptInput.value = tags.join(', ');

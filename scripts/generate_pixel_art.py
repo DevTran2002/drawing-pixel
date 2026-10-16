@@ -97,10 +97,27 @@ def generate_pixel_art(
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    # Chuan hoa tu khoa pixel art neu trong prompt chua co
-    enriched_prompt = prompt
-    if "pixel" not in prompt.lower():
-        enriched_prompt = f"pixel art, {prompt}"
+    # Chuan hoa va uu tien dua boi canh len dau cau prompt
+    tags = [t.strip() for t in prompt.split(",") if t.strip()]
+    if not any("pixel" in t.lower() for t in tags):
+        tags.insert(0, "pixel art")
+
+    # Phan loai va dua tag boi canh len dau ngay sau trigger pixel art
+    bg_keywords = ["background", "white background", "simple background", "flat background", "transparent background"]
+    bg_tags = [t for t in tags if any(k in t.lower() for k in bg_keywords)]
+    other_tags = [t for t in tags if not any(k in t.lower() for k in bg_keywords)]
+
+    # Xep lai: [pixel art triggers, boi canh uu tien nhat, cac tag con lai]
+    trigger_tags = [t for t in other_tags if "pixel" in t.lower() or "portrait" in t.lower() or "chibi" in t.lower()]
+    detail_tags = [t for t in other_tags if t not in trigger_tags]
+
+    sorted_tags = trigger_tags + bg_tags + detail_tags
+    enriched_prompt = ", ".join(sorted_tags)
+
+    # Neu co yeu cau nen don gian, bo sung tu khoa loai tru cay coi, dao bay, moc da vao negative prompt
+    has_simple_bg = any("simple" in t.lower() or "white" in t.lower() or "flat" in t.lower() for t in bg_tags)
+    if has_simple_bg and "tree" not in negative_prompt.lower():
+        negative_prompt = f"{negative_prompt}, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds"
 
     # Uu tien su dung Checkpoint cuc bo neu ton tai
     if checkpoint and os.path.exists(checkpoint):

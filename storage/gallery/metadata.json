@@ -1,5 +1,25 @@
 [
   {
+    "id": "item_1792140867697",
+    "filename": "ai_portrait_1792140867697.png",
+    "name": "AI Portrait #7697",
+    "createdAt": "2026-10-16T08:54:27.697Z",
+    "width": 128,
+    "height": 128,
+    "sourceType": "ai",
+    "prompt": "pixel art, character portrait, simple background, 1boy, farmer, holding hoe, straw hat, bust shot, looking at viewer"
+  },
+  {
+    "id": "item_1792140514440",
+    "filename": "ai_portrait_1792140514440.png",
+    "name": "AI Portrait #4440",
+    "createdAt": "2026-10-16T08:48:34.441Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "ai",
+    "prompt": "pixel art, character portrait, simple background, 1boy, farmer, tunic, apron, bust shot, looking at viewer"
+  },
+  {
     "id": "item_1792139821494",
     "filename": "ai_portrait_1792139821494.png",
     "name": "AI Portrait #1494",
