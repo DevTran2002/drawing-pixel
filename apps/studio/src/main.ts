@@ -168,6 +168,16 @@ mainCanvas.addEventListener('pointerdown', (e) => {
 
   // Cong cu chon vung (Selection)
   if (activeTool === 'select') {
+    // Neu truoc do dang co floating selection thi commit xuong layer truoc
+    if (selectionManager.hasFloating()) {
+      const buffer = canvasEngine.getActiveLayerBuffer();
+      const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+      if (buffer && currentLayer) {
+        const ch = selectionManager.commitFloating(buffer, project.activeLayerId, project.activeFrameIndex, currentLayer.pixels);
+        if (ch.length > 0) history.pushStep(ch);
+        canvasEngine.setFloatingSelection(null);
+      }
+    }
     selectionManager.setSelection({ x: pt.x, y: pt.y, width: 1, height: 1 });
     canvasEngine.setSelection(selectionManager.getSelection());
     renderAll();
@@ -177,6 +187,18 @@ mainCanvas.addEventListener('pointerdown', (e) => {
   // Cong cu di chuyen (Move)
   if (activeTool === 'move') {
     lastMovePoint = pt;
+    pointerStartPoint = pt;
+
+    // Neu dang co vung chon: nhac cac pixel thanh Floating Selection va lam trong vi tri ban dau
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+      if (selectionManager.getSelection() && !selectionManager.hasFloating()) {
+        selectionManager.liftSelection(buffer, project.activeLayerId, project.activeFrameIndex, currentLayer.pixels);
+        canvasEngine.setFloatingSelection(selectionManager.getFloating());
+        renderAll();
+      }
+    }
     return;
   }
 
@@ -253,28 +275,43 @@ mainCanvas.addEventListener('pointermove', (e) => {
   }
 
   // Xu ly di chuyen diem anh (Move tool)
-  if (activeTool === 'move' && lastMovePoint) {
-    const dx = pt.x - lastMovePoint.x;
-    const dy = pt.y - lastMovePoint.y;
-    if (dx !== 0 || dy !== 0) {
-      const buffer = canvasEngine.getActiveLayerBuffer();
-      const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
-      if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
-        const changes = selectionManager.movePixels(
-          buffer,
-          dx,
-          dy,
-          project.activeLayerId,
-          project.activeFrameIndex,
-          currentLayer.pixels
-        );
-        currentStrokeChanges.push(...changes);
-        canvasEngine.setSelection(selectionManager.getSelection());
-        lastMovePoint = pt;
-        renderAll();
+  if (activeTool === 'move' && pointerStartPoint) {
+    if (selectionManager.hasFloating()) {
+      // Di chuyen vung chon noi: chi cap nhat vi tri hien thi, khong sua buffer va khong xoa nen!
+      const dx = pt.x - pointerStartPoint.x;
+      const dy = pt.y - pointerStartPoint.y;
+      selectionManager.updateFloatingOffset(dx, dy);
+      canvasEngine.setFloatingSelection(selectionManager.getFloating());
+      canvasEngine.setSelection(selectionManager.getSelection());
+      canvasEngine.render();
+      return;
+    } else if (lastMovePoint) {
+      // Neu khong co vung chon thi di chuyen toan bo layer
+      const dx = pt.x - lastMovePoint.x;
+      const dy = pt.y - lastMovePoint.y;
+      if (dx !== 0 || dy !== 0) {
+        const buffer = canvasEngine.getActiveLayerBuffer();
+        const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+        if (buffer && currentLayer && !currentLayer.locked && currentLayer.visible) {
+          const allPixels = buffer.getAllPixels();
+          for (const p of allPixels) {
+            buffer.setPixel(p.x, p.y, null);
+            delete currentLayer.pixels[coordToKey(p.x, p.y)];
+          }
+          for (const p of allPixels) {
+            const nx = p.x + dx;
+            const ny = p.y + dy;
+            if (buffer.isValidCoord(nx, ny) && p.color) {
+              buffer.setPixel(nx, ny, p.color);
+              currentLayer.pixels[coordToKey(nx, ny)] = p.color;
+            }
+          }
+          lastMovePoint = pt;
+          renderAll();
+        }
       }
+      return;
     }
-    return;
   }
 
   if (activeTool === 'line' || activeTool === 'rectangle' || activeTool === 'circle') {
@@ -304,12 +341,27 @@ window.addEventListener('pointerup', (e) => {
   }
 
   if (activeTool === 'move') {
+    // Khi nha chuot, commit vung chon noi xuong layer tai vi tri moi
+    if (selectionManager.hasFloating()) {
+      const buffer = canvasEngine.getActiveLayerBuffer();
+      const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+      if (buffer && currentLayer) {
+        const changes = selectionManager.commitFloating(
+          buffer,
+          project.activeLayerId,
+          project.activeFrameIndex,
+          currentLayer.pixels
+        );
+        if (changes.length > 0) {
+          history.pushStep(changes);
+        }
+        canvasEngine.setFloatingSelection(null);
+        canvasEngine.setSelection(selectionManager.getSelection());
+        renderAll();
+      }
+    }
     lastMovePoint = null;
     pointerStartPoint = null;
-    if (currentStrokeChanges.length > 0) {
-      history.pushStep(currentStrokeChanges);
-      currentStrokeChanges = [];
-    }
     renderAll();
     return;
   }
@@ -347,6 +399,86 @@ window.addEventListener('pointerup', (e) => {
   pointerStartPoint = null;
   renderAll();
 });
+
+// Ham nhan vung chon sang Layer moi (Tuong tu Ctrl+J trong Photoshop)
+function duplicateSelectionToNewLayer(): void {
+  const currentFrame = canvasEngine.getCurrentFrame();
+  if (!currentFrame) return;
+
+  const currentLayer = currentFrame.layers.find(l => l.id === project.activeLayerId);
+  if (!currentLayer) return;
+
+  const buffer = canvasEngine.getActiveLayerBuffer();
+  if (!buffer) return;
+
+  const sel = selectionManager.getSelection();
+  const floating = selectionManager.getFloating();
+
+  const newLayerId = `layer_${Date.now()}`;
+  let newLayerName = `${currentLayer.name} (Copy)`;
+  const newPixels: Record<string, PixelColor> = {};
+
+  if (floating) {
+    // Dang co vung chon noi: chuyen thang vao layer moi
+    newLayerName = `${currentLayer.name} (Selection)`;
+    for (const p of floating.pixels) {
+      const destX = floating.currentRect.x + p.relX;
+      const destY = floating.currentRect.y + p.relY;
+      if (p.color) {
+        newPixels[coordToKey(destX, destY)] = p.color;
+      }
+    }
+    selectionManager.cancelFloating();
+    canvasEngine.setFloatingSelection(null);
+  } else if (sel) {
+    // Dang co vung chon: nhan cac pixel trong vung chon sang layer moi
+    newLayerName = `${currentLayer.name} (Selection)`;
+    for (let r = 0; r < sel.height; r++) {
+      for (let c = 0; c < sel.width; c++) {
+        const px = sel.x + c;
+        const py = sel.y + r;
+        const color = buffer.getPixel(px, py);
+        if (color) {
+          newPixels[coordToKey(px, py)] = color;
+        }
+      }
+    }
+  } else {
+    // Khong co vung chon: nhan ban toan bo layer hien tai
+    newLayerName = `${currentLayer.name} (Copy)`;
+    Object.assign(newPixels, currentLayer.pixels);
+  }
+
+  // Tao Layer moi
+  const newLayer = {
+    id: newLayerId,
+    name: newLayerName,
+    visible: true,
+    locked: false,
+    opacity: 1.0,
+    pixels: newPixels
+  };
+
+  // Chen ngay phia tren layer hien tai
+  const curIdx = currentFrame.layers.findIndex(l => l.id === currentLayer.id);
+  currentFrame.layers.splice(curIdx + 1, 0, newLayer);
+  project.activeLayerId = newLayerId;
+
+  // Bo vung chon sau khi tao layer moi
+  selectionManager.clearSelection();
+  canvasEngine.setSelection(null);
+  canvasEngine.rebuildBuffers();
+  renderAll();
+
+  // Dong bo WebSocket voi Server
+  try {
+    fetch('http://127.0.0.1:3055/api/draw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'PROJECT_SYNC', project })
+    }).catch(() => {});
+  } catch (_) {}
+}
 
 // Lang nghe phim tat toan cuc va giu phim Spacebar de bat Hand/Pan tool
 window.addEventListener('keydown', (e) => {
@@ -446,9 +578,24 @@ window.addEventListener('keydown', (e) => {
 
   // 7. Phim Escape: Huy vung chon
   if (e.key === 'Escape') {
+    if (selectionManager.hasFloating()) {
+      const buffer = canvasEngine.getActiveLayerBuffer();
+      const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+      if (buffer && currentLayer) {
+        selectionManager.commitFloating(buffer, project.activeLayerId, project.activeFrameIndex, currentLayer.pixels);
+      }
+      canvasEngine.setFloatingSelection(null);
+    }
     selectionManager.clearSelection();
     canvasEngine.setSelection(null);
     renderAll();
+    return;
+  }
+
+  // 8. Phim tat Ctrl + J: Nhan vung chon sang Layer moi (nhu Photoshop)
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.key === 'J')) {
+    e.preventDefault();
+    duplicateSelectionToNewLayer();
     return;
   }
 

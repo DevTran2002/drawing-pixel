@@ -1,9 +1,9 @@
 // apps/studio/src/tools/selection-tool.ts
-// Module quan ly vung chon (Selection) va di chuyen (Move) cho Pixel Art Studio
+// Module quan ly vung chon (Selection) va di chuyen noi (Floating Selection Move) cho Pixel Art Studio
 
 import { PixelColor, Point2D, coordToKey, keyToCoord } from '@pixel-draw/shared-types';
 import { PixelBuffer } from '../core/pixel-buffer';
-import { HistoryManager, PixelChange } from '../core/history-manager';
+import { PixelChange } from '../core/history-manager';
 
 export interface SelectionRect {
   x: number;
@@ -18,8 +18,16 @@ export interface CopiedPixel {
   color: PixelColor;
 }
 
+export interface FloatingSelection {
+  originRect: SelectionRect;
+  currentRect: SelectionRect;
+  pixels: CopiedPixel[];
+  cutOriginalChanges: PixelChange[];
+}
+
 export class SelectionManager {
   private currentSelection: SelectionRect | null = null;
+  private floating: FloatingSelection | null = null;
   private clipboard: {
     pixels: CopiedPixel[];
     width: number;
@@ -50,11 +58,151 @@ export class SelectionManager {
 
   clearSelection(): void {
     this.currentSelection = null;
+    this.floating = null;
   }
 
-  // Sao chep cac pixel trong vung chon tu layer dang hoat dong
+  isPointInsideSelection(px: number, py: number): boolean {
+    if (!this.currentSelection) return false;
+    const { x, y, width, height } = this.currentSelection;
+    return px >= x && px < x + width && py >= y && py < y + height;
+  }
+
+  // --- FLOATING SELECTION MOVE (Co che vung chon noi nhu Photoshop/Aseprite) ---
+
+  hasFloating(): boolean {
+    return this.floating !== null;
+  }
+
+  getFloating(): FloatingSelection | null {
+    return this.floating;
+  }
+
+  // Nhac cac pixel trong vung chon thanh Floating Selection va lam trong vung chon ban dau
+  liftSelection(
+    buffer: PixelBuffer,
+    layerId: string,
+    frameIndex: number,
+    layerPixels: Record<string, PixelColor>
+  ): boolean {
+    if (!this.currentSelection) return false;
+
+    // Neu da co floating selection dang hoat dong thi khong nhac lai
+    if (this.floating) return true;
+
+    const { x, y, width, height } = this.currentSelection;
+    const pixels: CopiedPixel[] = [];
+    const cutChanges: PixelChange[] = [];
+
+    // Trich xuat cac pixel co mau va lam trong vung chon ban dau tren Layer
+    for (let r = 0; r < height; r++) {
+      for (let c = 0; c < width; c++) {
+        const px = x + c;
+        const py = y + r;
+        if (buffer.isValidCoord(px, py)) {
+          const color = buffer.getPixel(px, py);
+          if (color) {
+            pixels.push({ relX: c, relY: r, color });
+            // Lam trong diem anh tai vi tri ban dau
+            buffer.setPixel(px, py, null);
+            delete layerPixels[coordToKey(px, py)];
+            cutChanges.push({
+              x: px,
+              y: py,
+              oldColor: color,
+              newColor: null,
+              layerId,
+              frameIndex
+            });
+          }
+        }
+      }
+    }
+
+    if (pixels.length === 0) {
+      return false;
+    }
+
+    this.floating = {
+      originRect: { ...this.currentSelection },
+      currentRect: { ...this.currentSelection },
+      pixels,
+      cutOriginalChanges: cutChanges
+    };
+
+    return true;
+  }
+
+  // Cap nhat vi tri noi theo do lech chuot (dx, dy) tu vi tri bat dau keo
+  updateFloatingOffset(dx: number, dy: number): void {
+    if (!this.floating) return;
+    this.floating.currentRect = {
+      x: this.floating.originRect.x + dx,
+      y: this.floating.originRect.y + dy,
+      width: this.floating.originRect.width,
+      height: this.floating.originRect.height
+    };
+    // Vung chon chay theo vi tri noi
+    this.currentSelection = { ...this.floating.currentRect };
+  }
+
+  // Ap cac pixel noi xuong Layer tai vi tri moi khi nguoi dung nha chuot hoac hoan tat
+  commitFloating(
+    buffer: PixelBuffer,
+    layerId: string,
+    frameIndex: number,
+    layerPixels: Record<string, PixelColor>
+  ): PixelChange[] {
+    if (!this.floating) return [];
+
+    const finalChanges: PixelChange[] = [...this.floating.cutOriginalChanges];
+    const { currentRect, pixels } = this.floating;
+
+    // Gan cac diem anh noi vao vi tri moi
+    for (const item of pixels) {
+      const destX = currentRect.x + item.relX;
+      const destY = currentRect.y + item.relY;
+
+      if (buffer.isValidCoord(destX, destY)) {
+        const oldColor = buffer.getPixel(destX, destY);
+        buffer.setPixel(destX, destY, item.color);
+        layerPixels[coordToKey(destX, destY)] = item.color;
+        finalChanges.push({
+          x: destX,
+          y: destY,
+          oldColor,
+          newColor: item.color,
+          layerId,
+          frameIndex
+        });
+      }
+    }
+
+    // Dat vung chon tai vi tri moi
+    this.currentSelection = { ...currentRect };
+    this.floating = null;
+
+    return finalChanges;
+  }
+
+  // Huy bo trang thai floating ma khong commit xuong layer cu (dung cho Ctrl+J)
+  cancelFloating(): void {
+    this.floating = null;
+  }
+
+  // --- CLIPBOARD (Copy, Paste, Delete) ---
+
   copySelection(buffer: PixelBuffer): boolean {
     if (!this.currentSelection) return false;
+
+    // Neu dang co floating selection, copy truc tiep tu floating
+    if (this.floating) {
+      this.clipboard = {
+        pixels: [...this.floating.pixels],
+        width: this.floating.currentRect.width,
+        height: this.floating.currentRect.height
+      };
+      return true;
+    }
 
     const { x, y, width, height } = this.currentSelection;
     const pixels: CopiedPixel[] = [];
@@ -74,7 +222,6 @@ export class SelectionManager {
     return true;
   }
 
-  // Dan cac pixel tu clipboard vao vi tri target (mac dinh la goc tren cua vung chon hoac toa do chi dinh)
   pasteSelection(
     buffer: PixelBuffer,
     targetX: number,
@@ -108,7 +255,6 @@ export class SelectionManager {
       }
     }
 
-    // Dat lai vung chon quanh khu vuc vua dan
     this.currentSelection = {
       x: targetX,
       y: targetY,
@@ -119,7 +265,6 @@ export class SelectionManager {
     return changes;
   }
 
-  // Xoa toan bo pixel trong vung chon
   deleteSelection(
     buffer: PixelBuffer,
     layerId: string,
@@ -127,6 +272,14 @@ export class SelectionManager {
     layerPixels: Record<string, PixelColor>
   ): PixelChange[] {
     if (!this.currentSelection) return [];
+
+    // Neu dang co floating selection thi chi can huy floating
+    if (this.floating) {
+      const changes = [...this.floating.cutOriginalChanges];
+      this.floating = null;
+      this.currentSelection = null;
+      return changes;
+    }
 
     const { x, y, width, height } = this.currentSelection;
     const changes: PixelChange[] = [];
@@ -149,108 +302,6 @@ export class SelectionManager {
               frameIndex
             });
           }
-        }
-      }
-    }
-
-    return changes;
-  }
-
-  // Dich chuyen pixel trong vung chon hoac toan bo layer theo do lech (dx, dy)
-  movePixels(
-    buffer: PixelBuffer,
-    dx: number,
-    dy: number,
-    layerId: string,
-    frameIndex: number,
-    layerPixels: Record<string, PixelColor>
-  ): PixelChange[] {
-    if (dx === 0 && dy === 0) return [];
-
-    const changes: PixelChange[] = [];
-
-    if (this.currentSelection) {
-      // Chi di chuyen pixel ben trong vung chon
-      const { x, y, width, height } = this.currentSelection;
-      const selectedPixels: { x: number; y: number; color: PixelColor }[] = [];
-
-      // Thu thap va xoa vi tri cu
-      for (let r = 0; r < height; r++) {
-        for (let c = 0; c < width; c++) {
-          const px = x + c;
-          const py = y + r;
-          if (buffer.isValidCoord(px, py)) {
-            const color = buffer.getPixel(px, py);
-            if (color) {
-              selectedPixels.push({ x: px, y: py, color });
-              buffer.setPixel(px, py, null);
-              delete layerPixels[coordToKey(px, py)];
-              changes.push({
-                x: px,
-                y: py,
-                oldColor: color,
-                newColor: null,
-                layerId,
-                frameIndex
-              });
-            }
-          }
-        }
-      }
-
-      // Gan vao vi tri moi
-      for (const sp of selectedPixels) {
-        const nx = sp.x + dx;
-        const ny = sp.y + dy;
-        if (buffer.isValidCoord(nx, ny)) {
-          const oldColor = buffer.getPixel(nx, ny);
-          buffer.setPixel(nx, ny, sp.color);
-          layerPixels[coordToKey(nx, ny)] = sp.color;
-          changes.push({
-            x: nx,
-            y: ny,
-            oldColor,
-            newColor: sp.color,
-            layerId,
-            frameIndex
-          });
-        }
-      }
-
-      // Cap nhat vung chon theo do lech
-      this.currentSelection.x += dx;
-      this.currentSelection.y += dy;
-    } else {
-      // Di chuyen toan bo layer
-      const allPixels = buffer.getAllPixels();
-      for (const p of allPixels) {
-        buffer.setPixel(p.x, p.y, null);
-        delete layerPixels[coordToKey(p.x, p.y)];
-        changes.push({
-          x: p.x,
-          y: p.y,
-          oldColor: p.color,
-          newColor: null,
-          layerId,
-          frameIndex
-        });
-      }
-
-      for (const p of allPixels) {
-        const nx = p.x + dx;
-        const ny = p.y + dy;
-        if (buffer.isValidCoord(nx, ny) && p.color) {
-          const oldColor = buffer.getPixel(nx, ny);
-          buffer.setPixel(nx, ny, p.color);
-          layerPixels[coordToKey(nx, ny)] = p.color;
-          changes.push({
-            x: nx,
-            y: ny,
-            oldColor,
-            newColor: p.color,
-            layerId,
-            frameIndex
-          });
         }
       }
     }

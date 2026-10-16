@@ -182,12 +182,25 @@ export class CanvasEngine {
       this.renderPivotMarker(this.project.pivot.x, this.project.pivot.y);
     }
 
-    // 7. Ve vung chon dang hoat dong (Selection Overlay)
+    // 7. Ve vung chon noi (Floating Selection) neu co
+    if (this.floatingSelection) {
+      ctx.save();
+      for (const p of this.floatingSelection.pixels) {
+        if (!p.color) continue;
+        const px = this.floatingSelection.currentRect.x + p.relX;
+        const py = this.floatingSelection.currentRect.y + p.relY;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(px * this.zoom, py * this.zoom, this.zoom, this.zoom);
+      }
+      ctx.restore();
+    }
+
+    // 8. Ve duong vien vung chon (Selection Overlay)
     if (this.selectionRect) {
       this.renderSelectionOverlay(this.selectionRect);
     }
 
-    // 8. Ve duong vien bao quanh toan bo canvas
+    // 9. Ve duong vien bao quanh toan bo canvas
     ctx.strokeStyle = '#3f3f46';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, artWidth, artHeight);
@@ -195,11 +208,16 @@ export class CanvasEngine {
     ctx.restore();
   }
 
-  // Thuoc tinh luu tru vung chon diem anh
+  // Thuoc tinh luu tru vung chon va floating selection
   public selectionRect: { x: number; y: number; width: number; height: number } | null = null;
+  public floatingSelection: any | null = null;
 
   public setSelection(rect: { x: number; y: number; width: number; height: number } | null): void {
     this.selectionRect = rect;
+  }
+
+  public setFloatingSelection(floating: any | null): void {
+    this.floatingSelection = floating;
   }
 
   private renderSelectionOverlay(rect: { x: number; y: number; width: number; height: number }): void {
