@@ -162,7 +162,14 @@ const server = http.createServer(async (req, res) => {
           steps: steps || 16,
           size: size || 64,
           resample: resample || 'NEAREST',
-          removeBg: !!removeBg
+          removeBg: !!removeBg,
+          onProgress: (progress) => {
+            // Phat song tien trinh thoi gian thuc ve cac tab Studio dang mo
+            broadcastToStudio({
+              type: 'AI_PROGRESS' as any,
+              ...progress
+            } as any);
+          }
         });
 
         const { width, height, pixels } = loadPngToPixels(outputPath);

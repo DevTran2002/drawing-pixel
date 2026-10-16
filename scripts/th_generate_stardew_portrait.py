@@ -12,6 +12,8 @@
 # ///
 
 import os
+import time
+import inspect
 import argparse
 from collections import deque
 import numpy as np
@@ -105,14 +107,14 @@ def th_generate_portrait(
 
     # Uu tien su dung Checkpoint cuc bo neu ton tai
     if checkpoint and os.path.exists(checkpoint):
-        print(f"Nap Checkpoint tuy chon tu {checkpoint} tren {device.upper()}...")
+        print(f"AI_STAGE:CHECKPOINT:Nap Checkpoint {os.path.basename(checkpoint)} tren {device.upper()}...", flush=True)
         pipe = StableDiffusionPipeline.from_single_file(
             checkpoint,
             torch_dtype=torch_dtype,
             safety_checker=None,
         ).to(device)
     else:
-        print(f"Khoi tao Stable Diffusion 1.5 tren {device.upper()} tu Runway...")
+        print(f"AI_STAGE:CHECKPOINT:Khoi tao Stable Diffusion 1.5 tren {device.upper()} tu Runway...", flush=True)
         pipe = StableDiffusionPipeline.from_pretrained(
             "runwayml/stable-diffusion-v1-5",
             torch_dtype=torch_dtype,
@@ -122,42 +124,69 @@ def th_generate_portrait(
     # Su dung DPMSolver de sinh anh nhanh va chat luong cao
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
 
-    print(f"Nap trong so LoRA tu {lora_path} (do manh {lora_scale})...")
+    print(f"AI_STAGE:LORA:Nap trong so LoRA tu {os.path.basename(lora_path)} (do manh {lora_scale})...", flush=True)
     pipe.load_lora_weights(lora_path)
 
     generator = None
     if seed is not None:
         generator = torch.Generator(device).manual_seed(seed)
 
-    print(f"Dang sinh anh voi prompt: '{enriched_prompt}' ({steps} steps)...")
+    print(f"AI_STAGE:DENOISE_START:Bat dau sinh anh ({steps} steps)...", flush=True)
+    start_denoise_time = time.time()
+
+    def th_step_callback(pipe_ref, step_index, timestep, callback_kwargs):
+        curr_step = step_index + 1
+        elapsed = time.time() - start_denoise_time
+        pct = int(round((curr_step / steps) * 100))
+        sec_per_step = elapsed / curr_step if curr_step > 0 else 0
+        eta = sec_per_step * (steps - curr_step)
+        print(f"AI_STEP:{curr_step}:{steps}:{pct}:{elapsed:.1f}:{eta:.1f}", flush=True)
+        return callback_kwargs
+
     cross_attention_kwargs = {"scale": lora_scale} if lora_scale is not None else None
-    result = pipe(
-        prompt=enriched_prompt,
-        negative_prompt=negative_prompt,
-        num_inference_steps=steps,
-        guidance_scale=guidance_scale,
-        generator=generator,
-        cross_attention_kwargs=cross_attention_kwargs,
-    )
+    call_kwargs = {
+        "prompt": enriched_prompt,
+        "negative_prompt": negative_prompt,
+        "num_inference_steps": steps,
+        "guidance_scale": guidance_scale,
+        "generator": generator,
+        "cross_attention_kwargs": cross_attention_kwargs,
+    }
+
+    sig_params = inspect.signature(pipe.__call__).parameters
+    if "callback_on_step_end" in sig_params:
+        call_kwargs["callback_on_step_end"] = th_step_callback
+    elif "callback" in sig_params:
+        def legacy_cb(s, t, latents):
+            curr_step = s + 1
+            elapsed = time.time() - start_denoise_time
+            pct = int(round((curr_step / steps) * 100))
+            sec_per_step = elapsed / curr_step if curr_step > 0 else 0
+            eta = sec_per_step * (steps - curr_step)
+            print(f"AI_STEP:{curr_step}:{steps}:{pct}:{elapsed:.1f}:{eta:.1f}", flush=True)
+        call_kwargs["callback"] = legacy_cb
+        call_kwargs["callback_steps"] = 1
+
+    result = pipe(**call_kwargs)
     raw_img = result.images[0]
 
     # 1. Luu ban anh goc 512x512
     raw_out = f"{output_prefix}_raw_512.png"
     raw_img.save(raw_out)
-    print(f"Da luu anh goc 512x512: {raw_out}")
+    print(f"Da luu anh goc 512x512: {raw_out}", flush=True)
 
     # 2. Xu ly tach nen neu duoc yeu cau
     processed_img = raw_img
     if remove_bg:
-        print("Dang tach nen an toan (Safe Flood-fill)...")
+        print("AI_STAGE:REMOVE_BG:Dang tach nen an toan (Safe Flood-fill)...", flush=True)
         processed_img = th_remove_background_safe(raw_img, tolerance=22)
         trans_out = f"{output_prefix}_transparent_512.png"
         processed_img.save(trans_out)
-        print(f"Da luu anh 512x512 nen trong suot: {trans_out}")
+        print(f"Da luu anh 512x512 nen trong suot: {trans_out}", flush=True)
 
     # 3. Thu nho ve chuan Pixel Art theo phuong phap chon lua (NEAREST giu net sac, LANCZOS lam muot)
     resample_filter = Image.Resampling.NEAREST if resample_method.upper() == "NEAREST" else Image.Resampling.LANCZOS
-    print(f"Thu nho ve {target_pixel_size}x{target_pixel_size} voi {resample_method.upper()} downsampling...")
+    print(f"AI_STAGE:DOWNSCALE:Thu nho ve {target_pixel_size}x{target_pixel_size} voi {resample_method.upper()} downsampling...", flush=True)
     pixel_img = processed_img.resize(
         (target_pixel_size, target_pixel_size),
         resample_filter,
@@ -165,7 +194,7 @@ def th_generate_portrait(
 
     pixel_out = f"{output_prefix}_pixel_{target_pixel_size}x{target_pixel_size}.png"
     pixel_img.save(pixel_out)
-    print(f"Da tao thanh cong anh Pixel Art chuan {target_pixel_size}x{target_pixel_size}: {pixel_out}")
+    print(f"AI_STAGE:DONE:Da tao thanh cong anh Pixel Art: {pixel_out}", flush=True)
 
     return pixel_out
 

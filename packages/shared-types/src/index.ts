@@ -132,7 +132,8 @@ export type McpDrawEventType =
   | 'ADD_FRAME'
   | 'SELECT_FRAME'
   | 'ADD_LAYER'
-  | 'EXPORT_REQUEST';
+  | 'EXPORT_REQUEST'
+  | 'AI_PROGRESS';
 
 export interface McpDrawPayload {
   type: McpDrawEventType;

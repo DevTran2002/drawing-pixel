@@ -4,7 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { PNG } from 'pngjs';
 import { PixelPoint } from '@pixel-draw/shared-types';
 
@@ -63,6 +63,18 @@ export function loadPngToPixels(imagePath: string): { width: number; height: num
   return { width: png.width, height: png.height, pixels };
 }
 
+export interface AiProgressInfo {
+  stage: string;
+  step?: number;
+  totalSteps?: number;
+  percent?: number;
+  elapsed?: number;
+  eta?: number;
+  message?: string;
+}
+
+export type AiProgressCallback = (progress: AiProgressInfo) => void;
+
 export interface AiGenerateOptions {
   prompt: string;
   checkpoint?: string;
@@ -72,18 +84,19 @@ export interface AiGenerateOptions {
   size?: number;
   resample?: 'NEAREST' | 'LANCZOS';
   removeBg?: boolean;
+  onProgress?: AiProgressCallback;
 }
 
-// Ham xac dinh trinh thuc thi Python cua moi truong ao .venv
+// Ham xac dinh duong dan file thuc thi Python cua moi truong ao .venv
 function th_get_python_command(): string {
   const projectRoot = getProjectRoot();
   const venvPythonWin = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
   if (fs.existsSync(venvPythonWin)) {
-    return `"${venvPythonWin}"`;
+    return venvPythonWin;
   }
   const venvPythonUnix = path.join(projectRoot, '.venv', 'bin', 'python');
   if (fs.existsSync(venvPythonUnix)) {
-    return `"${venvPythonUnix}"`;
+    return venvPythonUnix;
   }
   return 'python';
 }
@@ -91,14 +104,14 @@ function th_get_python_command(): string {
 // Goi script Python de sinh anh chan dung/sprite moi bang mo hinh Checkpoint va LoRA
 export function generateStardewPortrait(
   opts: AiGenerateOptions | string,
-  legacySteps = 16,
+  progressCallbackOrLegacySteps?: AiProgressCallback | number,
   legacySize = 64,
   legacyRemoveBg = false
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const projectRoot = getProjectRoot();
     const pythonScript = path.join(projectRoot, 'scripts', 'th_generate_stardew_portrait.py');
-    const pythonCmd = th_get_python_command();
+    const pythonExe = th_get_python_command();
 
     let prompt = '';
     let checkpoint = path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
@@ -108,10 +121,15 @@ export function generateStardewPortrait(
     let size = 64;
     let resample = 'NEAREST';
     let removeBg = false;
+    let onProgress: AiProgressCallback | undefined = undefined;
+
+    if (typeof progressCallbackOrLegacySteps === 'function') {
+      onProgress = progressCallbackOrLegacySteps;
+    }
 
     if (typeof opts === 'string') {
       prompt = opts;
-      steps = legacySteps;
+      if (typeof progressCallbackOrLegacySteps === 'number') steps = progressCallbackOrLegacySteps;
       size = legacySize;
       removeBg = legacyRemoveBg;
     } else {
@@ -127,22 +145,146 @@ export function generateStardewPortrait(
       if (opts.size !== undefined) size = opts.size;
       if (opts.resample !== undefined) resample = opts.resample;
       if (opts.removeBg !== undefined) removeBg = opts.removeBg;
+      if (opts.onProgress) onProgress = opts.onProgress;
     }
 
     const timestamp = Date.now();
     const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `th_ai_gen_${timestamp}`);
-    const safePrompt = prompt.replace(/"/g, '\\"');
-    const removeBgFlag = removeBg ? '--remove_bg' : '';
 
-    const cmd = `${pythonCmd} "${pythonScript}" --checkpoint "${checkpoint}" --lora "${loraPath}" --prompt "${safePrompt}" --steps ${steps} --lora_scale ${loraScale} --size ${size} --resample ${resample} --output_prefix "${outputPrefix}" ${removeBgFlag}`.trim();
+    const args = [
+      '-u', // Che do unbuffered binary stream giup nhan output ngay lap tuc
+      pythonScript,
+      '--checkpoint', checkpoint,
+      '--lora', loraPath,
+      '--prompt', prompt,
+      '--steps', `${steps}`,
+      '--lora_scale', `${loraScale}`,
+      '--size', `${size}`,
+      '--resample', resample,
+      '--output_prefix', outputPrefix
+    ];
+    if (removeBg) {
+      args.push('--remove_bg');
+    }
 
-    console.log(`[AI Engine] Dang chay lenh sinh anh: ${cmd}`);
-    exec(cmd, { cwd: projectRoot }, (error, stdout, stderr) => {
-      if (error) {
-        console.error('[AI Engine] Loi khi sinh anh bang LoRA:', stderr || error.message);
-        return reject(new Error(stderr || error.message));
+    console.log(`[AI Engine] Dang chay script Python voi spawn: ${pythonExe} ${args.join(' ')}`);
+
+    onProgress?.({
+      stage: 'init',
+      step: 0,
+      totalSteps: steps,
+      percent: 0,
+      elapsed: 0,
+      eta: 0,
+      message: 'Đang khởi động tiến trình AI...'
+    });
+
+    const child = spawn(pythonExe, args, { cwd: projectRoot });
+
+    let stdoutData = '';
+    let stderrData = '';
+
+    const handleLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      // 1. Dinh dang step chi tiet: AI_STEP:step:total:percent:elapsed:eta
+      if (trimmed.startsWith('AI_STEP:')) {
+        const parts = trimmed.split(':');
+        if (parts.length >= 6) {
+          const step = parseInt(parts[1], 10);
+          const totalSteps = parseInt(parts[2], 10);
+          const percent = parseInt(parts[3], 10);
+          const elapsed = parseFloat(parts[4]);
+          const eta = parseFloat(parts[5]);
+          onProgress?.({
+            stage: 'denoising',
+            step,
+            totalSteps,
+            percent,
+            elapsed,
+            eta,
+            message: `Đang sinh ảnh: Bước ${step}/${totalSteps} (${percent}%)`
+          });
+        }
       }
+      // 2. Dinh dang stage: AI_STAGE:stage_name:message
+      else if (trimmed.startsWith('AI_STAGE:')) {
+        const parts = trimmed.split(':');
+        const stage = (parts[1] || 'processing').toLowerCase();
+        const message = parts.slice(2).join(':');
+        onProgress?.({
+          stage,
+          message
+        });
+      }
+      // 3. Fallback nhan dien tqdm tu stderr: e.g. "22/22 [01:55<00:00, 5.24s/it]"
+      else {
+        const tqdmMatch = trimmed.match(/(\d+)\/(\d+)\s*\[([^<]+)<([^,]+),\s*([^\]]+)\]/);
+        if (tqdmMatch) {
+          const step = parseInt(tqdmMatch[1], 10);
+          const totalSteps = parseInt(tqdmMatch[2], 10);
+          const pct = Math.round((step / totalSteps) * 100);
+          const elapsedStr = tqdmMatch[3].trim();
+          const etaStr = tqdmMatch[4].trim();
+          const parseSec = (s: string) => {
+            const p = s.split(':').map(Number);
+            return p.length === 2 ? p[0] * 60 + p[1] : 0;
+          };
+          onProgress?.({
+            stage: 'denoising',
+            step,
+            totalSteps,
+            percent: pct,
+            elapsed: parseSec(elapsedStr),
+            eta: parseSec(etaStr),
+            message: `Đang sinh ảnh: Bước ${step}/${totalSteps} (${pct}%)`
+          });
+        }
+      }
+    };
+
+    let stdoutBuffer = '';
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdoutData += text;
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() || '';
+      for (const l of lines) handleLine(l);
+    });
+
+    let stderrBuffer = '';
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderrData += text;
+      stderrBuffer += text;
+      const lines = stderrBuffer.split(/[\r\n]+/);
+      stderrBuffer = lines.pop() || '';
+      for (const l of lines) handleLine(l);
+    });
+
+    child.on('error', (err) => {
+      console.error('[AI Engine] Loi khi spawn tien trinh Python:', err);
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      if (stdoutBuffer) handleLine(stdoutBuffer);
+      if (stderrBuffer) handleLine(stderrBuffer);
+
+      if (code !== 0) {
+        console.error(`[AI Engine] Tien trinh thoat voi ma loi ${code}:`, stderrData || stdoutData);
+        return reject(new Error(stderrData || stdoutData || `Tiến trình Python thoát với mã lỗi ${code}`));
+      }
+
       console.log('[AI Engine] Ket qua sinh anh hoan tat.');
+      onProgress?.({
+        stage: 'completed',
+        percent: 100,
+        message: 'Sinh ảnh hoàn tất!'
+      });
+
       const outputPath = `${outputPrefix}_pixel_${size}x${size}.png`;
       resolve(outputPath);
     });

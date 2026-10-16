@@ -1442,6 +1442,12 @@ function initWebSocketBridge(): void {
       try {
         const payload: any = JSON.parse(event.data);
 
+        // Xu ly cap nhat tien trinh sinh anh AI thoi gian thuc
+        if (payload.type === 'AI_PROGRESS') {
+          handleAiProgressEvent(payload);
+          return;
+        }
+
         // Xu ly dong bo toan bo Project tu Server (vi du khi nap anh moi hoac doi kich thuoc 64x64)
         if (payload.type === 'PROJECT_SYNC' && payload.project) {
           const newProj = payload.project;
@@ -1512,6 +1518,59 @@ function initWebSocketBridge(): void {
     };
   } catch (err) {
     setTimeout(initWebSocketBridge, 3000);
+  }
+}
+
+// Helper format thoi gian giay -> MM:SS
+function formatTimeSec(seconds: number): string {
+  if (isNaN(seconds) || seconds < 0) return '--:--';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+// Xu ly su kien cap nhat tien trinh AI thoi gian thuc tu WebSocket
+function handleAiProgressEvent(payload: any): void {
+  const statusMsg = document.getElementById('ai-status-msg');
+  const statusText = document.getElementById('ai-status-text');
+  const stepsBadge = document.getElementById('ai-steps-badge');
+  const barFill = document.getElementById('ai-progress-bar-fill');
+  const timeElapsed = document.getElementById('ai-time-elapsed');
+  const percentText = document.getElementById('ai-percent-text');
+  const timeEta = document.getElementById('ai-time-eta');
+
+  if (statusMsg) statusMsg.style.display = 'block';
+
+  if (payload.message && statusText) {
+    statusText.innerText = payload.message;
+  }
+
+  // Cap nhat so buoc steps
+  if (payload.totalSteps !== undefined && stepsBadge) {
+    const cur = payload.step || 0;
+    const tot = payload.totalSteps;
+    stepsBadge.innerText = `${cur} / ${tot} steps`;
+  }
+
+  // Cap nhat thanh tien trinh & phan tram
+  if (payload.percent !== undefined) {
+    const pct = Math.max(0, Math.min(100, Math.round(payload.percent)));
+    if (barFill) barFill.style.width = `${pct}%`;
+    if (percentText) percentText.innerText = `${pct}%`;
+  }
+
+  // Cap nhat thoi gian da chay
+  if (payload.elapsed !== undefined && timeElapsed) {
+    timeElapsed.innerText = `Đã chạy: ${formatTimeSec(payload.elapsed)}`;
+  }
+
+  // Cap nhat uoc tinh thoi gian con lai (ETA)
+  if (payload.eta !== undefined && timeEta) {
+    if (payload.eta <= 0 || (payload.percent && payload.percent >= 100)) {
+      timeEta.innerText = 'Sắp xong...';
+    } else {
+      timeEta.innerText = `Còn lại: ~${formatTimeSec(payload.eta)}`;
+    }
   }
 }
 
@@ -1640,31 +1699,37 @@ function initAiPortraitModal(): void {
       return;
     }
 
-    let timerInterval: any = null;
-    let elapsedSeconds = 0;
+    const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
+    const loraPath = loraSelect ? loraSelect.value : 'models/lora/th_stardew_portrait_lora.safetensors';
+    const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.6;
+    const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
+    const size = sizeSelect ? parseInt(sizeSelect.value, 10) : 64;
+    const mode = modeSelect ? modeSelect.value : 'new_layer';
+    const removeBg = removeBgCheckbox ? removeBgCheckbox.checked : false;
+
+    // Khoi tao cac phan tu DOM cua hop tien do
+    const barFill = document.getElementById('ai-progress-bar-fill');
+    const stepsBadge = document.getElementById('ai-steps-badge');
+    const timeElapsed = document.getElementById('ai-time-elapsed');
+    const percentText = document.getElementById('ai-percent-text');
+    const timeEta = document.getElementById('ai-time-eta');
+
+    if (statusMsg) statusMsg.style.display = 'block';
+    if (statusText) statusText.innerText = 'Đang khởi động tiến trình AI...';
+    if (barFill) barFill.style.width = '0%';
+    if (percentText) percentText.innerText = '0%';
+    if (stepsBadge) stepsBadge.innerText = `0 / ${steps} steps`;
+    if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
+    if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
+    if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = true;
+
+    const startTime = Date.now();
+    const localTimer = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      if (timeElapsed) timeElapsed.innerText = `Đã chạy: ${formatTimeSec(sec)}`;
+    }, 1000);
 
     try {
-      if (statusMsg && statusText) {
-        statusMsg.style.display = 'block';
-        statusText.innerText = 'Đang khởi động AI Checkpoint & LoRA (0s trôi qua, khoảng ~60s trên CPU)...';
-      }
-      if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = true;
-
-      timerInterval = setInterval(() => {
-        elapsedSeconds++;
-        if (statusText) {
-          statusText.innerText = `Đang sinh ảnh bằng SD1.5 & LoRA (${elapsedSeconds}s trôi qua, khoảng ~60s trên CPU)...`;
-        }
-      }, 1000);
-
-      const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
-      const loraPath = loraSelect ? loraSelect.value : 'models/lora/th_stardew_portrait_lora.safetensors';
-      const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.6;
-      const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
-      const size = sizeSelect ? parseInt(sizeSelect.value, 10) : 64;
-      const mode = modeSelect ? modeSelect.value : 'new_layer';
-      const removeBg = removeBgCheckbox ? removeBgCheckbox.checked : false;
-
       const res = await fetch('http://127.0.0.1:3055/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1682,16 +1747,21 @@ function initAiPortraitModal(): void {
 
       const data = await res.json();
       if (data.success) {
-        modal.style.display = 'none';
+        if (barFill) barFill.style.width = '100%';
+        if (percentText) percentText.innerText = '100%';
+        if (statusText) statusText.innerText = 'Hoàn tất! Đã nạp vào Canvas.';
+        if (timeEta) timeEta.innerText = 'Hoàn tất';
+        setTimeout(() => {
+          modal.style.display = 'none';
+        }, 600);
       } else {
         alert('Lỗi sinh ảnh: ' + (data.error || 'Thao tác thất bại'));
       }
     } catch (err: any) {
       alert('Lỗi kết nối máy chủ AI: ' + err.message);
     } finally {
-      if (timerInterval) clearInterval(timerInterval);
+      clearInterval(localTimer);
       if (btnGenerate) (btnGenerate as HTMLButtonElement).disabled = false;
-      if (statusMsg) statusMsg.style.display = 'none';
     }
   });
 }
