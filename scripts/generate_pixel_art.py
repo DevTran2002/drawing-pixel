@@ -107,10 +107,17 @@ def generate_pixel_art(
     # Neu o che do sinh hoat anh SpriteSheet, bo sung cac tag dan huong chuyen dong
     if animation_mode:
         action_clean = action.lower().strip()
-        tags.insert(1, "(character sprite sheet:1.3)")
-        tags.insert(2, f"({action_clean} animation:1.2)")
-        tags.insert(3, f"{frame_count} frames sequence")
-        tags.insert(4, "full body")
+        tags.insert(1, "(horizontal sprite sheet sequence:1.3)")
+        if "walk" in action_clean:
+            tags.insert(2, f"({action_clean} in place cycle:1.2)")
+        elif "attack" in action_clean or "slash" in action_clean:
+            tags.insert(2, "(slashing sword attack with bright slash arc motion trail:1.3)")
+        elif "jump" in action_clean:
+            tags.insert(2, "(jumping sequence, preparation crouch, airborne pose, landing:1.3)")
+        else:
+            tags.insert(2, f"({action_clean} animation:1.2)")
+        tags.insert(3, f"{frame_count} side by side sub-frames")
+        tags.insert(4, "full body centered in each frame")
 
     # Phan loai va dua tag boi canh len dau ngay sau trigger pixel art
     bg_keywords = ["background", "white background", "simple background", "flat background", "transparent background"]
@@ -127,7 +134,7 @@ def generate_pixel_art(
     # Neu co yeu cau nen don gian hoac animation mode, loai bo cay coi dao bay moc da
     has_simple_bg = any("simple" in t.lower() or "white" in t.lower() or "flat" in t.lower() for t in bg_tags)
     if (has_simple_bg or animation_mode) and "tree" not in negative_prompt.lower():
-        negative_prompt = f"{negative_prompt}, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds"
+        negative_prompt = f"{negative_prompt}, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds, merged frames, cut off body, displaced, blurry, distorted, bad anatomy"
 
     # Uu tien su dung Checkpoint cuc bo neu ton tai
     if checkpoint and os.path.exists(checkpoint):
@@ -192,13 +199,24 @@ def generate_pixel_art(
         call_kwargs["callback"] = legacy_cb
         call_kwargs["callback_steps"] = 1
 
+    # Thiet lap kich thuoc: neu o che do animation, sinh dai anh ngang de moi frame la o vuong 256x256
+    sub_frame_size = 256
+    if animation_mode and frame_count > 1:
+        call_kwargs["width"] = sub_frame_size * frame_count
+        call_kwargs["height"] = sub_frame_size
+        print(f"AI_STAGE:DIMENSIONS:Kich thuoc dai anh ngang: {call_kwargs['width']}x{call_kwargs['height']} ({frame_count} frames {sub_frame_size}x{sub_frame_size})...", flush=True)
+    else:
+        call_kwargs["width"] = 512
+        call_kwargs["height"] = 512
+
     result = pipe(**call_kwargs)
     raw_img = result.images[0]
 
-    # 1. Luu ban anh goc 512x512
-    raw_out = f"{output_prefix}_raw_512.png"
+    # 1. Luu ban anh goc SpriteSheet
+    total_w, total_h = raw_img.size
+    raw_out = f"{output_prefix}_raw_{total_w}x{total_h}.png"
     raw_img.save(raw_out)
-    print(f"Da luu anh goc 512x512: {raw_out}", flush=True)
+    print(f"Da luu anh goc: {raw_out}", flush=True)
 
     # 2. Xu ly neu o che do sinh hoat anh SpriteSheet (Animation Mode)
     if animation_mode and frame_count > 1:

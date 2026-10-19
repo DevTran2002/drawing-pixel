@@ -1294,6 +1294,35 @@ body {
   position: relative;
 }
 
+.anim-engine-card {
+  background: #181824;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.anim-engine-card:hover {
+  background: #1f1f30;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.anim-engine-card.active {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+
+.anim-engine-card[data-engine="ai"].active {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: #a855f7;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+}
+
 .anim-action-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -2042,6 +2042,7 @@ function initAiPixelModal(): void {
         height: number;
         pixels: PixelPoint[];
       }[] | null;
+      engine?: 'template' | 'ai';
     };
     updatedAt: number;
   }
@@ -2066,6 +2067,7 @@ function initAiPixelModal(): void {
     frameCount: 4,
     frameSize: 64,
     removeBg: true,
+    engine: 'template' as 'template' | 'ai',
     frames: [] as {
       frameIndex: number;
       width: number;
@@ -2119,6 +2121,7 @@ function initAiPixelModal(): void {
           action: animSetupState.action,
           frameCount: animSetupState.frameCount,
           frameSize: animSetupState.frameSize,
+          engine: animSetupState.engine,
           frames: animSetupState.frames.length > 0 ? animSetupState.frames : null
         },
         updatedAt: Date.now()
@@ -2698,8 +2701,18 @@ function initAiPixelModal(): void {
   // ==========================================
   // XỬ LÝ BƯỚC 3: CẤU HÌNH HOẠT CẢNH
   // ==========================================
+  const animEngineCards = document.querySelectorAll('.anim-engine-card');
   const actionCards = document.querySelectorAll('.anim-action-card');
   const frameBtns = document.querySelectorAll('.anim-frame-btn');
+
+  animEngineCards.forEach(card => {
+    card.addEventListener('click', () => {
+      animEngineCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      animSetupState.engine = (card.getAttribute('data-engine') || 'template') as 'template' | 'ai';
+      saveWizardCheckpoint();
+    });
+  });
 
   actionCards.forEach(card => {
     card.addEventListener('click', () => {
@@ -2748,6 +2761,9 @@ function initAiPixelModal(): void {
     // Chuyển sang Bước 4 hiển thị tiến trình
     goToStep(4);
 
+    const isTemplate = animSetupState.engine === 'template';
+    const engineLabel = isTemplate ? 'Khung Xương Pixel' : 'AI Tạo Sinh';
+
     const barFill = document.getElementById('ai-progress-bar-fill');
     const stepsBadge = document.getElementById('ai-steps-badge');
     const timeElapsed = document.getElementById('ai-time-elapsed');
@@ -2755,12 +2771,12 @@ function initAiPixelModal(): void {
     const timeEta = document.getElementById('ai-time-eta');
 
     if (statusMsg) statusMsg.style.display = 'block';
-    if (statusText) statusText.innerText = `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}"...`;
-    if (barFill) barFill.style.width = '0%';
-    if (percentText) percentText.innerText = '0%';
-    if (stepsBadge) stepsBadge.innerText = `0 / 18 steps`;
+    if (statusText) statusText.innerText = `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}" bằng ${engineLabel}...`;
+    if (barFill) barFill.style.width = isTemplate ? '80%' : '0%';
+    if (percentText) percentText.innerText = isTemplate ? '80%' : '0%';
+    if (stepsBadge) stepsBadge.innerText = isTemplate ? 'Template Engine' : `0 / 18 steps`;
     if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
-    if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
+    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : 'Còn lại: Đang tính...';
     if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = true;
 
     const startTime = Date.now();
@@ -2774,18 +2790,28 @@ function initAiPixelModal(): void {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          engine: animSetupState.engine,
           basePrompt: baseCharState.prompt || promptInput?.value.trim() || 'pixel art hero',
           action: animSetupState.action,
           frameCount: animSetupState.frameCount,
           seed: baseCharState.seed,
           size: animSetupState.frameSize,
-          removeBg: animSetupState.removeBg
+          removeBg: animSetupState.removeBg,
+          basePixels: baseCharState.pixels
         })
       });
 
       const data = await res.json();
       if (!data.success || !Array.isArray(data.frames)) {
         throw new Error(data.error || 'Không thể tạo chuỗi hoạt ảnh');
+      }
+
+      if (isTemplate) {
+        if (barFill) barFill.style.width = '100%';
+        if (percentText) percentText.innerText = '100%';
+        if (stepsBadge) stepsBadge.innerText = 'Hoàn tất';
+        if (timeEta) timeEta.innerText = 'Tức thì';
+        if (statusText) statusText.innerText = `Hoàn tất tạo ${data.frames.length} frames bằng Khung Xương Pixel!`;
       }
 
       animSetupState.frames = data.frames;
@@ -2804,7 +2830,7 @@ function initAiPixelModal(): void {
     } finally {
       clearInterval(animTimer);
       if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = false;
-      if (statusMsg) statusMsg.style.display = 'none';
+      if (statusMsg && !isTemplate) statusMsg.style.display = 'none';
     }
   };
 
@@ -2937,9 +2963,16 @@ function initAiPixelModal(): void {
       animSetupState.action = cp.animation.action || 'walk';
       animSetupState.frameCount = cp.animation.frameCount || 4;
       animSetupState.frameSize = cp.animation.frameSize || 64;
+      animSetupState.engine = cp.animation.engine || 'template';
       if (Array.isArray(cp.animation.frames)) {
         animSetupState.frames = cp.animation.frames;
       }
+
+      const animEngineCards = document.querySelectorAll('.anim-engine-card');
+      animEngineCards.forEach(c => {
+        const eng = c.getAttribute('data-engine');
+        c.classList.toggle('active', eng === animSetupState.engine);
+      });
     }
 
     // Đưa người dùng về đúng bước đã lưu

@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Tim thu muc goc cua du an (d:\pixel_draw)
-function getProjectRoot(): string {
+export function getProjectRoot(): string {
   let cur = __dirname;
   while (cur && cur !== path.dirname(cur)) {
     if (fs.existsSync(path.join(cur, 'package.json')) && fs.existsSync(path.join(cur, 'apps'))) {

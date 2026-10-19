@@ -509,6 +509,27 @@
 
               <!-- COT PHAI: CHON HANH DONG, SO FRAME, CO ANH -->
               <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                <!-- CHON CONG NGHE SINH HOAT ANH -->
+                <div>
+                  <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Công nghệ sinh hoạt ảnh (Animation Engine):</label>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button type="button" class="anim-engine-card active" id="anim-engine-template" data-engine="template">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-weight: 600; font-size: 11px; color: #38bdf8;">Khung Xương Pixel</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-radius: 4px;">Khuyên dùng</span>
+                      </div>
+                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Tức thì (&lt;1s), đồng nhất 100% nhân vật, bước đi tại chỗ chuẩn game.</span>
+                    </button>
+                    <button type="button" class="anim-engine-card" id="anim-engine-ai" data-engine="ai">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-weight: 600; font-size: 11px; color: #c084fc;">AI Tạo Sinh Tự Do</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(168, 85, 247, 0.2); color: #c084fc; border-radius: 4px;">SD 1.5 LoRA</span>
+                      </div>
+                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Dải ảnh ngang tỷ lệ 1:1 không méo, tư thế biến ảo và vệt kiếm quang nghệ thuật.</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">1. Chọn hành động (Action):</label>
                   <div class="anim-action-grid">

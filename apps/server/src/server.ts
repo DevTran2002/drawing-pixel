@@ -6,7 +6,8 @@ import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
-import { loadPngToPixels, generatePixelArt, generateSpriteAnimation } from './ai-helper';
+import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, getProjectRoot } from './ai-helper';
+import { generateTemplateAnimation } from './template-animator';
 import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
 
@@ -264,18 +265,55 @@ const server = http.createServer(async (req, res) => {
       try {
         const payload = JSON.parse(body);
         const {
+          engine = 'template',
           basePrompt,
-          action,
-          frameCount,
+          action = 'walk',
+          frameCount = 4,
           seed,
           checkpoint,
           loraPath,
           loraScale,
           steps,
-          size,
-          removeBg
+          size = 64,
+          removeBg,
+          basePixels
         } = payload;
 
+        // 1. Che do 1: Khung xuong bien doi diem anh (Template Engine - Nhanh va on dinh 100%)
+        if (engine === 'template') {
+          const timestamp = Date.now();
+          const projectRoot = getProjectRoot();
+          const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `template_anim_${timestamp}`);
+
+          const animResult = generateTemplateAnimation({
+            action,
+            frameCount: parseInt(frameCount, 10) || 4,
+            basePixels: Array.isArray(basePixels) ? basePixels : [],
+            width: parseInt(size, 10) || 64,
+            height: parseInt(size, 10) || 64,
+            outputPrefix
+          });
+
+          // Thong bao hoan tat qua WebSocket
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            stage: 'completed',
+            percent: 100,
+            message: `Hoàn tất tạo ${animResult.frameCount} frames hoạt ảnh bằng Khung Xương Pixel!`
+          } as any);
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            engine: 'template',
+            action: animResult.action,
+            frameCount: animResult.frameCount,
+            frames: animResult.frames
+          }));
+          return;
+        }
+
+        // 2. Che do 2: AI Tao Sinh Tu Do (AI SpriteSheet)
         const onProgress = (progress: any) => {
           broadcastToStudio({
             type: 'AI_PROGRESS',
@@ -300,6 +338,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
+          engine: 'ai',
           action: animResult.action,
           frameCount: animResult.frameCount,
           frames: animResult.frames
