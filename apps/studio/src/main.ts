@@ -2045,7 +2045,8 @@ function initAiPixelModal(): void {
         height: number;
         pixels: PixelPoint[];
       }[] | null;
-      engine?: 'template' | 'ai';
+      engine?: 'hybrid' | 'template' | 'ai';
+      refineStrength?: number;
     };
     skeletonRig?: SkeletonRig;
     updatedAt: number;
@@ -2185,7 +2186,8 @@ function initAiPixelModal(): void {
     frameCount: 4,
     frameSize: 64,
     removeBg: true,
-    engine: 'template' as 'template' | 'ai',
+    engine: 'hybrid' as 'hybrid' | 'template' | 'ai',
+    refineStrength: 0.38,
     frames: [] as {
       frameIndex: number;
       width: number;
@@ -2240,6 +2242,7 @@ function initAiPixelModal(): void {
           frameCount: animSetupState.frameCount,
           frameSize: animSetupState.frameSize,
           engine: animSetupState.engine,
+          refineStrength: animSetupState.refineStrength,
           frames: animSetupState.frames.length > 0 ? animSetupState.frames : null
         },
         skeletonRig: activeSkeletonRig || undefined,
@@ -2852,14 +2855,33 @@ function initAiPixelModal(): void {
   const animEngineCards = document.querySelectorAll('.anim-engine-card');
   const actionCards = document.querySelectorAll('.anim-action-card');
   const frameBtns = document.querySelectorAll('.anim-frame-btn');
+  const hybridStrengthPanel = document.getElementById('hybrid-strength-panel');
+  const hybridStrengthSlider = document.getElementById('hybrid-strength-slider') as HTMLInputElement | null;
+  const hybridStrengthVal = document.getElementById('hybrid-strength-val');
 
   animEngineCards.forEach(card => {
     card.addEventListener('click', () => {
       animEngineCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      animSetupState.engine = (card.getAttribute('data-engine') || 'template') as 'template' | 'ai';
+      const eng = (card.getAttribute('data-engine') || 'hybrid') as 'hybrid' | 'template' | 'ai';
+      animSetupState.engine = eng;
+      if (hybridStrengthPanel) {
+        hybridStrengthPanel.style.display = eng === 'hybrid' ? 'flex' : 'none';
+      }
       saveWizardCheckpoint();
     });
+  });
+
+  hybridStrengthSlider?.addEventListener('input', () => {
+    const val = parseFloat(hybridStrengthSlider.value) || 0.38;
+    animSetupState.refineStrength = val;
+    if (hybridStrengthVal) {
+      let desc = 'Cân bằng chuẩn';
+      if (val < 0.30) desc = 'Ưu tiên giữ nét gốc';
+      else if (val > 0.45) desc = 'Ưu tiên vẽ bù sáng tạo';
+      hybridStrengthVal.innerText = `${val.toFixed(2)} (${desc})`;
+    }
+    saveWizardCheckpoint();
   });
 
   actionCards.forEach(card => {
@@ -3784,8 +3806,11 @@ function initAiPixelModal(): void {
     // Chuyển sang Bước 4 hiển thị tiến trình
     goToStep(4);
 
+    const isHybrid = animSetupState.engine === 'hybrid';
     const isTemplate = animSetupState.engine === 'template';
-    const engineLabel = isTemplate ? 'Khung Xương Pixel' : 'AI Tạo Sinh';
+    let engineLabel = 'AI Tạo Sinh Tự Do';
+    if (isHybrid) engineLabel = 'Khung Xương + AI Vẽ Bù';
+    else if (isTemplate) engineLabel = 'Khung Xương Thuần';
 
     const barFill = document.getElementById('ai-progress-bar-fill');
     const stepsBadge = document.getElementById('ai-steps-badge');
@@ -3795,11 +3820,11 @@ function initAiPixelModal(): void {
 
     if (statusMsg) statusMsg.style.display = 'block';
     if (statusText) statusText.innerText = `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}" bằng ${engineLabel}...`;
-    if (barFill) barFill.style.width = isTemplate ? '80%' : '0%';
-    if (percentText) percentText.innerText = isTemplate ? '80%' : '0%';
-    if (stepsBadge) stepsBadge.innerText = isTemplate ? 'Template Engine' : `0 / 18 steps`;
+    if (barFill) barFill.style.width = isTemplate ? '80%' : (isHybrid ? '15%' : '0%');
+    if (percentText) percentText.innerText = isTemplate ? '80%' : (isHybrid ? '15%' : '0%');
+    if (stepsBadge) stepsBadge.innerText = isTemplate ? 'Template Engine' : (isHybrid ? 'Hybrid Refiner' : `0 / 18 steps`);
     if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
-    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : 'Còn lại: Đang tính...';
+    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : (isHybrid ? 'Ước tính: ~25s' : 'Còn lại: Đang tính...');
     if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = true;
 
     const startTime = Date.now();
@@ -3822,7 +3847,8 @@ function initAiPixelModal(): void {
           size: animSetupState.frameSize,
           removeBg: animSetupState.removeBg,
           basePixels: baseCharState.pixels,
-          skeletonRig: activeSkeletonRig
+          skeletonRig: activeSkeletonRig,
+          strength: animSetupState.refineStrength
         })
       });
 
@@ -3831,12 +3857,12 @@ function initAiPixelModal(): void {
         throw new Error(data.error || 'Không thể tạo chuỗi hoạt ảnh');
       }
 
-      if (isTemplate) {
+      if (isTemplate || isHybrid) {
         if (barFill) barFill.style.width = '100%';
         if (percentText) percentText.innerText = '100%';
         if (stepsBadge) stepsBadge.innerText = 'Hoàn tất';
-        if (timeEta) timeEta.innerText = 'Tức thì';
-        if (statusText) statusText.innerText = `Hoàn tất tạo ${data.frames.length} frames bằng Khung Xương Pixel!`;
+        if (timeEta) timeEta.innerText = 'Đã xong';
+        if (statusText) statusText.innerText = `Hoàn tất tạo ${data.frames.length} frames bằng ${engineLabel}!`;
       }
 
       animSetupState.frames = data.frames;
@@ -3988,7 +4014,10 @@ function initAiPixelModal(): void {
       animSetupState.action = cp.animation.action || 'walk';
       animSetupState.frameCount = cp.animation.frameCount || 4;
       animSetupState.frameSize = cp.animation.frameSize || 64;
-      animSetupState.engine = cp.animation.engine || 'template';
+      animSetupState.engine = (cp.animation.engine || 'hybrid') as 'hybrid' | 'template' | 'ai';
+      if (cp.animation.refineStrength !== undefined) {
+        animSetupState.refineStrength = cp.animation.refineStrength;
+      }
       if (Array.isArray(cp.animation.frames)) {
         animSetupState.frames = cp.animation.frames;
       }
@@ -3998,6 +4027,23 @@ function initAiPixelModal(): void {
         const eng = c.getAttribute('data-engine');
         c.classList.toggle('active', eng === animSetupState.engine);
       });
+
+      const hybridStrengthPanel = document.getElementById('hybrid-strength-panel');
+      const hybridStrengthSlider = document.getElementById('hybrid-strength-slider') as HTMLInputElement | null;
+      const hybridStrengthVal = document.getElementById('hybrid-strength-val');
+
+      if (hybridStrengthPanel) {
+        hybridStrengthPanel.style.display = animSetupState.engine === 'hybrid' ? 'flex' : 'none';
+      }
+      if (hybridStrengthSlider) {
+        hybridStrengthSlider.value = `${animSetupState.refineStrength}`;
+      }
+      if (hybridStrengthVal) {
+        let desc = 'Cân bằng chuẩn';
+        if (animSetupState.refineStrength < 0.30) desc = 'Ưu tiên giữ nét gốc';
+        else if (animSetupState.refineStrength > 0.45) desc = 'Ưu tiên vẽ bù sáng tạo';
+        hybridStrengthVal.innerText = `${animSetupState.refineStrength.toFixed(2)} (${desc})`;
+      }
     }
 
     if (cp.skeletonRig) {

@@ -19,7 +19,7 @@ from collections import deque
 import numpy as np
 from PIL import Image
 import torch
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, DPMSolverMultistepScheduler
 
 # Ham tach nen an toan: chi loai bo mau nen phia ngoai, khong xam pham vao co the nhan vat
 def remove_background_safe(image, tolerance=22):
@@ -90,6 +90,9 @@ def generate_pixel_art(
     animation_mode=False,
     frame_count=4,
     action="walk",
+    init_image=None,
+    refine_meta=None,
+    strength=0.38,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if device == "cuda" else torch.float32
@@ -135,6 +138,156 @@ def generate_pixel_art(
     has_simple_bg = any("simple" in t.lower() or "white" in t.lower() or "flat" in t.lower() for t in bg_tags)
     if (has_simple_bg or animation_mode) and "tree" not in negative_prompt.lower():
         negative_prompt = f"{negative_prompt}, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds, merged frames, cut off body, displaced, blurry, distorted, bad anatomy"
+
+    # Xu ly che do Hybrid AI Refinement: Khau lien vet rach va lam muot chuyen dong khung xuong
+    if refine_meta and os.path.exists(refine_meta):
+        import json
+        with open(refine_meta, "r", encoding="utf-8") as f:
+            meta_info = json.load(f)
+
+        frame_files = meta_info.get("frameFiles", [])
+        action_name = meta_info.get("action", action)
+        total_frames = len(frame_files)
+
+        print(f"AI_STAGE:REFINE_START:Bat dau dung Model AI khau lien va ve bu {total_frames} frames cho hanh dong {action_name}...", flush=True)
+
+        if checkpoint and os.path.exists(checkpoint):
+            print(f"AI_STAGE:CHECKPOINT:Nap Checkpoint {os.path.basename(checkpoint)} tren {device.upper()} (Img2Img Refiner)...", flush=True)
+            pipe = StableDiffusionImg2ImgPipeline.from_single_file(
+                checkpoint,
+                torch_dtype=torch_dtype,
+                safety_checker=None,
+            ).to(device)
+        else:
+            print(f"AI_STAGE:CHECKPOINT:Khoi tao Stable Diffusion 1.5 Img2Img tren {device.upper()}...", flush=True)
+            pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                "runwayml/stable-diffusion-v1-5",
+                torch_dtype=torch_dtype,
+                safety_checker=None,
+            ).to(device)
+
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+
+        if lora_path and os.path.exists(lora_path):
+            print(f"AI_STAGE:LORA:Nap trong so LoRA tu {os.path.basename(lora_path)} (do manh {lora_scale})...", flush=True)
+            pipe.load_lora_weights(lora_path)
+
+        cross_attention_kwargs = {"scale": lora_scale} if lora_scale is not None else None
+        refined_frame_files = []
+
+        if seed is None or seed <= 0:
+            seed = int(torch.randint(1, 2147483647, (1,)).item())
+
+        effective_steps = min(steps, 16) if steps else 14
+
+        for idx, f_path in enumerate(frame_files):
+            print(f"AI_STAGE:REFINE_FRAME:Dang khau lien va ve bu khung hinh {idx + 1}/{total_frames}...", flush=True)
+            if not os.path.exists(f_path):
+                print(f"Canh bao: Khong tim thay tep frame {f_path}, bo qua", flush=True)
+                continue
+
+            frame_raw = Image.open(f_path)
+            if frame_raw.mode != "RGBA":
+                frame_raw = frame_raw.convert("RGBA")
+
+            # Dat len nen trang dong nhat de mo hinh nhan dien ro outline
+            bg_white = Image.new("RGB", frame_raw.size, (255, 255, 255))
+            bg_white.paste(frame_raw, mask=frame_raw.split()[3])
+
+            # Phong to 512x512 bang NEAREST de giu nguyen dac tinh pixel sac net
+            init_img_512 = bg_white.resize((512, 512), Image.Resampling.NEAREST)
+
+            # Generator giu dong nhat phong cach giua cac frame
+            generator = torch.Generator(device).manual_seed(int(seed + idx))
+
+            res = pipe(
+                prompt=enriched_prompt,
+                negative_prompt=negative_prompt,
+                image=init_img_512,
+                strength=strength,
+                num_inference_steps=effective_steps,
+                guidance_scale=guidance_scale,
+                generator=generator,
+                cross_attention_kwargs=cross_attention_kwargs,
+            )
+            refined_raw = res.images[0]
+
+            processed = refined_raw
+            if remove_bg:
+                processed = remove_background_safe(refined_raw, tolerance=24)
+
+            refined_pixel = processed.resize((target_pixel_size, target_pixel_size), Image.Resampling.NEAREST)
+            out_frame_path = f"{output_prefix}_frame_{idx}.png"
+            refined_pixel.save(out_frame_path)
+            refined_frame_files.append(out_frame_path)
+            print(f"AI_FRAME_PROGRESS:{idx + 1}:{total_frames}:{out_frame_path}", flush=True)
+
+        meta_info["frameFiles"] = refined_frame_files
+        meta_info["engine"] = "hybrid"
+        meta_info["refinedWithAi"] = True
+        meta_info["strength"] = strength
+        meta_path = f"{output_prefix}_anim_meta.json"
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta_info, f, ensure_ascii=False, indent=2)
+
+        print(f"AI_ANIM_RESULT:{meta_path}", flush=True)
+        print(f"AI_STAGE:DONE:Hoan tat ve bu {total_frames} frames hoat anh bang Hybrid AI!", flush=True)
+        return refined_frame_files[0] if refined_frame_files else ""
+
+    # Xu ly anh don le Img2Img neu co init_image
+    if init_image and os.path.exists(init_image):
+        print(f"AI_STAGE:REFINE_SINGLE:Bat dau tinh chinh anh bang Img2Img (do manh {strength})...", flush=True)
+        if checkpoint and os.path.exists(checkpoint):
+            pipe = StableDiffusionImg2ImgPipeline.from_single_file(
+                checkpoint,
+                torch_dtype=torch_dtype,
+                safety_checker=None,
+            ).to(device)
+        else:
+            pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                "runwayml/stable-diffusion-v1-5",
+                torch_dtype=torch_dtype,
+                safety_checker=None,
+            ).to(device)
+
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+        if lora_path and os.path.exists(lora_path):
+            pipe.load_lora_weights(lora_path)
+
+        cross_attention_kwargs = {"scale": lora_scale} if lora_scale is not None else None
+        init_pil = Image.open(init_image)
+        if init_pil.mode != "RGBA":
+            init_pil = init_pil.convert("RGBA")
+        bg_white = Image.new("RGB", init_pil.size, (255, 255, 255))
+        bg_white.paste(init_pil, mask=init_pil.split()[3])
+        init_img_512 = bg_white.resize((512, 512), Image.Resampling.NEAREST)
+
+        if seed is None or seed <= 0:
+            seed = int(torch.randint(1, 2147483647, (1,)).item())
+        generator = torch.Generator(device).manual_seed(int(seed))
+
+        res = pipe(
+            prompt=enriched_prompt,
+            negative_prompt=negative_prompt,
+            image=init_img_512,
+            strength=strength,
+            num_inference_steps=steps,
+            guidance_scale=guidance_scale,
+            generator=generator,
+            cross_attention_kwargs=cross_attention_kwargs,
+        )
+        raw_img = res.images[0]
+
+        processed_img = raw_img
+        if remove_bg:
+            processed_img = remove_background_safe(raw_img, tolerance=24)
+
+        resample_filter = Image.Resampling.NEAREST if resample_method.upper() == "NEAREST" else Image.Resampling.LANCZOS
+        pixel_img = processed_img.resize((target_pixel_size, target_pixel_size), resample_filter)
+        pixel_out = f"{output_prefix}_pixel_{target_pixel_size}x{target_pixel_size}.png"
+        pixel_img.save(pixel_out)
+        print(f"AI_STAGE:DONE:Da tao thanh cong anh Pixel Art tu init_image: {pixel_out}", flush=True)
+        return pixel_out
 
     # Uu tien su dung Checkpoint cuc bo neu ton tai
     if checkpoint and os.path.exists(checkpoint):
@@ -294,6 +447,9 @@ if __name__ == "__main__":
     parser.add_argument("--frame_count", type=int, default=4, help="So luong khung hinh trong hoat anh (2, 3, 4, 6, 8)")
     parser.add_argument("--action", default="walk", help="Loai hanh dong (walk, attack, idle, sit, defeated, run, jump)")
     parser.add_argument("--seed", type=int, default=None, help="Khoa seed ngau nhien co dinh de dong nhat nhan vat")
+    parser.add_argument("--init_image", default=None, help="Duong dan anh dau vao de tinh chinh Img2Img")
+    parser.add_argument("--refine_meta", default=None, help="Duong dan file anim_meta.json de khau lien va ve bu cac frames")
+    parser.add_argument("--strength", type=float, default=0.38, help="Do manh khuay dong cua Img2Img (0.20 - 0.60)")
     args = parser.parse_args()
 
     generate_pixel_art(
@@ -311,4 +467,7 @@ if __name__ == "__main__":
         frame_count=args.frame_count,
         action=args.action,
         seed=args.seed,
+        init_image=args.init_image,
+        refine_meta=args.refine_meta,
+        strength=args.strength,
     )

@@ -6,7 +6,7 @@ import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload } from '@pixel-draw/shared-types';
-import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, getProjectRoot } from './ai-helper';
+import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, refineAnimationWithAi, getProjectRoot } from './ai-helper';
 import { generateTemplateAnimation } from './template-animator';
 import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
@@ -277,10 +277,11 @@ const server = http.createServer(async (req, res) => {
           size = 64,
           removeBg,
           basePixels,
-          skeletonRig
+          skeletonRig,
+          strength = 0.38
         } = payload;
 
-        // 1. Che do 1: Khung xuong bien doi diem anh (Template Engine - Nhanh va on dinh 100%)
+        // 1. Che do 1: Khung xuong bien doi diem anh (Template Engine - Nhanh tuc thi <10ms va on dinh 100%)
         if (engine === 'template') {
           const timestamp = Date.now();
           const projectRoot = getProjectRoot();
@@ -316,7 +317,73 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        // 2. Che do 2: AI Tao Sinh Tu Do (AI SpriteSheet)
+        // 2. Che do 2: Hybrid AI Refiner (Khung xuong dinh hinh tu the tho + Model AI khau lien va ve bu)
+        if (engine === 'hybrid') {
+          const timestamp = Date.now();
+          const projectRoot = getProjectRoot();
+          const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `hybrid_anim_${timestamp}`);
+
+          // Buoc A: Dinh hinh tu the tho bang khung xuong OpenPose
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            stage: 'rigging',
+            percent: 15,
+            message: `Bước 1/2: Đang dùng khung xương dựng ${frameCount} frames tư thế thô cho ${action}...`
+          } as any);
+
+          const roughResult = generateTemplateAnimation({
+            action,
+            frameCount: parseInt(frameCount, 10) || 4,
+            basePixels: Array.isArray(basePixels) ? basePixels : [],
+            width: parseInt(size, 10) || 64,
+            height: parseInt(size, 10) || 64,
+            outputPrefix: `${outputPrefix}_rough`,
+            skeletonRig
+          });
+
+          // Buoc B: Model AI thuc hien khau lien va ve bu cac diem rach
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            stage: 'refining',
+            percent: 30,
+            message: `Bước 2/2: Đang nạp Model AI để khâu liền vết nứt pixel và nếp gấp trang phục...`
+          } as any);
+
+          const onProgress = (progress: any) => {
+            broadcastToStudio({
+              type: 'AI_PROGRESS',
+              ...progress
+            } as any);
+          };
+
+          const refinedResult = await refineAnimationWithAi({
+            metaPath: roughResult.metaPath,
+            basePrompt: basePrompt || 'pixel art hero',
+            action,
+            strength: typeof strength === 'number' ? strength : parseFloat(strength) || 0.38,
+            seed: seed ? parseInt(seed, 10) : undefined,
+            checkpoint,
+            loraPath,
+            loraScale: loraScale !== undefined ? parseFloat(loraScale) : 0.65,
+            steps: 14,
+            size: parseInt(size, 10) || 64,
+            removeBg: removeBg ?? true,
+            onProgress
+          });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            engine: 'hybrid',
+            action: refinedResult.action,
+            frameCount: refinedResult.frameCount,
+            frames: refinedResult.frames,
+            skeletonRig: roughResult.skeletonRig
+          }));
+          return;
+        }
+
+        // 3. Che do 3: AI Tao Sinh Tu Do (AI SpriteSheet)
         const onProgress = (progress: any) => {
           broadcastToStudio({
             type: 'AI_PROGRESS',

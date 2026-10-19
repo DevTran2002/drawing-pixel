@@ -510,3 +510,183 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
   });
 }
 
+export interface AiRefineAnimationOptions {
+  metaPath: string;
+  basePrompt?: string;
+  action?: string;
+  strength?: number;
+  seed?: number;
+  checkpoint?: string;
+  loraPath?: string;
+  loraScale?: number;
+  steps?: number;
+  size?: number;
+  removeBg?: boolean;
+  onProgress?: AiProgressCallback;
+}
+
+// Ham dung mo hinh AI Img2Img khau lien cac diem rach va nếp gap trang phuc tu cac frames khung xuong
+export function refineAnimationWithAi(opts: AiRefineAnimationOptions): Promise<AiAnimationResult> {
+  return new Promise((resolve, reject) => {
+    const projectRoot = getProjectRoot();
+    const pythonScript = path.join(projectRoot, 'scripts', 'generate_pixel_art.py');
+    const pythonExe = getPythonCommand();
+
+    const basePrompt = opts.basePrompt || 'pixel art character';
+    const action = opts.action || 'walk';
+    const checkpoint = opts.checkpoint ? (path.isAbsolute(opts.checkpoint) ? opts.checkpoint : path.join(projectRoot, opts.checkpoint)) : path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
+    const loraPath = opts.loraPath ? (path.isAbsolute(opts.loraPath) ? opts.loraPath : path.join(projectRoot, opts.loraPath)) : path.join(projectRoot, 'models', 'lora', 'pixel_f2.safetensors');
+    const loraScale = opts.loraScale !== undefined ? opts.loraScale : 0.65;
+    const steps = opts.steps || 14;
+    const size = opts.size || 64;
+    const removeBg = opts.removeBg ?? true;
+    const strength = opts.strength !== undefined ? opts.strength : 0.38;
+    const onProgress = opts.onProgress;
+
+    const timestamp = Date.now();
+    const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `hybrid_anim_${timestamp}`);
+
+    const args = [
+      '-u',
+      pythonScript,
+      '--refine_meta', opts.metaPath,
+      '--strength', `${strength}`,
+      '--checkpoint', checkpoint,
+      '--lora', loraPath,
+      '--prompt', basePrompt,
+      '--steps', `${steps}`,
+      '--lora_scale', `${loraScale}`,
+      '--size', `${size}`,
+      '--output_prefix', outputPrefix,
+      '--action', action
+    ];
+
+    if (removeBg) {
+      args.push('--remove_bg');
+    }
+    if (opts.seed !== undefined && opts.seed > 0) {
+      args.push('--seed', `${opts.seed}`);
+    }
+
+    console.log(`[Hybrid AI] Dang chay tien trinh khau lien & ve bu: ${pythonExe} ${args.join(' ')}`);
+
+    onProgress?.({
+      stage: 'init',
+      step: 0,
+      totalSteps: 100,
+      percent: 10,
+      elapsed: 0,
+      eta: 0,
+      message: `Đang nạp Model AI để khâu liền vết nứt pixel...`
+    });
+
+    const child = spawn(pythonExe, args, { cwd: projectRoot });
+
+    let stdoutData = '';
+    let stderrData = '';
+    let metaPathResult = '';
+
+    const handleLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      if (trimmed.startsWith('AI_FRAME_PROGRESS:')) {
+        const parts = trimmed.split(':');
+        if (parts.length >= 4) {
+          const frameIdx = parseInt(parts[1], 10);
+          const totalFrames = parseInt(parts[2], 10);
+          const pct = Math.round((frameIdx / totalFrames) * 90);
+          onProgress?.({
+            stage: 'refining',
+            step: frameIdx,
+            totalSteps: totalFrames,
+            percent: pct,
+            message: `AI đã khâu liền và hoàn thiện khung hình ${frameIdx}/${totalFrames}`
+          });
+        }
+      } else if (trimmed.startsWith('AI_STAGE:REFINE_FRAME:')) {
+        const msg = trimmed.replace('AI_STAGE:REFINE_FRAME:', '').trim();
+        onProgress?.({
+          stage: 'refining',
+          message: msg
+        });
+      } else if (trimmed.startsWith('AI_ANIM_RESULT:')) {
+        metaPathResult = trimmed.replace('AI_ANIM_RESULT:', '').trim();
+      }
+    };
+
+    let stdoutBuffer = '';
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdoutData += text;
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() || '';
+      for (const l of lines) handleLine(l);
+    });
+
+    let stderrBuffer = '';
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderrData += text;
+      stderrBuffer += text;
+      const lines = stderrBuffer.split(/[\r\n]+/);
+      stderrBuffer = lines.pop() || '';
+      for (const l of lines) handleLine(l);
+    });
+
+    child.on('error', (err) => {
+      console.error('[Hybrid AI] Loi spawn tien trinh Python:', err);
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      if (stdoutBuffer) handleLine(stdoutBuffer);
+      if (stderrBuffer) handleLine(stderrBuffer);
+
+      if (code !== 0) {
+        console.error(`[Hybrid AI] Tien trinh thoat voi ma loi ${code}:`, stderrData || stdoutData);
+        return reject(new Error(stderrData || stdoutData || `Tiến trình Python thoát với mã lỗi ${code}`));
+      }
+
+      const metaPath = metaPathResult || `${outputPrefix}_anim_meta.json`;
+      if (!fs.existsSync(metaPath)) {
+        return reject(new Error(`Không tìm thấy file metadata hoạt ảnh tại: ${metaPath}`));
+      }
+
+      try {
+        const metaContent = fs.readFileSync(metaPath, 'utf-8');
+        const meta = JSON.parse(metaContent);
+        const frameFiles: string[] = meta.frameFiles || [];
+
+        const frames: AnimationFrameResult[] = frameFiles.map((fPath, idx) => {
+          const loaded = loadPngToPixels(fPath);
+          return {
+            frameIndex: idx,
+            width: loaded.width,
+            height: loaded.height,
+            pixels: loaded.pixels,
+            filename: path.basename(fPath),
+            imagePath: fPath
+          };
+        });
+
+        onProgress?.({
+          stage: 'completed',
+          percent: 100,
+          message: `Hoàn tất khâu liền ${frames.length} frames hoạt cảnh!`
+        });
+
+        resolve({
+          frameCount: frames.length,
+          action,
+          frames,
+          metaPath
+        });
+      } catch (err: any) {
+        reject(new Error(`Lỗi đọc dữ liệu frames hoạt cảnh: ${err.message}`));
+      }
+    });
+  });
+}
+

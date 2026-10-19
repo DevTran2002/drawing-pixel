@@ -512,13 +512,20 @@
                 <!-- CHON CONG NGHE SINH HOAT ANH -->
                 <div>
                   <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Công nghệ sinh hoạt ảnh (Animation Engine):</label>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <button type="button" class="anim-engine-card active" id="anim-engine-template" data-engine="template">
+                  <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px;">
+                    <button type="button" class="anim-engine-card active" id="anim-engine-hybrid" data-engine="hybrid">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
-                        <span style="font-weight: 600; font-size: 11px; color: #38bdf8;">Khung Xương Pixel</span>
-                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-radius: 4px;">Khuyên dùng</span>
+                        <span style="font-weight: 700; font-size: 11px; color: #38bdf8;">Khung Xương + AI Vẽ Bù</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border-radius: 4px; font-weight: 600;">Khuyên dùng</span>
                       </div>
-                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Tức thì (&lt;1s), đồng nhất 100% nhân vật, bước đi tại chỗ chuẩn game.</span>
+                      <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Khung xương định hình tư thế, Model AI tự động khâu liền vết rách &amp; nếp gấp trang phục.</span>
+                    </button>
+                    <button type="button" class="anim-engine-card" id="anim-engine-template" data-engine="template">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-weight: 600; font-size: 11px; color: #4ade80;">Khung Xương Thuần</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(74, 222, 128, 0.2); color: #4ade80; border-radius: 4px;">Tức thì (&lt;1s)</span>
+                      </div>
+                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Biến đổi hình học giữ 100% pixel gốc, phù hợp dáng đi nhẹ không vung tay quá đà.</span>
                     </button>
                     <button type="button" class="anim-engine-card" id="anim-engine-ai" data-engine="ai">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
@@ -527,6 +534,20 @@
                       </div>
                       <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Dải ảnh ngang tỷ lệ 1:1 không méo, tư thế biến ảo và vệt kiếm quang nghệ thuật.</span>
                     </button>
+                  </div>
+
+                  <!-- BANG DIEU CHINH MUC DO AI VE BU CHO HYBRID ENGINE -->
+                  <div id="hybrid-strength-panel" style="display: flex; flex-direction: column; gap: 4px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 8px 12px; margin-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 11px; font-weight: 600; color: #38bdf8;">Mức độ AI vẽ bù &amp; khâu liền vết rách (Strength):</span>
+                      <span id="hybrid-strength-val" style="font-size: 11px; font-weight: 700; color: #38bdf8; font-family: monospace;">0.38 (Cân bằng chuẩn)</span>
+                    </div>
+                    <input type="range" id="hybrid-strength-slider" min="0.20" max="0.60" step="0.02" value="0.38" style="width: 100%; cursor: pointer;">
+                    <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-muted); line-height: 1.2;">
+                      <span>0.20: Giữ nguyên hình học</span>
+                      <span>0.38: Chuẩn tối ưu khâu vết nứt</span>
+                      <span>0.60: Sáng tạo nếp gấp mới</span>
+                    </div>
                   </div>
                 </div>
 
