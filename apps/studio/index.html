@@ -485,9 +485,10 @@
               </div>
 
               <!-- Cac nut thao tac tai Buoc 2 -->
-              <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px;">
                 <button class="btn btn-small" id="btn-step2-back-step1">Quay lại sửa Prompt</button>
                 <button class="btn btn-small" id="btn-step2-reroll">Vẽ lại mẫu khác (Reroll)</button>
+                <button class="btn btn-small" id="btn-step2-use-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Nạp ngay ảnh mẫu này vào Canvas chính">Nạp Bức Này Vào Canvas (Ảnh Tĩnh)</button>
                 <button class="btn btn-small btn-primary" id="btn-step2-lock" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Chốt Mẫu Này & Sang Bước 3</button>
               </div>
             </div>
@@ -630,7 +631,9 @@
           </div>
           <div style="display: flex; gap: 8px;">
             <!-- Cac nut dong ung voi tung buoc -->
-            <button class="btn btn-ai" id="btn-wizard-draw-base">Vẽ Mẫu Nhân Vật (Bước 1)</button>
+            <button class="btn btn-ai" id="btn-wizard-draw-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Vẽ và nạp trực tiếp ảnh tĩnh vào Canvas không qua các bước tiếp">Vẽ & Nạp Vào Canvas (Ảnh Tĩnh)</button>
+            <button class="btn btn-ai" id="btn-wizard-draw-base" title="Vẽ nhân vật chuẩn và chuyển sang Bước 2 để tạo hoạt ảnh">Vẽ Mẫu & Tiếp Tục Hoạt Ảnh</button>
+            <button class="btn btn-small" id="btn-wizard-step2-use-static" style="display: none; background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;">Nạp Bức Này Vào Canvas</button>
             <button class="btn btn-primary" id="btn-wizard-next-step" style="display: none;">Tiếp Tục</button>
             <button class="btn btn-ai" id="btn-wizard-generate-anim" style="display: none; background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;">
               Bắt Đầu Tạo Hoạt Ảnh

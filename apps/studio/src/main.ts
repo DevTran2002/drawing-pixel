@@ -2187,7 +2187,9 @@ function initAiPixelModal(): void {
 
   // Các nút điều hướng ở chân Modal
   const btnWizardBack = document.getElementById('btn-wizard-back');
+  const btnWizardDrawStatic = document.getElementById('btn-wizard-draw-static');
   const btnWizardDrawBase = document.getElementById('btn-wizard-draw-base');
+  const btnWizardStep2UseStatic = document.getElementById('btn-wizard-step2-use-static');
   const btnWizardNextStep = document.getElementById('btn-wizard-next-step');
   const btnWizardGenerateAnim = document.getElementById('btn-wizard-generate-anim');
   const btnWizardChangeAction = document.getElementById('btn-wizard-change-action');
@@ -2202,6 +2204,7 @@ function initAiPixelModal(): void {
   const animPreviewBox = document.getElementById('anim-base-preview-container');
   const btnStep2BackStep1 = document.getElementById('btn-step2-back-step1');
   const btnStep2Reroll = document.getElementById('btn-step2-reroll');
+  const btnStep2UseStatic = document.getElementById('btn-step2-use-static');
   const btnStep2Lock = document.getElementById('btn-step2-lock') as HTMLButtonElement | null;
 
   // Các phần tử tại Bước 3 (Cấu hình hoạt cảnh)
@@ -2294,8 +2297,14 @@ function initAiPixelModal(): void {
     if (btnWizardBack) {
       btnWizardBack.style.display = validStep > 1 ? 'inline-flex' : 'none';
     }
+    if (btnWizardDrawStatic) {
+      btnWizardDrawStatic.style.display = validStep === 1 ? 'inline-flex' : 'none';
+    }
     if (btnWizardDrawBase) {
       btnWizardDrawBase.style.display = validStep === 1 ? 'inline-flex' : 'none';
+    }
+    if (btnWizardStep2UseStatic) {
+      btnWizardStep2UseStatic.style.display = validStep === 2 && !!baseCharState.dataUrl ? 'inline-flex' : 'none';
     }
     if (btnWizardNextStep) {
       // Ở Bước 1: cho phép tiếp tục nếu đã có ảnh mẫu; ở Bước 2: cho phép nếu đã chốt mẫu
@@ -2404,6 +2413,111 @@ function initAiPixelModal(): void {
   });
 
   // ==========================================
+  // XỬ LÝ VẼ ẢNH TĨNH VÀ NẠP TRỰC TIẾP CANVAS
+  // ==========================================
+
+  // Sinh ảnh tĩnh và nạp thẳng vào Canvas Studio (Không qua bước 2-3-4)
+  const handleDrawStaticImage = async () => {
+    const prompt = promptInput?.value.trim();
+    if (!prompt) {
+      alert('Vui lòng nhập mô tả nhân vật, phong cảnh hoặc chọn tag');
+      return;
+    }
+
+    const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
+    const loraPath = loraSelect ? loraSelect.value : 'models/lora/pixel_portrait_lora.safetensors';
+    const loraScale = loraScaleInput ? parseFloat(loraScaleInput.value) : 0.65;
+    const steps = stepsInput ? parseInt(stepsInput.value, 10) : 16;
+    const size = sizeSelect ? parseInt(sizeSelect.value, 10) : 64;
+    const mode = modeSelect ? modeSelect.value : 'replace_canvas';
+    const removeBg = removeBgCheckbox ? removeBgCheckbox.checked : false;
+
+    const barFill = document.getElementById('ai-progress-bar-fill');
+    const stepsBadge = document.getElementById('ai-steps-badge');
+    const timeElapsed = document.getElementById('ai-time-elapsed');
+    const percentText = document.getElementById('ai-percent-text');
+    const timeEta = document.getElementById('ai-time-eta');
+
+    if (statusMsg) statusMsg.style.display = 'block';
+    if (statusText) statusText.innerText = 'Đang vẽ ảnh tĩnh bằng AI...';
+    if (barFill) barFill.style.width = '0%';
+    if (percentText) percentText.innerText = '0%';
+    if (stepsBadge) stepsBadge.innerText = `0 / ${steps} steps`;
+    if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
+    if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
+    if (btnWizardDrawStatic) (btnWizardDrawStatic as HTMLButtonElement).disabled = true;
+
+    const startTime = Date.now();
+    const staticTimer = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      if (timeElapsed) timeElapsed.innerText = `Đã chạy: ${formatTimeSec(sec)}`;
+    }, 1000);
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          checkpoint,
+          loraPath,
+          loraScale,
+          steps,
+          size,
+          mode,
+          removeBg
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Không thể tạo ảnh');
+      }
+
+      // Nạp kết quả vào Studio
+      if (data.project) {
+        const newProj = data.project;
+        project.id = newProj.id;
+        project.name = newProj.name;
+        project.width = newProj.width;
+        project.height = newProj.height;
+        project.frames = newProj.frames;
+        project.clips = newProj.clips;
+        project.activeFrameIndex = newProj.activeFrameIndex || 0;
+        project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
+
+        canvasEngine.rebuildBuffers();
+        canvasEngine.centerViewport();
+        onionSkinRenderer.resize(project.width, project.height);
+
+        const sizeBadge = document.getElementById('canvas-size-badge');
+        if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+        const resLabel = document.getElementById('canvas-resolution');
+        if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+        renderAll();
+      }
+
+      if (barFill) barFill.style.width = '100%';
+      if (percentText) percentText.innerText = '100%';
+      if (statusText) statusText.innerText = 'Hoàn tất! Đã nạp vào Canvas Studio.';
+
+      setTimeout(() => {
+        modal.style.display = 'none';
+      }, 500);
+
+    } catch (err: any) {
+      alert('Lỗi tạo ảnh tĩnh: ' + err.message);
+    } finally {
+      clearInterval(staticTimer);
+      if (btnWizardDrawStatic) (btnWizardDrawStatic as HTMLButtonElement).disabled = false;
+      if (statusMsg) statusMsg.style.display = 'none';
+    }
+  };
+
+  btnWizardDrawStatic?.addEventListener('click', handleDrawStaticImage);
+
+  // ==========================================
   // XỬ LÝ BƯỚC 1: VẼ MẪU NHÂN VẬT BAN ĐẦU
   // ==========================================
   const handleDrawBaseCharacter = async () => {
@@ -2499,6 +2613,73 @@ function initAiPixelModal(): void {
   });
 
   btnStep2Reroll?.addEventListener('click', handleDrawBaseCharacter);
+
+  // Nạp ảnh mẫu hiện tại ở Bước 2 trực tiếp vào Canvas Studio
+  const handleApplyBaseCharToCanvas = () => {
+    if (!baseCharState.pixels || baseCharState.pixels.length === 0) {
+      alert('Chưa có ảnh mẫu để nạp vào Canvas!');
+      return;
+    }
+
+    const w = baseCharState.width || 64;
+    const h = baseCharState.height || 64;
+    project.width = w;
+    project.height = h;
+
+    const pixelsRecord: Record<string, PixelColor> = {};
+    for (const p of baseCharState.pixels) {
+      if (p.color) {
+        pixelsRecord[coordToKey(p.x, p.y)] = p.color;
+      }
+    }
+
+    project.frames = [
+      {
+        id: `frame_1_${Date.now()}`,
+        durationMs: 120,
+        layers: [
+          {
+            id: `layer_1_${Date.now()}`,
+            name: 'AI Pixel Art',
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            pixels: pixelsRecord
+          }
+        ]
+      }
+    ];
+    project.activeFrameIndex = 0;
+    project.activeLayerId = project.frames[0].layers[0].id;
+    project.clips = [
+      {
+        id: `clip_default_${Date.now()}`,
+        name: 'DEFAULT',
+        startFrame: 0,
+        endFrame: 0,
+        fps: 1,
+        loop: true
+      }
+    ];
+    animController.setActiveClip(project.clips[0].id);
+
+    const sizeBadge = document.getElementById('canvas-size-badge');
+    if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+    const resLabel = document.getElementById('canvas-resolution');
+    if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+    canvasEngine.rebuildBuffers();
+    canvasEngine.centerViewport();
+    onionSkinRenderer.resize(project.width, project.height);
+    renderAll();
+
+    syncProjectToServer();
+
+    modal.style.display = 'none';
+  };
+
+  btnStep2UseStatic?.addEventListener('click', handleApplyBaseCharToCanvas);
+  btnWizardStep2UseStatic?.addEventListener('click', handleApplyBaseCharToCanvas);
 
   btnStep2Lock?.addEventListener('click', () => {
     if (!baseCharState.seed) return;
