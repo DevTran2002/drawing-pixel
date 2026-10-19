@@ -289,22 +289,36 @@
             <span class="brand-badge" style="color: #c084fc; border-color: #9333ea;">AOM3 Checkpoint</span>
             <span class="brand-badge" style="color: #38bdf8; border-color: #0284c7;">LoRA Pixel F2</span>
           </div>
+          <button class="btn btn-tiny" id="btn-wizard-reset" title="Xóa dữ liệu sao lưu và bắt đầu lại từ đầu" style="margin-left: auto; margin-right: 8px; font-size: 11px; padding: 2px 8px; color: #f87171; border-color: rgba(248,113,113,0.3);">Làm mới</button>
           <button class="modal-close" id="btn-close-ai-modal">&times;</button>
         </div>
 
-        <!-- Thanh chuyen Tab giua Anh Tinh va Hoat Anh Sprite -->
-        <div class="ai-tabs-bar">
-          <button class="ai-tab-btn active" id="tab-btn-static" data-tab="static">
-            Ảnh Tĩnh (Static Portrait / Asset)
-          </button>
-          <button class="ai-tab-btn" id="tab-btn-animator" data-tab="animator">
-            Tạo Hoạt Ảnh Sprite (Sprite Animator)
-          </button>
+        <!-- Thanh Stepper 4 Buoc Tien Trinh -->
+        <div class="ai-stepper-bar" id="ai-stepper-bar">
+          <div class="ai-stepper-item active" id="wizard-step-indicator-1" data-step="1">
+            <span class="stepper-circle">1</span>
+            <span class="stepper-label">1. Thiết kế nhân vật</span>
+          </div>
+          <div class="ai-stepper-line" id="stepper-line-1"></div>
+          <div class="ai-stepper-item pending" id="wizard-step-indicator-2" data-step="2">
+            <span class="stepper-circle">2</span>
+            <span class="stepper-label">2. Xem trước & Chốt mẫu</span>
+          </div>
+          <div class="ai-stepper-line" id="stepper-line-2"></div>
+          <div class="ai-stepper-item pending" id="wizard-step-indicator-3" data-step="3">
+            <span class="stepper-circle">3</span>
+            <span class="stepper-label">3. Cấu hình hoạt cảnh</span>
+          </div>
+          <div class="ai-stepper-line" id="stepper-line-3"></div>
+          <div class="ai-stepper-item pending" id="wizard-step-indicator-4" data-step="4">
+            <span class="stepper-circle">4</span>
+            <span class="stepper-label">4. Sinh & Xem thử</span>
+          </div>
         </div>
 
         <div class="modal-body" style="padding: 12px 16px;">
-          <!-- TAB 1: ANH TINH (BOS CUC 2 COT HIEN TAI) -->
-          <div id="ai-tab-static" class="ai-tab-content active">
+          <!-- BUOC 1: THIET KE NHAN VAT (BANG NHAT TAG + GEMINI + PRESETS + PROMPT) -->
+          <div id="wizard-panel-1" class="wizard-step-panel active">
             <div class="ai-modal-layout-2col">
               <!-- COT TRAI: BANG NHAT TAG THEO CHU DE (TAG PICKER) -->
               <div class="ai-tag-picker-panel">
@@ -342,16 +356,16 @@
                 </label>
                 <div class="ai-preset-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px;">
                   <button class="preset-card active" id="preset-retro-char" data-preset="retro-char">
-                    <div class="preset-name">Retro Character</div>
-                    <div class="preset-desc">Chân dung 64x64, LoRA Portrait</div>
+                    <div class="preset-name">Hiệp sĩ kiếm vàng</div>
+                    <div class="preset-desc">16-bit RPG, Giáp hoàng kim</div>
                   </button>
                   <button class="preset-card" id="preset-rpg" data-preset="rpg">
-                    <div class="preset-name">16-bit RPG Hero</div>
-                    <div class="preset-desc">Nhân vật 64x64, LoRA Pixel F2</div>
+                    <div class="preset-name">Ninja bóng đêm</div>
+                    <div class="preset-desc">Song đoản kiếm, Khăn đỏ</div>
                   </button>
                   <button class="preset-card" id="preset-scenery" data-preset="scenery">
-                    <div class="preset-name">Pixel Scenery</div>
-                    <div class="preset-desc">Khung cảnh 128x128 sắc nét</div>
+                    <div class="preset-name">Pháp sư nguyên tố</div>
+                    <div class="preset-desc">Áo choàng xanh, Cầu phép</div>
                   </button>
                 </div>
 
@@ -364,7 +378,11 @@
                 </div>
                 <textarea id="ai-prompt-input" rows="3" class="modal-textarea" style="font-size: 12px; line-height: 1.4;" placeholder="Các tag Danbooru/Pixel Art sẽ hiển thị ở đây..."></textarea>
 
-                <!-- Nút mở cài đặt nâng cao -->
+                <div style="margin-top: 6px; font-size: 11px; color: #38bdf8; line-height: 1.4;">
+                  Gợi ý: Nhân vật mẫu sẽ được tự động vẽ ở tư thế đứng toàn thân (full body, standing) để làm chuẩn cho chuỗi chuyển động.
+                </div>
+
+                <!-- Nut mo cai dat nang cao -->
                 <div style="border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 8px;">
                   <button class="btn btn-small" id="btn-toggle-ai-advanced" style="width: 100%; justify-content: space-between;">
                     <span id="ai-advanced-toggle-text">Tùy chọn nâng cao (Gemini API Key, LoRA, Checkpoint, Steps)</span>
@@ -399,9 +417,9 @@
                     <div style="flex: 1;">
                       <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
                         <span>LoRA Scale:</span>
-                        <span id="ai-lora-scale-val">0.60</span>
+                        <span id="ai-lora-scale-val">0.65</span>
                       </label>
-                      <input type="range" id="ai-lora-scale" min="0.2" max="1.0" step="0.05" value="0.6" style="width: 100%;" />
+                      <input type="range" id="ai-lora-scale" min="0.2" max="1.0" step="0.05" value="0.65" style="width: 100%;" />
                     </div>
                     <div style="flex: 1;">
                       <label style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
@@ -416,7 +434,7 @@
                     <div style="flex: 1;">
                       <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Kích thước xuất (Size):</label>
                       <select id="ai-size-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
-                        <option value="64">64 x 64 px (Portrait & RPG)</option>
+                        <option value="64">64 x 64 px (Chuẩn Sprite)</option>
                         <option value="128">128 x 128 px (Chi tiết cao)</option>
                         <option value="32">32 x 32 px (Icon nhỏ)</option>
                       </select>
@@ -433,8 +451,8 @@
 
                   <div>
                     <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
-                      <input type="checkbox" id="ai-remove-bg-checkbox" style="cursor: pointer;">
-                      <span>Tách nền trong suốt (Mặc định giữ nền hội thoại nguyên bản)</span>
+                      <input type="checkbox" id="ai-remove-bg-checkbox" checked style="cursor: pointer;">
+                      <span>Tách nền trong suốt an toàn (Giữ nguyên nhân vật)</span>
                     </label>
                   </div>
                 </div>
@@ -442,79 +460,91 @@
             </div>
           </div>
 
-          <!-- TAB 2: TAO HOAT ANH SPRITE (SPRITE ANIMATOR 2 BUOC) -->
-          <div id="ai-tab-animator" class="ai-tab-content" style="display: none;">
-            <div class="animator-layout-2col">
-              <!-- COT TRAI: BUOC 1 - CHOT MAU NHAN VAT -->
-              <div class="anim-step-panel">
-                <div class="anim-step-header">
-                  <span class="anim-step-badge">Bước 1</span>
-                  <span style="font-weight: 600; font-size: 12px; color: #ffffff;">Chốt Mẫu Nhân Vật (Base Pose)</span>
-                </div>
-                <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 8px 0; line-height: 1.4;">
-                  Vẽ một tư thế đứng chuẩn để khóa phong cách, màu tóc, khuôn mặt và trang phục.
+          <!-- BUOC 2: XEM TRUOC & CHOT MAU (BASE REVIEW & LOCK) -->
+          <div id="wizard-panel-2" class="wizard-step-panel" style="display: none;">
+            <div class="wizard-step2-container" style="display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 14px;">
+              <div style="text-align: center;">
+                <h4 style="margin: 0 0 4px 0; font-size: 14px; color: #ffffff;">Mẫu Nhân Vật Chuẩn (Tư Thế Đứng Toàn Thân)</h4>
+                <p style="margin: 0; font-size: 11px; color: var(--text-muted);">
+                  Kiểm tra hình dáng và phong cách của nhân vật. Khi ưng ý, hãy bấm "Chốt Mẫu Này" để khóa Seed cho các khung hình tiếp theo.
                 </p>
-
-                <div class="anim-base-preview-box">
-                  <div id="anim-base-empty-placeholder" style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 24px 12px;">
-                    Chưa có nhân vật mẫu.<br/>Nhập mô tả và bấm "Vẽ Mẫu Ban Đầu" để tạo.
-                  </div>
-                  <img id="anim-base-preview-img" style="display: none; max-width: 100%; max-height: 150px; image-rendering: pixelated; margin: 0 auto;" />
-                </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; margin: 8px 0;">
-                  <span id="anim-base-status-badge" class="brand-badge" style="color: #94a3b8; border-color: rgba(255,255,255,0.15);">Chưa chốt mẫu</span>
-                  <span id="anim-base-seed-text" style="font-size: 10px; color: var(--text-muted);">Seed: Ngẫu nhiên</span>
-                </div>
-
-                <div style="display: flex; gap: 6px;">
-                  <button class="btn btn-small" id="btn-anim-draw-base" style="flex: 1;">Vẽ Mẫu Ban Đầu</button>
-                  <button class="btn btn-small btn-primary" id="btn-anim-lock-base" style="flex: 1;" disabled>Chốt Mẫu Này</button>
-                </div>
               </div>
 
-              <!-- COT PHAI: BUOC 2 - CHON HANH DONG VA SO KHUNG HINH -->
-              <div class="anim-step-panel" style="flex: 1.3;">
-                <div class="anim-step-header">
-                  <span class="anim-step-badge" style="background: #38bdf8; color: #000;">Bước 2</span>
-                  <span style="font-weight: 600; font-size: 12px; color: #ffffff;">Cấu Hình Hoạt Ảnh Chuyển Động</span>
+              <!-- Khung xem truoc anh mau phong to 140x140 px -->
+              <div class="anim-base-preview-box" id="anim-base-preview-container" style="width: 220px; height: 220px; display: flex; align-items: center; justify-content: center; background: #0c0d14; border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px;">
+                <div id="anim-base-empty-placeholder" style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 20px 12px; line-height: 1.5;">
+                  Chưa có ảnh mẫu nhân vật.<br/>Hãy quay lại Bước 1 và bấm <strong>"Vẽ Mẫu Nhân Vật"</strong>.
+                </div>
+                <img id="anim-base-preview-img" style="display: none; width: 140px; height: 140px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.8));" />
+              </div>
+
+              <!-- Thong tin Seed & Trang thai -->
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="anim-base-status-badge" class="brand-badge" style="color: #f59e0b; border-color: #d97706; padding: 4px 10px; font-size: 11px;">Chưa chốt mẫu (Xem trước)</span>
+                <span id="anim-base-seed-text" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">Seed: Ngẫu nhiên</span>
+              </div>
+
+              <!-- Cac nut thao tac tai Buoc 2 -->
+              <div style="display: flex; gap: 10px; margin-top: 6px;">
+                <button class="btn btn-small" id="btn-step2-back-step1">Quay lại sửa Prompt</button>
+                <button class="btn btn-small" id="btn-step2-reroll">Vẽ lại mẫu khác (Reroll)</button>
+                <button class="btn btn-small btn-primary" id="btn-step2-lock" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Chốt Mẫu Này & Sang Bước 3</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- BUOC 3: CAU HINH HOAT CANH (ACTION & FRAMES) -->
+          <div id="wizard-panel-3" class="wizard-step-panel" style="display: none;">
+            <div style="display: flex; gap: 16px;">
+              <!-- COT TRAI: TOM TAT NHAN VAT DA CHOT -->
+              <div style="width: 200px; background: #13131a; border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;">
+                <span style="font-size: 11px; font-weight: 600; color: #38bdf8; text-transform: uppercase;">Nhân Vật Đã Chốt</span>
+                <div style="width: 96px; height: 96px; background: #0b0c10; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                  <img id="wizard-step3-thumb-img" style="width: 80px; height: 80px; object-fit: contain; image-rendering: pixelated;" />
+                </div>
+                <span id="wizard-step3-seed-label" style="font-size: 10px; color: #4ade80; font-family: monospace;">Seed: #0</span>
+                <button class="btn btn-tiny" id="btn-step3-change-char" style="font-size: 10px; padding: 2px 6px;">Đổi mẫu khác</button>
+              </div>
+
+              <!-- COT PHAI: CHON HANH DONG, SO FRAME, CO ANH -->
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">1. Chọn hành động (Action):</label>
+                  <div class="anim-action-grid">
+                    <button class="anim-action-card active" data-action="walk" data-frames="4">
+                      <span class="anim-action-title">Đi bộ (Walk)</span>
+                      <span class="anim-action-meta">4 frames • Bước chân luân phiên</span>
+                    </button>
+                    <button class="anim-action-card" data-action="attack" data-frames="4">
+                      <span class="anim-action-title">Tấn công (Attack)</span>
+                      <span class="anim-action-meta">4 frames • Vung kiếm chém</span>
+                    </button>
+                    <button class="anim-action-card" data-action="idle" data-frames="4">
+                      <span class="anim-action-title">Đứng yên (Idle)</span>
+                      <span class="anim-action-meta">4 frames • Thở nhấp nhô</span>
+                    </button>
+                    <button class="anim-action-card" data-action="sit" data-frames="2">
+                      <span class="anim-action-title">Ngồi nghỉ (Sit)</span>
+                      <span class="anim-action-meta">2 frames • Thư giãn nghỉ ngơi</span>
+                    </button>
+                    <button class="anim-action-card" data-action="defeated" data-frames="2">
+                      <span class="anim-action-title">Nằm gục (Defeated)</span>
+                      <span class="anim-action-meta">2 frames • Bị hạ gục</span>
+                    </button>
+                    <button class="anim-action-card" data-action="run" data-frames="4">
+                      <span class="anim-action-title">Chạy nhanh (Run)</span>
+                      <span class="anim-action-meta">4 frames • Sải bước tốc độ</span>
+                    </button>
+                    <button class="anim-action-card" data-action="jump" data-frames="3">
+                      <span class="anim-action-title">Nhảy (Jump)</span>
+                      <span class="anim-action-meta">3 frames • Lên đỉnh và tiếp đất</span>
+                    </button>
+                  </div>
                 </div>
 
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">1. Chọn hành động (Action):</label>
-                <div class="anim-action-grid">
-                  <button class="anim-action-card active" data-action="walk" data-frames="4">
-                    <span class="anim-action-title">Đi bộ (Walk)</span>
-                    <span class="anim-action-meta">4 frames • Bước chân</span>
-                  </button>
-                  <button class="anim-action-card" data-action="attack" data-frames="4">
-                    <span class="anim-action-title">Tấn công (Attack)</span>
-                    <span class="anim-action-meta">4 frames • Vung kiếm</span>
-                  </button>
-                  <button class="anim-action-card" data-action="idle" data-frames="4">
-                    <span class="anim-action-title">Đứng yên (Idle)</span>
-                    <span class="anim-action-meta">4 frames • Thở nhấp nhô</span>
-                  </button>
-                  <button class="anim-action-card" data-action="sit" data-frames="2">
-                    <span class="anim-action-title">Ngồi nghỉ (Sit)</span>
-                    <span class="anim-action-meta">2 frames • Thư giãn</span>
-                  </button>
-                  <button class="anim-action-card" data-action="defeated" data-frames="2">
-                    <span class="anim-action-title">Nằm gục (Defeated)</span>
-                    <span class="anim-action-meta">2 frames • Bị hạ</span>
-                  </button>
-                  <button class="anim-action-card" data-action="run" data-frames="4">
-                    <span class="anim-action-title">Chạy nhanh (Run)</span>
-                    <span class="anim-action-meta">4 frames • Sải bước</span>
-                  </button>
-                  <button class="anim-action-card" data-action="jump" data-frames="3">
-                    <span class="anim-action-title">Nhảy (Jump)</span>
-                    <span class="anim-action-meta">3 frames • Lên/Tiếp đất</span>
-                  </button>
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <div style="display: flex; gap: 12px; align-items: flex-start;">
                   <div style="flex: 1;">
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">2. Số khung hình (Frames):</label>
+                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">2. Số khung hình (Frames):</label>
                     <div class="anim-frame-chips">
                       <button class="tag-btn anim-frame-btn" data-frames="2">2 frames</button>
                       <button class="tag-btn anim-frame-btn" data-frames="3">3 frames</button>
@@ -523,8 +553,8 @@
                       <button class="tag-btn anim-frame-btn" data-frames="8">8 frames</button>
                     </div>
                   </div>
-                  <div style="width: 130px;">
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">3. Cỡ mỗi frame:</label>
+                  <div style="width: 140px;">
+                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">3. Cỡ mỗi frame:</label>
                     <select id="anim-frame-size-select" class="btn btn-small" style="width: 100%;">
                       <option value="64">64 x 64 px</option>
                       <option value="48">48 x 48 px</option>
@@ -533,7 +563,7 @@
                   </div>
                 </div>
 
-                <div style="margin-top: 10px;">
+                <div>
                   <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
                     <input type="checkbox" id="anim-remove-bg-checkbox" checked style="cursor: pointer;">
                     <span>Tự động tách nền trong suốt cho toàn bộ các frame</span>
@@ -543,7 +573,34 @@
             </div>
           </div>
 
-          <!-- Hop trang thai tien trinh sinh anh thoi gian thuc dung chung -->
+          <!-- BUOC 4: SINH HOAT ANH & XEM THU (GENERATE & PREVIEW) -->
+          <div id="wizard-panel-4" class="wizard-step-panel" style="display: none;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 10px 0;">
+              <!-- Khung xem thu hoat anh truc tiep (Live Animation Player) -->
+              <div class="wizard-live-preview-box" style="width: 220px; height: 220px; background: #0c0d14; border: 2px solid #38bdf8; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+                <canvas id="wizard-live-canvas" width="140" height="140" style="image-rendering: pixelated; width: 140px; height: 140px; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.8));"></canvas>
+                <div id="wizard-live-placeholder" style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 20px 12px; line-height: 1.5;">
+                  Đang khởi tạo chuyển động...
+                </div>
+                <div style="position: absolute; bottom: 6px; left: 8px; right: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #38bdf8; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px;">
+                  <span id="wizard-live-frame-indicator">Frame: 1 / 4</span>
+                  <span id="wizard-live-action-indicator">WALK</span>
+                </div>
+              </div>
+
+              <!-- Dieu khien toc do phat preview -->
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <label style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                  Tốc độ xem thử (FPS):
+                  <input type="range" id="wizard-live-fps-slider" min="2" max="16" value="8" style="width: 80px;" />
+                  <span id="wizard-live-fps-label" style="color: #fff; font-family: monospace;">8 FPS</span>
+                </label>
+                <button class="btn btn-tiny" id="wizard-live-toggle-btn" style="font-size: 11px; padding: 2px 8px;">Tạm dừng</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hop trang thai tien trinh thoi gian thuc dung chung -->
           <div id="ai-status-msg" class="ai-progress-card" style="display: none; margin-top: 10px;">
             <div class="ai-progress-header">
               <div class="ai-progress-title">
@@ -565,12 +622,24 @@
           </div>
         </div>
 
-        <div class="modal-footer">
-          <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất">Nạp Ảnh Vừa Vẽ (Gần nhất)</button>
-          <button class="btn btn-ai" id="btn-run-ai-generate">Vẽ & Nạp Vào Canvas</button>
-          <button class="btn btn-ai" id="btn-run-ai-anim-generate" style="display: none; background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;">
-            Tạo Sprite Hoạt Ảnh & Nạp Vào Timeline
-          </button>
+        <!-- Footer Modal Dieu Huong 4 Buoc -->
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 8px;">
+            <button class="btn" id="btn-wizard-back" style="display: none;">Quay lại</button>
+            <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất vào Canvas">Nạp Ảnh Gần Nhất</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <!-- Cac nut dong ung voi tung buoc -->
+            <button class="btn btn-ai" id="btn-wizard-draw-base">Vẽ Mẫu Nhân Vật (Bước 1)</button>
+            <button class="btn btn-primary" id="btn-wizard-next-step" style="display: none;">Tiếp Tục</button>
+            <button class="btn btn-ai" id="btn-wizard-generate-anim" style="display: none; background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;">
+              Bắt Đầu Tạo Hoạt Ảnh
+            </button>
+            <button class="btn btn-small" id="btn-wizard-change-action" style="display: none;">Vẽ Hành Động Khác</button>
+            <button class="btn btn-ai" id="btn-wizard-finish" style="display: none; background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">
+              Nạp Vào Timeline Studio
+            </button>
+          </div>
         </div>
       </div>
     </div>

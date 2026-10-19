@@ -243,6 +243,7 @@ const server = http.createServer(async (req, res) => {
           outputPath,
           width,
           height,
+          pixels,
           pixelCount: pixels.length,
           seed: resolvedSeed,
           project: stateStore.getProject()

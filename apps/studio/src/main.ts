@@ -2004,59 +2004,83 @@ function initAiPixelModal(): void {
   });
 
   // ========================================================
-  // BỘ ĐIỀU KHIỂN TẠO HOẠT ẢNH SPRITE (SPRITE ANIMATOR 2 BƯỚC)
+  // BỘ ĐIỀU KHIỂN AI SPRITE STEPPER WIZARD & CHECKPOINT
   // ========================================================
 
-  // 1. Chuyen doi Tab giua Anh Tinh va Hoat Anh Sprite
-  const tabBtnStatic = document.getElementById('tab-btn-static');
-  const tabBtnAnimator = document.getElementById('tab-btn-animator');
-  const tabContentStatic = document.getElementById('ai-tab-static');
-  const tabContentAnimator = document.getElementById('ai-tab-animator');
-  const btnRunAiAnimGenerate = document.getElementById('btn-run-ai-anim-generate');
-
-  tabBtnStatic?.addEventListener('click', () => {
-    tabBtnStatic.classList.add('active');
-    tabBtnAnimator?.classList.remove('active');
-    if (tabContentStatic) tabContentStatic.style.display = 'block';
-    if (tabContentAnimator) tabContentAnimator.style.display = 'none';
-    if (btnGenerate) btnGenerate.style.display = 'inline-flex';
-    if (btnLoad) btnLoad.style.display = 'inline-flex';
-    if (btnRunAiAnimGenerate) btnRunAiAnimGenerate.style.display = 'none';
-  });
-
-  tabBtnAnimator?.addEventListener('click', () => {
-    tabBtnAnimator.classList.add('active');
-    tabBtnStatic?.classList.remove('active');
-    if (tabContentAnimator) tabContentAnimator.style.display = 'block';
-    if (tabContentStatic) tabContentStatic.style.display = 'none';
-    if (btnGenerate) btnGenerate.style.display = 'none';
-    if (btnLoad) btnLoad.style.display = 'none';
-    if (btnRunAiAnimGenerate) btnRunAiAnimGenerate.style.display = 'inline-flex';
-  });
-
-  // 2. Trang thai cua Nhan Vat Mau (Base Character)
-  interface BaseCharacterState {
-    prompt: string;
-    seed: number | null;
-    locked: boolean;
-    pixels: PixelPoint[] | null;
-    width: number;
-    height: number;
-  }
-
-  const baseCharState: BaseCharacterState = {
-    prompt: '',
-    seed: null,
-    locked: false,
-    pixels: null,
-    width: 64,
-    height: 64
+  // Định dạng hiển thị giây thành chuỗi phút:giây
+  const formatTimeSec = (totalSec: number): string => {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  let activeAction = 'walk';
-  let activeFrameCount = 4;
+  // Cấu trúc dữ liệu Checkpoint lưu trữ phiên làm việc
+  interface AiWizardCheckpoint {
+    step: 1 | 2 | 3 | 4;
+    prompt: string;
+    checkpointModel: string;
+    loraModel: string;
+    loraScale: number;
+    steps: number;
+    size: number;
+    removeBg: boolean;
+    baseCharacter: {
+      seed: number | null;
+      locked: boolean;
+      pixels: PixelPoint[] | null;
+      width: number;
+      height: number;
+      dataUrl: string | null;
+    };
+    animation: {
+      action: string;
+      frameCount: number;
+      frameSize: number;
+      frames: {
+        frameIndex: number;
+        width: number;
+        height: number;
+        pixels: PixelPoint[];
+      }[] | null;
+    };
+    updatedAt: number;
+  }
 
-  // Helper chuyen mang PixelPoint thanh DataURL de xem truoc
+  const WIZARD_STORAGE_KEY = 'pixel_draw_ai_wizard_checkpoint';
+
+  // Trạng thái vận hành của Wizard
+  let currentWizardStep: 1 | 2 | 3 | 4 = 1;
+
+  const baseCharState = {
+    prompt: '',
+    seed: null as number | null,
+    locked: false,
+    pixels: null as PixelPoint[] | null,
+    width: 64,
+    height: 64,
+    dataUrl: null as string | null
+  };
+
+  const animSetupState = {
+    action: 'walk',
+    frameCount: 4,
+    frameSize: 64,
+    removeBg: true,
+    frames: [] as {
+      frameIndex: number;
+      width: number;
+      height: number;
+      pixels: PixelPoint[];
+    }[]
+  };
+
+  // Biến quản lý vòng lặp xem trước chuyển động (Live Animation Player)
+  let livePlayerTimer: any = null;
+  let livePlayerIndex = 0;
+  let livePlayerPlaying = true;
+  let livePlayerFps = 8;
+
+  // Helper chuyển mảng điểm ảnh PixelPoint thành DataURL
   const renderPixelsToDataUrl = (pixels: PixelPoint[], w: number, h: number): string => {
     const offCanvas = document.createElement('canvas');
     offCanvas.width = w;
@@ -2071,27 +2095,325 @@ function initAiPixelModal(): void {
     return offCanvas.toDataURL('image/png');
   };
 
-  // 3. Buoc 1: Ve mau nhan vat ban dau (Base Pose)
-  const btnAnimDrawBase = document.getElementById('btn-anim-draw-base');
-  const btnAnimLockBase = document.getElementById('btn-anim-lock-base') as HTMLButtonElement | null;
+  // Lưu trạng thái Checkpoint vào bộ nhớ trình duyệt
+  const saveWizardCheckpoint = () => {
+    try {
+      const checkpoint: AiWizardCheckpoint = {
+        step: currentWizardStep,
+        prompt: promptInput?.value.trim() || '',
+        checkpointModel: checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors',
+        loraModel: loraSelect ? loraSelect.value : 'models/lora/pixel_f2.safetensors',
+        loraScale: loraScaleInput ? parseFloat(loraScaleInput.value) : 0.65,
+        steps: stepsInput ? parseInt(stepsInput.value, 10) : 16,
+        size: sizeSelect ? parseInt(sizeSelect.value, 10) : 64,
+        removeBg: removeBgCheckbox ? removeBgCheckbox.checked : true,
+        baseCharacter: {
+          seed: baseCharState.seed,
+          locked: baseCharState.locked,
+          pixels: baseCharState.pixels,
+          width: baseCharState.width,
+          height: baseCharState.height,
+          dataUrl: baseCharState.dataUrl
+        },
+        animation: {
+          action: animSetupState.action,
+          frameCount: animSetupState.frameCount,
+          frameSize: animSetupState.frameSize,
+          frames: animSetupState.frames.length > 0 ? animSetupState.frames : null
+        },
+        updatedAt: Date.now()
+      };
+      localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(checkpoint));
+    } catch (e) {
+      console.warn('Không thể lưu checkpoint vào localStorage:', e);
+    }
+  };
+
+  // Đọc trạng thái Checkpoint đã lưu
+  const loadWizardCheckpoint = (): AiWizardCheckpoint | null => {
+    try {
+      const raw = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (!raw) return null;
+      const data: AiWizardCheckpoint = JSON.parse(raw);
+      // Hạn dùng checkpoint trong 24 giờ
+      if (Date.now() - data.updatedAt > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(WIZARD_STORAGE_KEY);
+        return null;
+      }
+      return data;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Xóa toàn bộ Checkpoint để người dùng làm mới từ đầu
+  const clearWizardCheckpoint = () => {
+    try {
+      localStorage.removeItem(WIZARD_STORAGE_KEY);
+    } catch (e) {}
+    currentWizardStep = 1;
+    baseCharState.prompt = '';
+    baseCharState.seed = null;
+    baseCharState.locked = false;
+    baseCharState.pixels = null;
+    baseCharState.dataUrl = null;
+    animSetupState.frames = [];
+    if (livePlayerTimer) {
+      clearInterval(livePlayerTimer);
+      livePlayerTimer = null;
+    }
+  };
+
+  // Các phần tử DOM của Stepper và Panel
+  const stepIndicators = [
+    document.getElementById('wizard-step-indicator-1'),
+    document.getElementById('wizard-step-indicator-2'),
+    document.getElementById('wizard-step-indicator-3'),
+    document.getElementById('wizard-step-indicator-4')
+  ];
+
+  const stepLines = [
+    document.getElementById('stepper-line-1'),
+    document.getElementById('stepper-line-2'),
+    document.getElementById('stepper-line-3')
+  ];
+
+  const stepPanels = [
+    document.getElementById('wizard-panel-1'),
+    document.getElementById('wizard-panel-2'),
+    document.getElementById('wizard-panel-3'),
+    document.getElementById('wizard-panel-4')
+  ];
+
+  // Các nút điều hướng ở chân Modal
+  const btnWizardBack = document.getElementById('btn-wizard-back');
+  const btnWizardDrawBase = document.getElementById('btn-wizard-draw-base');
+  const btnWizardNextStep = document.getElementById('btn-wizard-next-step');
+  const btnWizardGenerateAnim = document.getElementById('btn-wizard-generate-anim');
+  const btnWizardChangeAction = document.getElementById('btn-wizard-change-action');
+  const btnWizardFinish = document.getElementById('btn-wizard-finish');
+  const btnWizardReset = document.getElementById('btn-wizard-reset');
+
+  // Các phần tử tại Bước 2 (Xem trước & Chốt mẫu)
   const animBaseImg = document.getElementById('anim-base-preview-img') as HTMLImageElement | null;
   const animBasePlaceholder = document.getElementById('anim-base-empty-placeholder');
   const animBaseBadge = document.getElementById('anim-base-status-badge');
   const animBaseSeedText = document.getElementById('anim-base-seed-text');
+  const animPreviewBox = document.getElementById('anim-base-preview-container');
+  const btnStep2BackStep1 = document.getElementById('btn-step2-back-step1');
+  const btnStep2Reroll = document.getElementById('btn-step2-reroll');
+  const btnStep2Lock = document.getElementById('btn-step2-lock') as HTMLButtonElement | null;
 
-  btnAnimDrawBase?.addEventListener('click', async () => {
-    let basePrompt = promptInput?.value.trim() || '';
-    if (!basePrompt) {
-      basePrompt = 'pixel art, 16-bit rpg hero, warrior knight, golden armor, sword in hand, full body, standing, simple background';
-      if (promptInput) promptInput.value = basePrompt;
-      syncTagChips();
-    } else {
-      if (!basePrompt.toLowerCase().includes('standing')) {
-        basePrompt += ', standing';
+  // Các phần tử tại Bước 3 (Cấu hình hoạt cảnh)
+  const step3ThumbImg = document.getElementById('wizard-step3-thumb-img') as HTMLImageElement | null;
+  const step3SeedLabel = document.getElementById('wizard-step3-seed-label');
+  const btnStep3ChangeChar = document.getElementById('btn-step3-change-char');
+  const animFrameSizeSelect = document.getElementById('anim-frame-size-select') as HTMLSelectElement | null;
+  const animRemoveBgCheckbox = document.getElementById('anim-remove-bg-checkbox') as HTMLInputElement | null;
+
+  // Các phần tử tại Bước 4 (Live Animation Player)
+  const wizardLiveCanvas = document.getElementById('wizard-live-canvas') as HTMLCanvasElement | null;
+  const wizardLivePlaceholder = document.getElementById('wizard-live-placeholder');
+  const wizardLiveFrameIndicator = document.getElementById('wizard-live-frame-indicator');
+  const wizardLiveActionIndicator = document.getElementById('wizard-live-action-indicator');
+  const wizardLiveFpsSlider = document.getElementById('wizard-live-fps-slider') as HTMLInputElement | null;
+  const wizardLiveFpsLabel = document.getElementById('wizard-live-fps-label');
+  const wizardLiveToggleBtn = document.getElementById('wizard-live-toggle-btn');
+
+  // Dừng hoặc tiếp tục bộ phát hoạt ảnh trực tiếp ở Bước 4
+  const startLivePlayer = () => {
+    if (livePlayerTimer) clearInterval(livePlayerTimer);
+    if (!animSetupState.frames || animSetupState.frames.length === 0) return;
+
+    if (wizardLiveCanvas) wizardLiveCanvas.style.display = 'block';
+    if (wizardLivePlaceholder) wizardLivePlaceholder.style.display = 'none';
+
+    const ctx = wizardLiveCanvas?.getContext('2d');
+    if (!ctx) return;
+
+    livePlayerTimer = setInterval(() => {
+      if (!livePlayerPlaying) return;
+      const totalFrames = animSetupState.frames.length;
+      if (totalFrames === 0) return;
+
+      const currentFrame = animSetupState.frames[livePlayerIndex];
+      if (currentFrame && wizardLiveCanvas) {
+        ctx.clearRect(0, 0, wizardLiveCanvas.width, wizardLiveCanvas.height);
+        const scale = wizardLiveCanvas.width / currentFrame.width;
+        for (const p of currentFrame.pixels) {
+          if (!p.color) continue;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x * scale, p.y * scale, scale, scale);
+        }
       }
-      if (!basePrompt.toLowerCase().includes('full body')) {
-        basePrompt += ', full body';
+
+      if (wizardLiveFrameIndicator) {
+        wizardLiveFrameIndicator.innerText = `Frame: ${livePlayerIndex + 1} / ${totalFrames}`;
       }
+      if (wizardLiveActionIndicator) {
+        wizardLiveActionIndicator.innerText = animSetupState.action.toUpperCase();
+      }
+
+      livePlayerIndex = (livePlayerIndex + 1) % totalFrames;
+    }, Math.max(50, Math.floor(1000 / livePlayerFps)));
+  };
+
+  // Hàm chuyển bước chính trong Stepper Wizard
+  const goToStep = (targetStep: number) => {
+    const validStep = Math.max(1, Math.min(4, targetStep)) as 1 | 2 | 3 | 4;
+    currentWizardStep = validStep;
+
+    // 1. Cập nhật hiển thị panel
+    stepPanels.forEach((panel, idx) => {
+      if (!panel) return;
+      const isCurrent = idx + 1 === validStep;
+      panel.style.display = isCurrent ? 'block' : 'none';
+      panel.classList.toggle('active', isCurrent);
+    });
+
+    // 2. Cập nhật Stepper Bar (Item & Line)
+    stepIndicators.forEach((ind, idx) => {
+      if (!ind) return;
+      const stepNum = idx + 1;
+      ind.classList.remove('active', 'completed', 'pending');
+      if (stepNum < validStep) {
+        ind.classList.add('completed');
+      } else if (stepNum === validStep) {
+        ind.classList.add('active');
+      } else {
+        ind.classList.add('pending');
+      }
+    });
+
+    stepLines.forEach((line, idx) => {
+      if (!line) return;
+      line.classList.toggle('completed', idx + 1 < validStep);
+    });
+
+    // 3. Cập nhật các nút ở chân Modal (Footer)
+    if (btnWizardBack) {
+      btnWizardBack.style.display = validStep > 1 ? 'inline-flex' : 'none';
+    }
+    if (btnWizardDrawBase) {
+      btnWizardDrawBase.style.display = validStep === 1 ? 'inline-flex' : 'none';
+    }
+    if (btnWizardNextStep) {
+      // Ở Bước 1: cho phép tiếp tục nếu đã có ảnh mẫu; ở Bước 2: cho phép nếu đã chốt mẫu
+      const canProceed = (validStep === 1 && !!baseCharState.dataUrl) || (validStep === 2 && baseCharState.locked);
+      btnWizardNextStep.style.display = canProceed ? 'inline-flex' : 'none';
+    }
+    if (btnWizardGenerateAnim) {
+      btnWizardGenerateAnim.style.display = validStep === 3 ? 'inline-flex' : 'none';
+    }
+    if (btnWizardChangeAction) {
+      btnWizardChangeAction.style.display = validStep === 4 ? 'inline-flex' : 'none';
+    }
+    if (btnWizardFinish) {
+      btnWizardFinish.style.display = validStep === 4 && animSetupState.frames.length > 0 ? 'inline-flex' : 'none';
+    }
+
+    // 4. Đồng bộ dữ liệu chuyên biệt theo từng bước
+    if (validStep === 2) {
+      if (baseCharState.dataUrl && animBaseImg) {
+        animBaseImg.src = baseCharState.dataUrl;
+        animBaseImg.style.display = 'block';
+        if (animBasePlaceholder) animBasePlaceholder.style.display = 'none';
+      }
+      if (animBaseSeedText) {
+        animBaseSeedText.innerText = baseCharState.seed ? `Seed: #${baseCharState.seed}` : 'Seed: Ngẫu nhiên';
+      }
+      if (animBaseBadge) {
+        if (baseCharState.locked) {
+          animBaseBadge.innerText = `Đã chốt mẫu #${baseCharState.seed}`;
+          animBaseBadge.style.color = '#4ade80';
+          animBaseBadge.style.borderColor = '#22c55e';
+        } else {
+          animBaseBadge.innerText = 'Chưa chốt mẫu (Xem trước)';
+          animBaseBadge.style.color = '#f59e0b';
+          animBaseBadge.style.borderColor = '#d97706';
+        }
+      }
+      if (btnStep2Lock) {
+        btnStep2Lock.disabled = !baseCharState.seed;
+        btnStep2Lock.innerText = baseCharState.locked ? 'Đã Chốt Mẫu (Tiếp tục)' : 'Chốt Mẫu Này & Sang Bước 3';
+      }
+    } else if (validStep === 3) {
+      if (step3ThumbImg && baseCharState.dataUrl) {
+        step3ThumbImg.src = baseCharState.dataUrl;
+      }
+      if (step3SeedLabel) {
+        step3SeedLabel.innerText = `Seed: #${baseCharState.seed || '0'}`;
+      }
+    } else if (validStep === 4) {
+      if (animSetupState.frames.length > 0) {
+        startLivePlayer();
+      }
+    }
+
+    // Tự động sao lưu trạng thái Checkpoint
+    saveWizardCheckpoint();
+  };
+
+  // Cho phép người dùng bấm trực tiếp vào Stepper Header để quay lại bước đã làm
+  stepIndicators.forEach((ind, idx) => {
+    ind?.addEventListener('click', () => {
+      const target = idx + 1;
+      // Chỉ cho phép chuyển đến bước nhỏ hơn bước hiện tại hoặc bước đã có dữ liệu hợp lệ
+      if (target < currentWizardStep) {
+        goToStep(target);
+      } else if (target === 2 && baseCharState.dataUrl) {
+        goToStep(2);
+      } else if (target === 3 && baseCharState.locked) {
+        goToStep(3);
+      } else if (target === 4 && animSetupState.frames.length > 0) {
+        goToStep(4);
+      }
+    });
+  });
+
+  // Gắn sự kiện nút Quay Lại chân Modal
+  btnWizardBack?.addEventListener('click', () => {
+    if (currentWizardStep > 1) {
+      goToStep(currentWizardStep - 1);
+    }
+  });
+
+  // Gắn sự kiện nút Tiếp Tục chân Modal
+  btnWizardNextStep?.addEventListener('click', () => {
+    if (currentWizardStep === 1 && baseCharState.dataUrl) {
+      goToStep(2);
+    } else if (currentWizardStep === 2 && baseCharState.locked) {
+      goToStep(3);
+    }
+  });
+
+  // Gắn sự kiện nút Làm Mới (Reset) ở góc trên Modal
+  btnWizardReset?.addEventListener('click', () => {
+    if (confirm('Bạn có muốn làm mới toàn bộ dữ liệu thiết kế để bắt đầu lại từ đầu không?')) {
+      clearWizardCheckpoint();
+      if (animBaseImg) animBaseImg.style.display = 'none';
+      if (animBasePlaceholder) animBasePlaceholder.style.display = 'block';
+      if (animBaseSeedText) animBaseSeedText.innerText = 'Seed: Ngẫu nhiên';
+      if (animBaseBadge) {
+        animBaseBadge.innerText = 'Chưa có mẫu';
+        animBaseBadge.style.color = '#94a3b8';
+        animBaseBadge.style.borderColor = 'rgba(255,255,255,0.15)';
+      }
+      goToStep(1);
+    }
+  });
+
+  // ==========================================
+  // XỬ LÝ BƯỚC 1: VẼ MẪU NHÂN VẬT BAN ĐẦU
+  // ==========================================
+  const handleDrawBaseCharacter = async () => {
+    let basePrompt = promptInput?.value.trim() || 'pixel art, 16-bit rpg hero, warrior knight, golden armor';
+    // Đảm bảo tư thế chuẩn cho nhân vật mẫu
+    if (!basePrompt.toLowerCase().includes('standing')) {
+      basePrompt += ', standing';
+    }
+    if (!basePrompt.toLowerCase().includes('full body')) {
+      basePrompt += ', full body';
     }
 
     const checkpoint = checkpointSelect ? checkpointSelect.value : 'models/checkpoints/AOM3A1B_orangemixs.safetensors';
@@ -2107,13 +2429,14 @@ function initAiPixelModal(): void {
     const timeEta = document.getElementById('ai-time-eta');
 
     if (statusMsg) statusMsg.style.display = 'block';
-    if (statusText) statusText.innerText = 'Đang vẽ tư thế mẫu nhân vật...';
+    if (statusText) statusText.innerText = 'Đang vẽ tư thế mẫu nhân vật toàn thân...';
     if (barFill) barFill.style.width = '0%';
     if (percentText) percentText.innerText = '0%';
     if (stepsBadge) stepsBadge.innerText = `0 / ${steps} steps`;
     if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
     if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
-    if (btnAnimDrawBase) (btnAnimDrawBase as HTMLButtonElement).disabled = true;
+    if (btnWizardDrawBase) (btnWizardDrawBase as HTMLButtonElement).disabled = true;
+    if (btnStep2Reroll) (btnStep2Reroll as HTMLButtonElement).disabled = true;
 
     const startTime = Date.now();
     const baseTimer = setInterval(() => {
@@ -2149,36 +2472,35 @@ function initAiPixelModal(): void {
       baseCharState.height = data.height || 64;
       baseCharState.locked = false;
 
-      // Hien thi anh mau
-      if (animBaseImg && data.pixels) {
-        animBaseImg.src = renderPixelsToDataUrl(data.pixels, data.width || 64, data.height || 64);
-        animBaseImg.style.display = 'block';
+      if (data.pixels && data.pixels.length > 0) {
+        baseCharState.dataUrl = renderPixelsToDataUrl(data.pixels, baseCharState.width, baseCharState.height);
       }
-      if (animBasePlaceholder) animBasePlaceholder.style.display = 'none';
 
-      // Cap nhat badge va seed
-      if (animBaseSeedText) animBaseSeedText.innerText = `Seed: #${data.seed || 'Ngẫu nhiên'}`;
-      if (animBaseBadge) {
-        animBaseBadge.innerText = 'Chưa chốt mẫu (Xem trước)';
-        animBaseBadge.style.color = '#f59e0b';
-        animBaseBadge.style.borderColor = '#d97706';
-      }
-      if (btnAnimLockBase) {
-        btnAnimLockBase.disabled = false;
-        btnAnimLockBase.innerText = 'Chốt Mẫu Này';
-      }
+      // Tự động chuyển sang Bước 2 để người dùng xem trước và chốt mẫu
+      goToStep(2);
 
     } catch (err: any) {
       alert('Lỗi tạo nhân vật mẫu: ' + err.message);
     } finally {
       clearInterval(baseTimer);
-      if (btnAnimDrawBase) (btnAnimDrawBase as HTMLButtonElement).disabled = false;
+      if (btnWizardDrawBase) (btnWizardDrawBase as HTMLButtonElement).disabled = false;
+      if (btnStep2Reroll) (btnStep2Reroll as HTMLButtonElement).disabled = false;
       if (statusMsg) statusMsg.style.display = 'none';
     }
+  };
+
+  btnWizardDrawBase?.addEventListener('click', handleDrawBaseCharacter);
+
+  // ==========================================
+  // XỬ LÝ BƯỚC 2: XEM TRƯỚC & CHỐT MẪU
+  // ==========================================
+  btnStep2BackStep1?.addEventListener('click', () => {
+    goToStep(1);
   });
 
-  // Chot mau nhan vat de khoa Seed va Prompt
-  btnAnimLockBase?.addEventListener('click', () => {
+  btnStep2Reroll?.addEventListener('click', handleDrawBaseCharacter);
+
+  btnStep2Lock?.addEventListener('click', () => {
     if (!baseCharState.seed) return;
     baseCharState.locked = true;
 
@@ -2187,11 +2509,14 @@ function initAiPixelModal(): void {
       animBaseBadge.style.color = '#4ade80';
       animBaseBadge.style.borderColor = '#22c55e';
     }
-    btnAnimLockBase.disabled = true;
-    btnAnimLockBase.innerText = 'Đã chốt mẫu';
+
+    // Chuyển ngay sang Bước 3
+    goToStep(3);
   });
 
-  // 4. Buoc 2: Chon hanh dong va so khung hinh
+  // ==========================================
+  // XỬ LÝ BƯỚC 3: CẤU HÌNH HOẠT CẢNH
+  // ==========================================
   const actionCards = document.querySelectorAll('.anim-action-card');
   const frameBtns = document.querySelectorAll('.anim-frame-btn');
 
@@ -2199,16 +2524,16 @@ function initAiPixelModal(): void {
     card.addEventListener('click', () => {
       actionCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      activeAction = card.getAttribute('data-action') || 'walk';
+      animSetupState.action = card.getAttribute('data-action') || 'walk';
 
-      // Goi y so frame tuong ung voi hanh dong
       const suggestedFrames = parseInt(card.getAttribute('data-frames') || '4', 10);
-      activeFrameCount = suggestedFrames;
+      animSetupState.frameCount = suggestedFrames;
 
       frameBtns.forEach(btn => {
         const f = parseInt(btn.getAttribute('data-frames') || '4', 10);
         btn.classList.toggle('active', f === suggestedFrames);
       });
+      saveWizardCheckpoint();
     });
   });
 
@@ -2216,20 +2541,31 @@ function initAiPixelModal(): void {
     btn.addEventListener('click', () => {
       frameBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      activeFrameCount = parseInt(btn.getAttribute('data-frames') || '4', 10);
+      animSetupState.frameCount = parseInt(btn.getAttribute('data-frames') || '4', 10);
+      saveWizardCheckpoint();
     });
   });
 
-  // 5. Nut Tao Sprite Hoat Anh va nap vao Timeline
-  btnRunAiAnimGenerate?.addEventListener('click', async () => {
+  btnStep3ChangeChar?.addEventListener('click', () => {
+    goToStep(2);
+  });
+
+  // Bắt đầu tạo hoạt ảnh Sprite
+  const handleGenerateAnimation = async () => {
     if (!baseCharState.seed) {
-      alert('Vui lòng tạo mẫu nhân vật ở Bước 1 trước khi sinh hoạt ảnh!');
+      alert('Vui lòng tạo mẫu nhân vật trước khi sinh hoạt ảnh!');
+      goToStep(1);
       return;
     }
 
-    const basePrompt = baseCharState.prompt || promptInput?.value.trim() || 'pixel art, 16-bit rpg hero, warrior knight, golden armor';
-    const animSize = parseInt((document.getElementById('anim-frame-size-select') as HTMLSelectElement)?.value || '64', 10);
-    const removeBg = (document.getElementById('anim-remove-bg-checkbox') as HTMLInputElement)?.checked ?? true;
+    // Tự động chốt mẫu nếu chưa chốt
+    baseCharState.locked = true;
+
+    animSetupState.frameSize = parseInt(animFrameSizeSelect?.value || '64', 10);
+    animSetupState.removeBg = animRemoveBgCheckbox?.checked ?? true;
+
+    // Chuyển sang Bước 4 hiển thị tiến trình
+    goToStep(4);
 
     const barFill = document.getElementById('ai-progress-bar-fill');
     const stepsBadge = document.getElementById('ai-steps-badge');
@@ -2238,13 +2574,13 @@ function initAiPixelModal(): void {
     const timeEta = document.getElementById('ai-time-eta');
 
     if (statusMsg) statusMsg.style.display = 'block';
-    if (statusText) statusText.innerText = `Đang tạo chuỗi ${activeFrameCount} frames cho hành động "${activeAction}"...`;
+    if (statusText) statusText.innerText = `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}"...`;
     if (barFill) barFill.style.width = '0%';
     if (percentText) percentText.innerText = '0%';
     if (stepsBadge) stepsBadge.innerText = `0 / 18 steps`;
     if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
     if (timeEta) timeEta.innerText = 'Còn lại: Đang tính...';
-    if (btnRunAiAnimGenerate) (btnRunAiAnimGenerate as HTMLButtonElement).disabled = true;
+    if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = true;
 
     const startTime = Date.now();
     const animTimer = setInterval(() => {
@@ -2257,101 +2593,181 @@ function initAiPixelModal(): void {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          basePrompt,
-          action: activeAction,
-          frameCount: activeFrameCount,
+          basePrompt: baseCharState.prompt || promptInput?.value.trim() || 'pixel art hero',
+          action: animSetupState.action,
+          frameCount: animSetupState.frameCount,
           seed: baseCharState.seed,
-          size: animSize,
-          removeBg
+          size: animSetupState.frameSize,
+          removeBg: animSetupState.removeBg
         })
       });
 
       const data = await res.json();
       if (!data.success || !Array.isArray(data.frames)) {
-        throw new Error(data.error || 'Không thể tạo hoạt ảnh');
+        throw new Error(data.error || 'Không thể tạo chuỗi hoạt ảnh');
       }
 
-      // Xoa cac frame cu va nap toan bo N frame con vao project.frames
-      project.width = animSize;
-      project.height = animSize;
-      project.frames = [];
+      animSetupState.frames = data.frames;
+      livePlayerIndex = 0;
+      startLivePlayer();
 
-      data.frames.forEach((frameObj: any, idx: number) => {
-        const layerId = `layer_f${idx + 1}_${Date.now()}`;
-        const pixelsRecord: Record<string, PixelColor> = {};
+      // Kích hoạt các nút hoàn tất ở Bước 4
+      if (btnWizardFinish) btnWizardFinish.style.display = 'inline-flex';
+      if (btnWizardChangeAction) btnWizardChangeAction.style.display = 'inline-flex';
 
-        if (Array.isArray(frameObj.pixels)) {
-          for (const p of frameObj.pixels) {
-            if (p.color) {
-              pixelsRecord[coordToKey(p.x, p.y)] = p.color;
-            }
-          }
-        }
-
-        const frameData: FrameData = {
-          id: `frame_${idx + 1}_${Date.now()}`,
-          durationMs: 120,
-          layers: [
-            {
-              id: layerId,
-              name: `Layer 1`,
-              visible: true,
-              locked: false,
-              opacity: 1.0,
-              pixels: pixelsRecord
-            }
-          ]
-        };
-        project.frames.push(frameData);
-      });
-
-      project.activeFrameIndex = 0;
-      project.activeLayerId = project.frames[0]?.layers[0]?.id || 'layer_1';
-
-      // Tao Clip hoat anh moi
-      const clipId = `clip_${activeAction}_${Date.now()}`;
-      const newClip: AnimationClip = {
-        id: clipId,
-        name: `${activeAction.toUpperCase()}`,
-        startFrame: 0,
-        endFrame: data.frames.length - 1,
-        fps: activeAction === 'sit' || activeAction === 'defeated' ? 4 : 8,
-        loop: true
-      };
-      project.clips = [newClip];
-      animController.setActiveClip(clipId);
-
-      // Dong bo kich thuoc len UI
-      const sizeBadge = document.getElementById('canvas-size-badge');
-      if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
-      const resLabel = document.getElementById('canvas-resolution');
-      if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
-
-      // Cap nhat bo dem va ve lai giao dien
-      canvasEngine.rebuildBuffers();
-      canvasEngine.centerViewport();
-      onionSkinRenderer.resize(project.width, project.height);
-      renderAll();
-
-      // Dong bo len may chu Bridge
-      syncProjectToServer();
-
-      // Tu dong khoi chay trinh phat Preview Player de nguoi dung thay hoat anh lap tuc
-      previewPlayer.play();
-      updatePlayUi(true);
-
-      // Dong modal sau khi hoan tat
-      setTimeout(() => {
-        modal.style.display = 'none';
-      }, 500);
+      saveWizardCheckpoint();
 
     } catch (err: any) {
-      alert('Lỗi tạo hoạt ảnh Sprite: ' + err.message);
+      alert('Lỗi tạo hoạt ảnh: ' + err.message);
+      // Giữ nguyên bước 4 để người dùng thấy lỗi và có thể quay lại bước 3 mà không mất dữ liệu
     } finally {
       clearInterval(animTimer);
-      if (btnRunAiAnimGenerate) (btnRunAiAnimGenerate as HTMLButtonElement).disabled = false;
+      if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = false;
       if (statusMsg) statusMsg.style.display = 'none';
     }
+  };
+
+  btnWizardGenerateAnim?.addEventListener('click', handleGenerateAnimation);
+
+  // ==========================================
+  // XỬ LÝ BƯỚC 4: LIVE PREVIEW & NẠP TIMELINE
+  // ==========================================
+  wizardLiveFpsSlider?.addEventListener('input', () => {
+    livePlayerFps = parseInt(wizardLiveFpsSlider.value, 10);
+    if (wizardLiveFpsLabel) wizardLiveFpsLabel.innerText = `${livePlayerFps} FPS`;
+    startLivePlayer();
+  });
+
+  wizardLiveToggleBtn?.addEventListener('click', () => {
+    livePlayerPlaying = !livePlayerPlaying;
+    if (wizardLiveToggleBtn) {
+      wizardLiveToggleBtn.innerText = livePlayerPlaying ? 'Tạm dừng' : 'Phát tiếp';
+    }
+  });
+
+  btnWizardChangeAction?.addEventListener('click', () => {
+    goToStep(3);
+  });
+
+  btnWizardFinish?.addEventListener('click', () => {
+    if (!animSetupState.frames || animSetupState.frames.length === 0) {
+      alert('Chưa có dữ liệu hoạt ảnh để nạp vào Timeline!');
+      return;
+    }
+
+    // Nạp toàn bộ các frame vào project.frames của Studio
+    project.width = animSetupState.frameSize;
+    project.height = animSetupState.frameSize;
+    project.frames = [];
+
+    animSetupState.frames.forEach((frameObj: any, idx: number) => {
+      const layerId = `layer_f${idx + 1}_${Date.now()}`;
+      const pixelsRecord: Record<string, PixelColor> = {};
+
+      if (Array.isArray(frameObj.pixels)) {
+        for (const p of frameObj.pixels) {
+          if (p.color) {
+            pixelsRecord[coordToKey(p.x, p.y)] = p.color;
+          }
+        }
+      }
+
+      const frameData: FrameData = {
+        id: `frame_${idx + 1}_${Date.now()}`,
+        durationMs: Math.max(60, Math.floor(1000 / livePlayerFps)),
+        layers: [
+          {
+            id: layerId,
+            name: `Layer 1`,
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            pixels: pixelsRecord
+          }
+        ]
+      };
+      project.frames.push(frameData);
+    });
+
+    project.activeFrameIndex = 0;
+    project.activeLayerId = project.frames[0]?.layers[0]?.id || 'layer_1';
+
+    // Tạo Clip hoạt ảnh cho Timeline
+    const clipId = `clip_${animSetupState.action}_${Date.now()}`;
+    const newClip: AnimationClip = {
+      id: clipId,
+      name: `${animSetupState.action.toUpperCase()}`,
+      startFrame: 0,
+      endFrame: animSetupState.frames.length - 1,
+      fps: livePlayerFps,
+      loop: true
+    };
+    project.clips = [newClip];
+    animController.setActiveClip(clipId);
+
+    // Đồng bộ kích thước lên thanh trạng thái Studio
+    const sizeBadge = document.getElementById('canvas-size-badge');
+    if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+    const resLabel = document.getElementById('canvas-resolution');
+    if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+    // Cập nhật bộ đệm và vẽ lại màn hình Studio
+    canvasEngine.rebuildBuffers();
+    canvasEngine.centerViewport();
+    onionSkinRenderer.resize(project.width, project.height);
+    renderAll();
+
+    // Đồng bộ lên máy chủ Bridge
+    syncProjectToServer();
+
+    // Tự động phát chuyển động trên thanh Preview chính của Studio
+    previewPlayer.play();
+    updatePlayUi(true);
+
+    // Đóng Modal sau khi hoàn tất
+    setTimeout(() => {
+      modal.style.display = 'none';
+    }, 400);
+  });
+
+  // Tự động khôi phục phiên làm việc từ Checkpoint khi người dùng mở Modal
+  const restoreCheckpointSession = () => {
+    const cp = loadWizardCheckpoint();
+    if (!cp) {
+      goToStep(1);
+      return;
+    }
+
+    if (cp.prompt && promptInput) {
+      promptInput.value = cp.prompt;
+      syncTagChips();
+    }
+
+    if (cp.baseCharacter) {
+      baseCharState.seed = cp.baseCharacter.seed;
+      baseCharState.locked = cp.baseCharacter.locked;
+      baseCharState.pixels = cp.baseCharacter.pixels;
+      baseCharState.width = cp.baseCharacter.width || 64;
+      baseCharState.height = cp.baseCharacter.height || 64;
+      baseCharState.dataUrl = cp.baseCharacter.dataUrl;
+    }
+
+    if (cp.animation) {
+      animSetupState.action = cp.animation.action || 'walk';
+      animSetupState.frameCount = cp.animation.frameCount || 4;
+      animSetupState.frameSize = cp.animation.frameSize || 64;
+      if (Array.isArray(cp.animation.frames)) {
+        animSetupState.frames = cp.animation.frames;
+      }
+    }
+
+    // Đưa người dùng về đúng bước đã lưu
+    goToStep(cp.step || 1);
+  };
+
+  // Khôi phục phiên làm việc khi mở Modal
+  btnOpen.addEventListener('click', () => {
+    restoreCheckpointSession();
   });
 }
 

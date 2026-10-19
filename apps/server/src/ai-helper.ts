@@ -238,22 +238,24 @@ export function generatePixelArt(
         if (tqdmMatch) {
           const step = parseInt(tqdmMatch[1], 10);
           const totalSteps = parseInt(tqdmMatch[2], 10);
-          const pct = Math.round((step / totalSteps) * 100);
-          const elapsedStr = tqdmMatch[3].trim();
-          const etaStr = tqdmMatch[4].trim();
-          const parseSec = (s: string) => {
-            const p = s.split(':').map(Number);
-            return p.length === 2 ? p[0] * 60 + p[1] : 0;
-          };
-          onProgress?.({
-            stage: 'denoising',
-            step,
-            totalSteps,
-            percent: pct,
-            elapsed: parseSec(elapsedStr),
-            eta: parseSec(etaStr),
-            message: `Đang sinh ảnh: Bước ${step}/${totalSteps} (${pct}%)`
-          });
+          if (totalSteps <= 60) {
+            const pct = Math.round((step / totalSteps) * 100);
+            const elapsedStr = tqdmMatch[3].trim();
+            const etaStr = tqdmMatch[4].trim();
+            const parseSec = (s: string) => {
+              const p = s.split(':').map(Number);
+              return p.length === 2 ? p[0] * 60 + p[1] : 0;
+            };
+            onProgress?.({
+              stage: 'denoising',
+              step,
+              totalSteps,
+              percent: pct,
+              elapsed: parseSec(elapsedStr),
+              eta: parseSec(etaStr),
+              message: `Đang sinh ảnh: Bước ${step}/${totalSteps} (${pct}%)`
+            });
+          }
         }
       }
     };

@@ -1177,56 +1177,111 @@ body {
   transition: all 0.2s ease;
 }
 
-.ai-tab-btn:hover {
-  color: #ffffff;
-}
-
-.ai-tab-btn.active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
-  background: rgba(56, 189, 248, 0.05);
-}
-
-.animator-layout-2col {
+/* Stepper Wizard 4 Buoc */
+.ai-stepper-bar {
   display: flex;
-  gap: 16px;
-  min-height: 480px;
-  max-height: 72vh;
+  align-items: center;
+  justify-content: space-between;
+  background: #111118;
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 18px;
+  position: relative;
 }
 
-.anim-step-panel {
-  background: #13131a;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.anim-step-header {
+.ai-stepper-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  user-select: none;
+  z-index: 2;
+  transition: all 0.2s ease;
 }
 
-.anim-step-badge {
-  font-size: 10px;
+.stepper-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(192, 132, 252, 0.15);
-  color: #c084fc;
-  border: 1px solid rgba(192, 132, 252, 0.3);
+  border: 2px solid var(--border-color);
+  background: #181822;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
 }
 
-.anim-base-preview-box {
+.stepper-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.ai-stepper-item.active .stepper-circle {
+  border-color: #38bdf8;
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.ai-stepper-item.active .stepper-label {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.ai-stepper-item.completed .stepper-circle {
+  border-color: #4ade80;
+  background: #166534;
+  color: #ffffff;
+}
+
+.ai-stepper-item.completed .stepper-label {
+  color: #4ade80;
+}
+
+.ai-stepper-item.pending .stepper-circle {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #13131a;
+  color: #64748b;
+}
+
+.ai-stepper-item.pending .stepper-label {
+  color: #64748b;
+}
+
+.ai-stepper-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 10px;
+  transition: background 0.3s ease;
+}
+
+.ai-stepper-line.completed {
+  background: #22c55e;
+}
+
+/* Panel tung buoc Wizard */
+.wizard-step-panel {
+  display: none;
   width: 100%;
-  height: 160px;
+}
+
+.wizard-step-panel.active {
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.anim-base-preview-box,
+.wizard-live-preview-box {
   background-color: #0c0c12;
   background-image: 
     linear-gradient(45deg, #181822 25%, transparent 25%), 
@@ -1235,13 +1290,7 @@ body {
     linear-gradient(-45deg, transparent 75%, #181822 75%);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
-  margin-bottom: 8px;
   position: relative;
 }
 
