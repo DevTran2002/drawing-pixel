@@ -150,3 +150,32 @@ export interface McpDrawPayload {
   scale?: number;
   outputPath?: string;
 }
+
+// Cac kieu du lieu cho Khung Xuong Hoat Anh (Skeleton Rigging)
+export type JointId =
+  | 'head'
+  | 'chest'
+  | 'hips'
+  | 'left_knee'
+  | 'left_foot'
+  | 'right_knee'
+  | 'right_foot'
+  | 'weapon';
+
+export interface JointPin {
+  id: JointId;
+  name: string;
+  x: number;
+  y: number;
+  parent?: JointId;
+  color: string;
+}
+
+export interface SkeletonRig {
+  width: number;
+  height: number;
+  rootJoint: JointId;
+  joints: Record<JointId, JointPin>;
+  bones: [JointId, JointId][];
+}
+

@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { PNG } from 'pngjs';
-import { PixelPoint } from '@pixel-draw/shared-types';
+import { PixelPoint, SkeletonRig, JointId, JointPin } from '@pixel-draw/shared-types';
 
 export interface TemplateAnimationOptions {
   action: string;
@@ -14,6 +14,7 @@ export interface TemplateAnimationOptions {
   width?: number;
   height?: number;
   outputPrefix: string;
+  skeletonRig?: SkeletonRig;
 }
 
 export interface AnimationFrameItem {
@@ -30,6 +31,7 @@ export interface TemplateAnimationResult {
   action: string;
   frames: AnimationFrameItem[];
   metaPath: string;
+  skeletonRig?: SkeletonRig;
 }
 
 // Luu danh sach pixel ra file PNG
@@ -63,7 +65,75 @@ function savePixelsToPng(pixels: PixelPoint[], w: number, h: number, filePath: s
   fs.writeFileSync(filePath, PNG.sync.write(png));
 }
 
-// Sinh chuoi hoat anh pixel bang thuat toan khung xuong
+// Tu dong uoc luong khung xuong chuan giai phau dua tren Bounding Box cua nhan vat mau
+export function autoEstimateSkeletonRig(
+  basePixels: PixelPoint[],
+  width = 64,
+  height = 64
+): SkeletonRig {
+  let minX = width;
+  let maxX = 0;
+  let minY = height;
+  let maxY = 0;
+
+  for (const p of basePixels) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+
+  // Truong hop chua co pixel nao, dung thong so mac dinh o giua khung hinh
+  if (minX > maxX || minY > maxY) {
+    minX = Math.floor(width * 0.25);
+    maxX = Math.floor(width * 0.75);
+    minY = Math.floor(height * 0.15);
+    maxY = Math.floor(height * 0.85);
+  }
+
+  const charW = Math.max(1, maxX - minX + 1);
+  const charH = Math.max(1, maxY - minY + 1);
+  const centerX = Math.floor((minX + maxX) / 2);
+
+  const headY = Math.max(0, minY + Math.floor(charH * 0.18));
+  const chestY = Math.max(0, minY + Math.floor(charH * 0.40));
+  const hipsY = Math.max(0, minY + Math.floor(charH * 0.60));
+  const kneeY = Math.max(0, minY + Math.floor(charH * 0.80));
+  const footY = Math.min(height - 1, maxY);
+
+  const legSpacing = Math.max(2, Math.floor(charW * 0.22));
+
+  const joints: Record<JointId, JointPin> = {
+    head: { id: 'head', name: 'Đầu (Head)', x: centerX, y: headY, color: '#f59e0b', parent: 'chest' },
+    chest: { id: 'chest', name: 'Ngực (Chest)', x: centerX, y: chestY, color: '#38bdf8' },
+    hips: { id: 'hips', name: 'Hông (Hips)', x: centerX, y: hipsY, color: '#60a5fa', parent: 'chest' },
+    left_knee: { id: 'left_knee', name: 'Gối Trái (L Knee)', x: Math.max(0, centerX - legSpacing), y: kneeY, color: '#4ade80', parent: 'hips' },
+    left_foot: { id: 'left_foot', name: 'Bàn Chân Trái (L Foot)', x: Math.max(0, centerX - legSpacing), y: footY, color: '#22c55e', parent: 'left_knee' },
+    right_knee: { id: 'right_knee', name: 'Gối Phải (R Knee)', x: Math.min(width - 1, centerX + legSpacing), y: kneeY, color: '#c084fc', parent: 'hips' },
+    right_foot: { id: 'right_foot', name: 'Bàn Chân Phải (R Foot)', x: Math.min(width - 1, centerX + legSpacing), y: footY, color: '#a855f7', parent: 'right_knee' },
+    weapon: { id: 'weapon', name: 'Vũ Khí / Tay (Weapon)', x: Math.min(width - 1, maxX + 2), y: Math.floor(minY + charH * 0.50), color: '#f43f5e', parent: 'chest' }
+  };
+
+  const bones: [JointId, JointId][] = [
+    ['head', 'chest'],
+    ['chest', 'hips'],
+    ['hips', 'left_knee'],
+    ['left_knee', 'left_foot'],
+    ['hips', 'right_knee'],
+    ['right_knee', 'right_foot'],
+    ['chest', 'weapon']
+  ];
+
+  return {
+    width,
+    height,
+    rootJoint: 'chest',
+    joints,
+    bones
+  };
+}
+
+// Sinh chuoi hoat anh pixel bang thuat toan khung xuong va Soft-Skinning bien dang mem
 export function generateTemplateAnimation(opts: TemplateAnimationOptions): TemplateAnimationResult {
   const {
     action = 'walk',
@@ -71,7 +141,8 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
     basePixels = [],
     width = 64,
     height = 64,
-    outputPrefix
+    outputPrefix,
+    skeletonRig
   } = opts;
 
   const outDir = path.dirname(outputPrefix);
@@ -95,7 +166,15 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
   const charW = Math.max(1, maxX - minX + 1);
   const charH = Math.max(1, maxY - minY + 1);
   const centerX = Math.floor((minX + maxX) / 2);
-  const legSplitY = minY + Math.floor(charH * 0.62);
+
+  // Lay khung xuong: su dung rig duoc truyen vao tu nguoi dung hoac tu dong tinh toan
+  const rig = skeletonRig && rigHasValidJoints(skeletonRig)
+    ? skeletonRig
+    : autoEstimateSkeletonRig(basePixels, width, height);
+
+  const chestY = rig.joints.chest?.y ?? (minY + Math.floor(charH * 0.40));
+  const hipsY = rig.joints.hips?.y ?? (minY + Math.floor(charH * 0.60));
+  const hipsX = rig.joints.hips?.x ?? centerX;
 
   const frames: AnimationFrameItem[] = [];
   const frameFiles: string[] = [];
@@ -112,134 +191,263 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
       }
     };
 
+    // Danh sach cac diem pixel sau khi bien doi toa do
+    interface TransformedPoint {
+      origX: number;
+      origY: number;
+      targetX: number;
+      targetY: number;
+      color: string;
+    }
+    const mappedPoints: TransformedPoint[] = [];
+
     if (cleanAction === 'walk') {
-      // Chu ky buoc di tai cho: than nguoi nhap nho Y, chan truoc sau lu luan
+      // Chu ky buoc di sinh hoc tu nhien:
+      // - Than nhap nho theo nhip buoc chan
+      // - Vung eo co gian mem (Soft Skinning) de khong bao gio bi dut gay
+      // - Chan trai va chan phai xoay nguoc pha quanh khop hong
       const t = (frameIdx / frameCount) * 2 * Math.PI;
-      const legSwing = Math.round(Math.sin(t) * 2);
+      const swingMag = 2.4;
       const isBobbing = frameIdx % 2 === 1;
       const bodyOffsetY = isBobbing ? -1 : 0;
 
       for (const p of basePixels) {
-        if (p.y < legSplitY) {
-          // Than tren nhap nho Y
-          setPixel(p.x, p.y + bodyOffsetY, p.color);
+        if (!p.color) continue;
+
+        if (p.y <= chestY) {
+          // Than tren: nhap nho theo bodyOffsetY
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x,
+            targetY: p.y + bodyOffsetY,
+            color: p.color
+          });
+        } else if (p.y <= hipsY) {
+          // Vung eo Soft-Skinning: noi suy mem tu bodyOffsetY ve 0 tai khop hong
+          const blendFactor = (p.y - chestY) / Math.max(1, hipsY - chestY);
+          const waistOffsetY = Math.round(bodyOffsetY * (1 - blendFactor));
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x,
+            targetY: p.y + waistOffsetY,
+            color: p.color
+          });
         } else {
-          // Chan trai hay phai
-          if (p.x < centerX) {
-            setPixel(p.x + legSwing, p.y, p.color);
-          } else {
-            setPixel(p.x - legSwing, p.y, p.color);
-          }
+          // Vung chan: xoay quanh khop hong
+          const isLeftLeg = p.x <= hipsX;
+          const legProgress = Math.min(1, Math.max(0, (p.y - hipsY) / Math.max(1, maxY - hipsY)));
+          const legSwing = isLeftLeg ? Math.sin(t) * swingMag : -Math.sin(t) * swingMag;
+          const swingDx = Math.round(legProgress * legSwing);
+
+          // Nang chan nhe khi chan buoc ve truoc
+          const isSwingingForward = isLeftLeg ? Math.sin(t) > 0 : -Math.sin(t) > 0;
+          const liftAmount = isSwingingForward ? Math.abs(Math.sin(t)) * 1.5 : 0;
+          const liftDy = -Math.round(legProgress * legProgress * liftAmount);
+
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x + swingDx,
+            targetY: p.y + liftDy,
+            color: p.color
+          });
         }
       }
 
     } else if (cleanAction === 'idle') {
-      // Nhip tho nhe nhang: than tren ha xuong 1px o nua chu ky, chan giu nguyen diem neo
+      // Nhip tho nhe nhang: than tren ha xuong 1px o nua chu ky, khop hong va chan giu co dinh
       const isBreathing = frameIdx % 2 === 1;
       const bodyOffsetY = isBreathing ? 1 : 0;
 
       for (const p of basePixels) {
-        if (p.y < legSplitY) {
-          setPixel(p.x, p.y + bodyOffsetY, p.color);
+        if (!p.color) continue;
+        if (p.y <= chestY) {
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x,
+            targetY: p.y + bodyOffsetY,
+            color: p.color
+          });
+        } else if (p.y <= hipsY) {
+          const blendFactor = (p.y - chestY) / Math.max(1, hipsY - chestY);
+          const waistOffsetY = Math.round(bodyOffsetY * (1 - blendFactor));
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x,
+            targetY: p.y + waistOffsetY,
+            color: p.color
+          });
         } else {
-          setPixel(p.x, p.y, p.color);
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x,
+            targetY: p.y,
+            color: p.color
+          });
         }
       }
 
     } else if (cleanAction === 'attack' || cleanAction === 'slash') {
-      // Hoat canh chem kiem: Frame 0 thu the, Frame 1 vung chem voi vet chem quang, Frame 2 thu the
       let bodyOffsetX = 0;
       let bodyOffsetY = 0;
 
       if (frameIdx === 0) {
-        // Lay da lui ve sau
-        bodyOffsetX = -1;
+        bodyOffsetX = -1; // Lay da lui ve sau
       } else if (frameIdx === 1) {
-        // Ruon nguoi ve phia truoc
-        bodyOffsetX = 1;
+        bodyOffsetX = 1; // Ruon nguoi ve phia truoc
       } else {
         bodyOffsetX = 0;
       }
 
       for (const p of basePixels) {
-        setPixel(p.x + bodyOffsetX, p.y + bodyOffsetY, p.color);
+        if (!p.color) continue;
+        mappedPoints.push({
+          origX: p.x,
+          origY: p.y,
+          targetX: p.x + bodyOffsetX,
+          targetY: p.y + bodyOffsetY,
+          color: p.color
+        });
       }
 
-      // Frame 1: Ve them vet chem quang (Slash Arc VFX)
+      // Frame 1: Ve vet chem quang (Slash Arc VFX)
       if (frameIdx === 1) {
         const arcCenterX = centerX + 4;
         const arcCenterY = minY + Math.floor(charH * 0.45);
         const radius = Math.max(10, Math.floor(charW * 0.7));
 
-        // Quet vet chem hinh cung tron tu goc tren sau ra truoc
         for (let angleDeg = -80; angleDeg <= 60; angleDeg += 4) {
           const rad = (angleDeg * Math.PI) / 180;
           const arcX = Math.round(arcCenterX + Math.cos(rad) * radius);
           const arcY = Math.round(arcCenterY + Math.sin(rad) * radius);
 
-          // Loi vet chem mau trang sang
           setPixel(arcX, arcY, '#ffffff');
-          // Vien sang xung quanh mau xanh da troi neon
           setPixel(arcX - 1, arcY, '#67e8f9');
           setPixel(arcX, arcY - 1, '#38bdf8');
         }
       }
 
     } else if (cleanAction === 'jump') {
-      // Nhay cao: Frame 0 trung goi, Frame 1 bay len cao, Frame 2 cham dat
       let jumpOffsetY = 0;
       if (frameIdx === 0) {
         jumpOffsetY = 2; // Crouch
       } else if (frameIdx === 1) {
-        jumpOffsetY = -6; // Airborne
+        jumpOffsetY = -5; // Airborne
       } else if (frameIdx === 2) {
-        jumpOffsetY = -4; // Apex
+        jumpOffsetY = -3; // Apex
       } else {
         jumpOffsetY = 1; // Landing
       }
 
       for (const p of basePixels) {
-        setPixel(p.x, p.y + jumpOffsetY, p.color);
+        if (!p.color) continue;
+        mappedPoints.push({
+          origX: p.x,
+          origY: p.y,
+          targetX: p.x,
+          targetY: p.y + jumpOffsetY,
+          color: p.color
+        });
       }
 
     } else if (cleanAction === 'run') {
-      // Chay nhanh: sai buoc chan lon hon (+-3px) va than nghieng ve truoc
       const t = (frameIdx / frameCount) * 2 * Math.PI;
-      const legSwing = Math.round(Math.sin(t) * 3);
+      const swingMag = 3.2;
       const isBobbing = frameIdx % 2 === 1;
       const bodyOffsetY = isBobbing ? -1 : 0;
 
       for (const p of basePixels) {
-        if (p.y < legSplitY) {
-          setPixel(p.x + 1, p.y + bodyOffsetY, p.color);
+        if (!p.color) continue;
+        if (p.y <= chestY) {
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x + 1,
+            targetY: p.y + bodyOffsetY,
+            color: p.color
+          });
+        } else if (p.y <= hipsY) {
+          const blendFactor = (p.y - chestY) / Math.max(1, hipsY - chestY);
+          const waistOffsetY = Math.round(bodyOffsetY * (1 - blendFactor));
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x + 1,
+            targetY: p.y + waistOffsetY,
+            color: p.color
+          });
         } else {
-          if (p.x < centerX) {
-            setPixel(p.x + legSwing, p.y, p.color);
-          } else {
-            setPixel(p.x - legSwing, p.y, p.color);
-          }
+          const isLeftLeg = p.x <= hipsX;
+          const legProgress = Math.min(1, Math.max(0, (p.y - hipsY) / Math.max(1, maxY - hipsY)));
+          const legSwing = isLeftLeg ? Math.sin(t) * swingMag : -Math.sin(t) * swingMag;
+          const swingDx = Math.round(legProgress * legSwing);
+
+          mappedPoints.push({
+            origX: p.x,
+            origY: p.y,
+            targetX: p.x + swingDx,
+            targetY: p.y,
+            color: p.color
+          });
         }
       }
 
-    } else if (cleanAction === 'sit') {
-      // Ngoi nghi: ha thap than xuong 3 pixel
-      const sitOffset = frameIdx === 0 ? 2 : 3;
-      for (const p of basePixels) {
-        setPixel(p.x, p.y + sitOffset, p.color);
-      }
-
-    } else if (cleanAction === 'defeated') {
-      // Nam guc: nga nguoi xuong dat
-      const fallOffset = frameIdx === 0 ? 2 : Math.floor(charH * 0.35);
-      for (const p of basePixels) {
-        setPixel(p.x, p.y + fallOffset, p.color);
-      }
-
     } else {
-      // Mac dinh: giu nguyen goc va nhap nho nhe
       const defBob = frameIdx % 2 === 1 ? -1 : 0;
       for (const p of basePixels) {
-        setPixel(p.x, p.y + defBob, p.color);
+        if (!p.color) continue;
+        mappedPoints.push({
+          origX: p.x,
+          origY: p.y,
+          targetX: p.x,
+          targetY: p.y + defBob,
+          color: p.color
+        });
+      }
+    }
+
+    // 1. Gan cac diem da bien doi vao pixelMap
+    for (const pt of mappedPoints) {
+      setPixel(pt.targetX, pt.targetY, pt.color);
+    }
+
+    // 2. Thuat toan chong ho eo / ran nut pixel (Anti-Gap Column Interpolation):
+    // Neu hai pixel lien ke ban dau trong cung 1 cot bi keo dan xa nhau, tu dong lap day khoang trong
+    const columnMap = new Map<number, TransformedPoint[]>();
+    for (const pt of mappedPoints) {
+      if (!columnMap.has(pt.origX)) {
+        columnMap.set(pt.origX, []);
+      }
+      columnMap.get(pt.origX)!.push(pt);
+    }
+
+    for (const [, colPoints] of columnMap.entries()) {
+      colPoints.sort((a, b) => a.origY - b.origY);
+      for (let i = 0; i < colPoints.length - 1; i++) {
+        const cur = colPoints[i];
+        const next = colPoints[i + 1];
+
+        // Neu ban dau hai pixel nam sat nhau theo chieu Y
+        if (next.origY === cur.origY + 1) {
+          // Neu do keo dan lam xuat hien khe ho Y
+          if (next.targetY > cur.targetY + 1) {
+            for (let fillY = cur.targetY + 1; fillY < next.targetY; fillY++) {
+              setPixel(cur.targetX, fillY, cur.color);
+            }
+          }
+          // Neu co do lech ngang giua hai dong sat nhau vuot qua 1 pixel
+          if (Math.abs(next.targetX - cur.targetX) > 1) {
+            const stepX = next.targetX > cur.targetX ? 1 : -1;
+            for (let fillX = cur.targetX + stepX; fillX !== next.targetX; fillX += stepX) {
+              setPixel(fillX, cur.targetY, cur.color);
+            }
+          }
+        }
       }
     }
 
@@ -249,7 +457,7 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
       framePixels.push({ x: px, y: py, color });
     }
 
-    // Luu file PNG cho frame
+    // Luu file PNG cho tung frame
     const framePath = `${outputPrefix}_frame_${frameIdx}.png`;
     savePixelsToPng(framePixels, width, height, framePath);
     frameFiles.push(framePath);
@@ -270,7 +478,8 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
     action: cleanAction,
     engine: 'template',
     frameFiles,
-    spriteSheetRaw: frameFiles[0]
+    spriteSheetRaw: frameFiles[0],
+    skeletonRig: rig
   };
 
   const metaPath = `${outputPrefix}_anim_meta.json`;
@@ -280,6 +489,12 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
     frameCount,
     action: cleanAction,
     frames,
-    metaPath
+    metaPath,
+    skeletonRig: rig
   };
+}
+
+// Ham kiem tra khung xuong co day du cac khop co ban khong
+function rigHasValidJoints(rig: SkeletonRig): boolean {
+  return !!(rig && rig.joints && rig.joints.chest && rig.joints.hips);
 }

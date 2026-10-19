@@ -507,8 +507,8 @@
                 <button class="btn btn-tiny" id="btn-step3-change-char" style="font-size: 10px; padding: 2px 6px;">Đổi mẫu khác</button>
               </div>
 
-              <!-- COT PHAI: CHON HANH DONG, SO FRAME, CO ANH -->
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+              <!-- COT PHAI: CHON HANH DONG, SO FRAME, CO ANH VA GAN KHUNG XUONG -->
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
                 <!-- CHON CONG NGHE SINH HOAT ANH -->
                 <div>
                   <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Công nghệ sinh hoạt ảnh (Animation Engine):</label>
@@ -530,66 +530,151 @@
                   </div>
                 </div>
 
-                <div>
-                  <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">1. Chọn hành động (Action):</label>
-                  <div class="anim-action-grid">
-                    <button class="anim-action-card active" data-action="walk" data-frames="4">
-                      <span class="anim-action-title">Đi bộ (Walk)</span>
-                      <span class="anim-action-meta">4 frames • Bước chân luân phiên</span>
-                    </button>
-                    <button class="anim-action-card" data-action="attack" data-frames="4">
-                      <span class="anim-action-title">Tấn công (Attack)</span>
-                      <span class="anim-action-meta">4 frames • Vung kiếm chém</span>
-                    </button>
-                    <button class="anim-action-card" data-action="idle" data-frames="4">
-                      <span class="anim-action-title">Đứng yên (Idle)</span>
-                      <span class="anim-action-meta">4 frames • Thở nhấp nhô</span>
-                    </button>
-                    <button class="anim-action-card" data-action="sit" data-frames="2">
-                      <span class="anim-action-title">Ngồi nghỉ (Sit)</span>
-                      <span class="anim-action-meta">2 frames • Thư giãn nghỉ ngơi</span>
-                    </button>
-                    <button class="anim-action-card" data-action="defeated" data-frames="2">
-                      <span class="anim-action-title">Nằm gục (Defeated)</span>
-                      <span class="anim-action-meta">2 frames • Bị hạ gục</span>
-                    </button>
-                    <button class="anim-action-card" data-action="run" data-frames="4">
-                      <span class="anim-action-title">Chạy nhanh (Run)</span>
-                      <span class="anim-action-meta">4 frames • Sải bước tốc độ</span>
-                    </button>
-                    <button class="anim-action-card" data-action="jump" data-frames="3">
-                      <span class="anim-action-title">Nhảy (Jump)</span>
-                      <span class="anim-action-meta">3 frames • Lên đỉnh và tiếp đất</span>
-                    </button>
-                  </div>
+                <!-- Chuyen Tab Chuc Nang Buoc 3 -->
+                <div class="step3-subtabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-top: 2px;">
+                  <button type="button" class="btn btn-small active" id="btn-step3-tab-actions" style="font-size: 11px; padding: 4px 10px;">
+                    1. Danh Sách Hành Động
+                  </button>
+                  <button type="button" class="btn btn-small" id="btn-step3-tab-rigging" style="font-size: 11px; padding: 4px 10px; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                    2. Gán Khung Xương Thủ Công (Visual Joint Pinning)
+                  </button>
                 </div>
 
-                <div style="display: flex; gap: 12px; align-items: flex-start;">
-                  <div style="flex: 1;">
-                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">2. Số khung hình (Frames):</label>
-                    <div class="anim-frame-chips">
-                      <button class="tag-btn anim-frame-btn" data-frames="2">2 frames</button>
-                      <button class="tag-btn anim-frame-btn" data-frames="3">3 frames</button>
-                      <button class="tag-btn anim-frame-btn active" data-frames="4">4 frames (Chuẩn)</button>
-                      <button class="tag-btn anim-frame-btn" data-frames="6">6 frames</button>
-                      <button class="tag-btn anim-frame-btn" data-frames="8">8 frames</button>
+                <!-- TAB CON 1: DANH SACH HANH DONG & TUY CHON -->
+                <div id="step3-actions-panel" style="display: flex; flex-direction: column; gap: 10px;">
+                  <div>
+                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Chọn hành động (Action):</label>
+                    <div class="anim-action-grid">
+                      <button class="anim-action-card active" data-action="walk" data-frames="4">
+                        <span class="anim-action-title">Đi bộ (Walk)</span>
+                        <span class="anim-action-meta">4 frames • Bước chân luân phiên mềm</span>
+                      </button>
+                      <button class="anim-action-card" data-action="attack" data-frames="4">
+                        <span class="anim-action-title">Tấn công (Attack)</span>
+                        <span class="anim-action-meta">4 frames • Vung kiếm chém</span>
+                      </button>
+                      <button class="anim-action-card" data-action="idle" data-frames="4">
+                        <span class="anim-action-title">Đứng yên (Idle)</span>
+                        <span class="anim-action-meta">4 frames • Thở nhấp nhô</span>
+                      </button>
+                      <button class="anim-action-card" data-action="sit" data-frames="2">
+                        <span class="anim-action-title">Ngồi nghỉ (Sit)</span>
+                        <span class="anim-action-meta">2 frames • Thư giãn nghỉ ngơi</span>
+                      </button>
+                      <button class="anim-action-card" data-action="defeated" data-frames="2">
+                        <span class="anim-action-title">Nằm gục (Defeated)</span>
+                        <span class="anim-action-meta">2 frames • Bị hạ gục</span>
+                      </button>
+                      <button class="anim-action-card" data-action="run" data-frames="4">
+                        <span class="anim-action-title">Chạy nhanh (Run)</span>
+                        <span class="anim-action-meta">4 frames • Sải bước tốc độ</span>
+                      </button>
+                      <button class="anim-action-card" data-action="jump" data-frames="3">
+                        <span class="anim-action-title">Nhảy (Jump)</span>
+                        <span class="anim-action-meta">3 frames • Lên đỉnh và tiếp đất</span>
+                      </button>
                     </div>
                   </div>
-                  <div style="width: 140px;">
-                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">3. Cỡ mỗi frame:</label>
-                    <select id="anim-frame-size-select" class="btn btn-small" style="width: 100%;">
-                      <option value="64">64 x 64 px</option>
-                      <option value="48">48 x 48 px</option>
-                      <option value="32">32 x 32 px</option>
-                    </select>
+
+                  <div style="display: flex; gap: 12px; align-items: flex-start;">
+                    <div style="flex: 1;">
+                      <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Số khung hình (Frames):</label>
+                      <div class="anim-frame-chips">
+                        <button class="tag-btn anim-frame-btn" data-frames="2">2 frames</button>
+                        <button class="tag-btn anim-frame-btn" data-frames="3">3 frames</button>
+                        <button class="tag-btn anim-frame-btn active" data-frames="4">4 frames (Chuẩn)</button>
+                        <button class="tag-btn anim-frame-btn" data-frames="6">6 frames</button>
+                        <button class="tag-btn anim-frame-btn" data-frames="8">8 frames</button>
+                      </div>
+                    </div>
+                    <div style="width: 140px;">
+                      <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Cỡ mỗi frame:</label>
+                      <select id="anim-frame-size-select" class="btn btn-small" style="width: 100%;">
+                        <option value="64">64 x 64 px</option>
+                        <option value="48">48 x 48 px</option>
+                        <option value="32">32 x 32 px</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
+                      <input type="checkbox" id="anim-remove-bg-checkbox" checked style="cursor: pointer;">
+                      <span>Tự động tách nền trong suốt cho toàn bộ các frame</span>
+                    </label>
                   </div>
                 </div>
 
-                <div>
-                  <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: #e2e8f0; cursor: pointer;">
-                    <input type="checkbox" id="anim-remove-bg-checkbox" checked style="cursor: pointer;">
-                    <span>Tự động tách nền trong suốt cho toàn bộ các frame</span>
-                  </label>
+                <!-- TAB CON 2: GAN KHUNG XUONG THU CONG (VISUAL JOINT PINNING) -->
+                <div id="step3-rigging-panel" style="display: none; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <span style="font-size: 12px; font-weight: 600; color: #38bdf8; display: block;">Chấm & Kéo Thả Khớp Xương (Visual Joint Pinning)</span>
+                      <span style="font-size: 10px; color: var(--text-muted);">Kéo các chốt tròn đến đúng vị trí giải phẫu của nhân vật (Đầu, Hông, Gối, Bàn chân)</span>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                      <button type="button" class="btn btn-tiny" id="btn-rig-auto-align" title="Tự động tính toán lại 7 khớp giải phẫu từ hình mẫu">
+                        Tự Động Căn Khớp
+                      </button>
+                      <button type="button" class="btn btn-tiny" id="btn-rig-test-cycle" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;">
+                        Xem Thử Bước Đi
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 14px; align-items: flex-start;">
+                    <!-- Canvas phong to 256x256 px + Lop phu Overlay -->
+                    <div class="joint-pinning-wrapper" style="position: relative; width: 256px; height: 256px; background: #08090d; border: 2px solid #1e293b; border-radius: 8px; overflow: hidden; user-select: none; box-shadow: 0 4px 20px rgba(0,0,0,0.6); flex-shrink: 0;">
+                      <canvas id="joint-pinning-canvas" width="256" height="256" style="display: block; width: 256px; height: 256px; image-rendering: pixelated;"></canvas>
+                      <canvas id="joint-pinning-overlay" width="256" height="256" style="position: absolute; top: 0; left: 0; width: 256px; height: 256px; pointer-events: auto; cursor: crosshair;"></canvas>
+                      <div id="joint-tooltip" style="position: absolute; display: none; pointer-events: none; background: rgba(0,0,0,0.85); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; border: 1px solid #38bdf8; z-index: 10; white-space: nowrap;"></div>
+                    </div>
+
+                    <!-- Danh sach Khop & Huong dan -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 11px;">
+                      <span style="font-weight: 600; color: var(--text-muted); font-size: 10.5px;">Danh sách các khớp:</span>
+                      <div class="joint-legend-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                        <div class="joint-legend-item" data-joint="head" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                          <span style="color: #f59e0b; font-weight: 500; font-size: 10px;">Đầu (Head)</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="chest" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+                          <span style="color: #38bdf8; font-weight: 500; font-size: 10px;">Ngực (Chest)</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="hips" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; display: inline-block;"></span>
+                          <span style="color: #60a5fa; font-weight: 500; font-size: 10px;">Hông (Hips)</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="left_knee" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block;"></span>
+                          <span style="color: #4ade80; font-weight: 500; font-size: 10px;">Gối Trái (L Knee)</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="left_foot" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block;"></span>
+                          <span style="color: #22c55e; font-weight: 500; font-size: 10px;">Bàn Chân Trái</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="right_knee" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #c084fc; display: inline-block;"></span>
+                          <span style="color: #c084fc; font-weight: 500; font-size: 10px;">Gối Phải (R Knee)</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="right_foot" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #a855f7; display: inline-block;"></span>
+                          <span style="color: #a855f7; font-weight: 500; font-size: 10px;">Bàn Chân Phải</span>
+                        </div>
+                        <div class="joint-legend-item" data-joint="weapon" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #f43f5e; display: inline-block;"></span>
+                          <span style="color: #f43f5e; font-weight: 500; font-size: 10px;">Vũ Khí / Tay</span>
+                        </div>
+                      </div>
+                      <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 4px; padding: 6px 8px; line-height: 1.4; color: #94a3b8; font-size: 10px; margin-top: 2px;">
+                        <strong style="color: #38bdf8;">Đặc tính Soft-Skinning:</strong><br/>
+                        - Khớp <strong>Hông (Hips)</strong> là ranh giới giữa thân trên và hai chân.<br/>
+                        - Khoảng cách giữa <strong>Ngực</strong> và <strong>Hông</strong> sẽ co giãn mềm giúp không bao giờ bị đứt gãy hoặc hở eo pixel.<br/>
+                        - Bấm <strong>"Xem Thử Bước Đi"</strong> để thấy preview chuyển động mượt mà tức thì.
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

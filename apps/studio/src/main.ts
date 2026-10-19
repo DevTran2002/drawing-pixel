@@ -12,7 +12,10 @@ import {
   LayerGroup,
   FrameData,
   AnimationClip,
-  PixelPoint
+  PixelPoint,
+  SkeletonRig,
+  JointId,
+  JointPin
 } from '@pixel-draw/shared-types';
 import { CanvasEngine } from './core/canvas-engine';
 import { HistoryManager, PixelChange } from './core/history-manager';
@@ -2044,6 +2047,7 @@ function initAiPixelModal(): void {
       }[] | null;
       engine?: 'template' | 'ai';
     };
+    skeletonRig?: SkeletonRig;
     updatedAt: number;
   }
 
@@ -2060,6 +2064,81 @@ function initAiPixelModal(): void {
     width: 64,
     height: 64,
     dataUrl: null as string | null
+  };
+
+  // Trang thai khung xuong va tuong tac gan khop
+  let activeSkeletonRig: SkeletonRig | null = null;
+  let draggedJointId: JointId | null = null;
+  let hoveredJointId: JointId | null = null;
+  let isTestingCycle = false;
+  let testCycleTimer: any = null;
+  let testCycleFrame = 0;
+
+  // Helper tu dong tinh toan 7 khop giai phau chuan dua tren Bounding Box
+  const autoEstimateSkeletonRig = (
+    basePixels: PixelPoint[],
+    width = 64,
+    height = 64
+  ): SkeletonRig => {
+    let minX = width;
+    let maxX = 0;
+    let minY = height;
+    let maxY = 0;
+
+    for (const p of basePixels) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+
+    if (minX > maxX || minY > maxY) {
+      minX = Math.floor(width * 0.25);
+      maxX = Math.floor(width * 0.75);
+      minY = Math.floor(height * 0.15);
+      maxY = Math.floor(height * 0.85);
+    }
+
+    const charW = Math.max(1, maxX - minX + 1);
+    const charH = Math.max(1, maxY - minY + 1);
+    const centerX = Math.floor((minX + maxX) / 2);
+
+    const headY = Math.max(0, minY + Math.floor(charH * 0.18));
+    const chestY = Math.max(0, minY + Math.floor(charH * 0.40));
+    const hipsY = Math.max(0, minY + Math.floor(charH * 0.60));
+    const kneeY = Math.max(0, minY + Math.floor(charH * 0.80));
+    const footY = Math.min(height - 1, maxY);
+
+    const legSpacing = Math.max(2, Math.floor(charW * 0.22));
+
+    const joints: Record<JointId, JointPin> = {
+      head: { id: 'head', name: 'Đầu (Head)', x: centerX, y: headY, color: '#f59e0b', parent: 'chest' },
+      chest: { id: 'chest', name: 'Ngực (Chest)', x: centerX, y: chestY, color: '#38bdf8' },
+      hips: { id: 'hips', name: 'Hông (Hips)', x: centerX, y: hipsY, color: '#60a5fa', parent: 'chest' },
+      left_knee: { id: 'left_knee', name: 'Gối Trái (L Knee)', x: Math.max(0, centerX - legSpacing), y: kneeY, color: '#4ade80', parent: 'hips' },
+      left_foot: { id: 'left_foot', name: 'Bàn Chân Trái (L Foot)', x: Math.max(0, centerX - legSpacing), y: footY, color: '#22c55e', parent: 'left_knee' },
+      right_knee: { id: 'right_knee', name: 'Gối Phải (R Knee)', x: Math.min(width - 1, centerX + legSpacing), y: kneeY, color: '#c084fc', parent: 'hips' },
+      right_foot: { id: 'right_foot', name: 'Bàn Chân Phải (R Foot)', x: Math.min(width - 1, centerX + legSpacing), y: footY, color: '#a855f7', parent: 'right_knee' },
+      weapon: { id: 'weapon', name: 'Vũ Khí / Tay (Weapon)', x: Math.min(width - 1, maxX + 2), y: Math.floor(minY + charH * 0.50), color: '#f43f5e', parent: 'chest' }
+    };
+
+    const bones: [JointId, JointId][] = [
+      ['head', 'chest'],
+      ['chest', 'hips'],
+      ['hips', 'left_knee'],
+      ['left_knee', 'left_foot'],
+      ['hips', 'right_knee'],
+      ['right_knee', 'right_foot'],
+      ['chest', 'weapon']
+    ];
+
+    return {
+      width,
+      height,
+      rootJoint: 'chest',
+      joints,
+      bones
+    };
   };
 
   const animSetupState = {
@@ -2124,6 +2203,7 @@ function initAiPixelModal(): void {
           engine: animSetupState.engine,
           frames: animSetupState.frames.length > 0 ? animSetupState.frames : null
         },
+        skeletonRig: activeSkeletonRig || undefined,
         updatedAt: Date.now()
       };
       localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(checkpoint));
@@ -2160,6 +2240,12 @@ function initAiPixelModal(): void {
     baseCharState.locked = false;
     baseCharState.pixels = null;
     baseCharState.dataUrl = null;
+    activeSkeletonRig = null;
+    if (testCycleTimer) {
+      clearInterval(testCycleTimer);
+      testCycleTimer = null;
+      isTestingCycle = false;
+    }
     animSetupState.frames = [];
     if (livePlayerTimer) {
       clearInterval(livePlayerTimer);
@@ -2210,12 +2296,22 @@ function initAiPixelModal(): void {
   const btnStep2UseStatic = document.getElementById('btn-step2-use-static');
   const btnStep2Lock = document.getElementById('btn-step2-lock') as HTMLButtonElement | null;
 
-  // Các phần tử tại Bước 3 (Cấu hình hoạt cảnh)
+  // Các phần tử tại Bước 3 (Cấu hình hoạt cảnh & Gán khung xương)
   const step3ThumbImg = document.getElementById('wizard-step3-thumb-img') as HTMLImageElement | null;
   const step3SeedLabel = document.getElementById('wizard-step3-seed-label');
   const btnStep3ChangeChar = document.getElementById('btn-step3-change-char');
   const animFrameSizeSelect = document.getElementById('anim-frame-size-select') as HTMLSelectElement | null;
   const animRemoveBgCheckbox = document.getElementById('anim-remove-bg-checkbox') as HTMLInputElement | null;
+  const btnStep3TabActions = document.getElementById('btn-step3-tab-actions');
+  const btnStep3TabRigging = document.getElementById('btn-step3-tab-rigging');
+  const step3ActionsPanel = document.getElementById('step3-actions-panel');
+  const step3RiggingPanel = document.getElementById('step3-rigging-panel');
+  const jointCanvas = document.getElementById('joint-pinning-canvas') as HTMLCanvasElement | null;
+  const jointOverlay = document.getElementById('joint-pinning-overlay') as HTMLCanvasElement | null;
+  const jointTooltip = document.getElementById('joint-tooltip');
+  const btnRigAutoAlign = document.getElementById('btn-rig-auto-align');
+  const btnRigTestCycle = document.getElementById('btn-rig-test-cycle');
+  const jointLegendItems = document.querySelectorAll('.joint-legend-item');
 
   // Các phần tử tại Bước 4 (Live Animation Player)
   const wizardLiveCanvas = document.getElementById('wizard-live-canvas') as HTMLCanvasElement | null;
@@ -2356,10 +2452,15 @@ function initAiPixelModal(): void {
       if (step3SeedLabel) {
         step3SeedLabel.innerText = `Seed: #${baseCharState.seed || '0'}`;
       }
+      ensureSkeletonRig();
+      renderJointPinningView();
     } else if (validStep === 4) {
+      stopTestCycle();
       if (animSetupState.frames.length > 0) {
         startLivePlayer();
       }
+    } else {
+      stopTestCycle();
     }
 
     // Tự động sao lưu trạng thái Checkpoint
@@ -2744,6 +2845,350 @@ function initAiPixelModal(): void {
     goToStep(2);
   });
 
+  // Khoi tao hoac dam bao co SkeletonRig hop le
+  const ensureSkeletonRig = () => {
+    if (!activeSkeletonRig) {
+      if (baseCharState.pixels && baseCharState.pixels.length > 0) {
+        activeSkeletonRig = autoEstimateSkeletonRig(
+          baseCharState.pixels,
+          baseCharState.width || 64,
+          baseCharState.height || 64
+        );
+      } else {
+        activeSkeletonRig = autoEstimateSkeletonRig([], 64, 64);
+      }
+    }
+  };
+
+  // Ve nhan vat mau va cac khop xuong len Canvas 256x256
+  const renderJointPinningView = () => {
+    if (!jointCanvas || !jointOverlay) return;
+    const ctx = jointCanvas.getContext('2d');
+    const oCtx = jointOverlay.getContext('2d');
+    if (!ctx || !oCtx) return;
+
+    const w = jointCanvas.width;
+    const h = jointCanvas.height;
+    const charW = baseCharState.width || 64;
+    const scale = w / charW;
+
+    // 1. Ve nen va nhan vat mau phong to
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#08090d';
+    ctx.fillRect(0, 0, w, h);
+
+    // Ve o ban co (Checkerboard) de nhin ro vung trong suot
+    ctx.fillStyle = '#11131c';
+    const gridSize = 16;
+    for (let y = 0; y < h; y += gridSize) {
+      for (let x = 0; x < w; x += gridSize) {
+        if ((Math.floor(x / gridSize) + Math.floor(y / gridSize)) % 2 === 1) {
+          ctx.fillRect(x, y, gridSize, gridSize);
+        }
+      }
+    }
+
+    if (baseCharState.pixels) {
+      for (const p of baseCharState.pixels) {
+        if (!p.color) continue;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x * scale, p.y * scale, scale, scale);
+      }
+    }
+
+    // 2. Ve khung xuong tren lop phu Overlay
+    oCtx.clearRect(0, 0, w, h);
+    if (!activeSkeletonRig) return;
+
+    // a. Ve cac duong xuong (Bones)
+    oCtx.lineWidth = 3;
+    oCtx.lineCap = 'round';
+    for (const [fromId, toId] of activeSkeletonRig.bones) {
+      const fromJoint = activeSkeletonRig.joints[fromId];
+      const toJoint = activeSkeletonRig.joints[toId];
+      if (!fromJoint || !toJoint) continue;
+
+      oCtx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      oCtx.beginPath();
+      oCtx.moveTo(fromJoint.x * scale + scale / 2, fromJoint.y * scale + scale / 2);
+      oCtx.lineTo(toJoint.x * scale + scale / 2, toJoint.y * scale + scale / 2);
+      oCtx.stroke();
+    }
+
+    // b. Ve cac diem chot khop (Joint Pins)
+    for (const key of Object.keys(activeSkeletonRig.joints) as JointId[]) {
+      const pin = activeSkeletonRig.joints[key];
+      if (!pin) continue;
+      const px = pin.x * scale + scale / 2;
+      const py = pin.y * scale + scale / 2;
+      const isHovered = hoveredJointId === key || draggedJointId === key;
+      const radius = isHovered ? 8 : 6;
+
+      oCtx.save();
+      oCtx.shadowColor = pin.color;
+      oCtx.shadowBlur = isHovered ? 12 : 6;
+
+      oCtx.fillStyle = pin.color;
+      oCtx.beginPath();
+      oCtx.arc(px, py, radius, 0, Math.PI * 2);
+      oCtx.fill();
+
+      oCtx.lineWidth = 2;
+      oCtx.strokeStyle = isHovered ? '#ffffff' : '#000000';
+      oCtx.stroke();
+
+      if (isHovered) {
+        oCtx.lineWidth = 1.5;
+        oCtx.strokeStyle = pin.color;
+        oCtx.beginPath();
+        oCtx.arc(px, py, radius + 4, 0, Math.PI * 2);
+        oCtx.stroke();
+      }
+      oCtx.restore();
+    }
+  };
+
+  // Tinh toan toa do tu su kien chuot tren Canvas Overlay
+  const getCanvasCoords = (e: MouseEvent): { x: number; y: number } => {
+    if (!jointOverlay) return { x: 0, y: 0 };
+    const rect = jointOverlay.getBoundingClientRect();
+    const scaleX = jointOverlay.width / rect.width;
+    const scaleY = jointOverlay.height / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  };
+
+  // Tim khop gan nhat voi vi tri chuot
+  const findJointAt = (canvasX: number, canvasY: number): JointId | null => {
+    if (!activeSkeletonRig) return null;
+    const charW = baseCharState.width || 64;
+    const scale = 256 / charW;
+    const hitRadius = 14;
+
+    let closest: JointId | null = null;
+    let minDist = hitRadius;
+
+    for (const key of Object.keys(activeSkeletonRig.joints) as JointId[]) {
+      const pin = activeSkeletonRig.joints[key];
+      if (!pin) continue;
+      const px = pin.x * scale + scale / 2;
+      const py = pin.y * scale + scale / 2;
+      const dist = Math.hypot(canvasX - px, canvasY - py);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = key;
+      }
+    }
+    return closest;
+  };
+
+  const highlightLegendItem = (jointId: JointId | null) => {
+    jointLegendItems.forEach(item => {
+      const j = item.getAttribute('data-joint');
+      item.classList.toggle('active', j === jointId);
+    });
+  };
+
+  // Bat su kien keo tha khop tren Overlay
+  jointOverlay?.addEventListener('mousedown', (e) => {
+    if (isTestingCycle) stopTestCycle();
+    const { x, y } = getCanvasCoords(e);
+    const hit = findJointAt(x, y);
+    if (hit) {
+      draggedJointId = hit;
+      jointOverlay.style.cursor = 'grabbing';
+      highlightLegendItem(hit);
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!jointOverlay || !activeSkeletonRig) return;
+    const { x, y } = getCanvasCoords(e);
+
+    if (draggedJointId) {
+      const charW = baseCharState.width || 64;
+      const charH = baseCharState.height || 64;
+      const scale = 256 / charW;
+
+      const px = Math.max(0, Math.min(charW - 1, Math.round((x - scale / 2) / scale)));
+      const py = Math.max(0, Math.min(charH - 1, Math.round((y - scale / 2) / scale)));
+
+      activeSkeletonRig.joints[draggedJointId].x = px;
+      activeSkeletonRig.joints[draggedJointId].y = py;
+
+      renderJointPinningView();
+
+      if (jointTooltip) {
+        const pin = activeSkeletonRig.joints[draggedJointId];
+        jointTooltip.style.display = 'block';
+        jointTooltip.style.left = `${Math.min(200, Math.max(10, x + 12))}px`;
+        jointTooltip.style.top = `${Math.min(220, Math.max(10, y - 20))}px`;
+        jointTooltip.innerText = `${pin.name}: (${px}, ${py})`;
+      }
+    } else {
+      const hit = findJointAt(x, y);
+      if (hit !== hoveredJointId) {
+        hoveredJointId = hit;
+        jointOverlay.style.cursor = hit ? 'grab' : 'crosshair';
+        renderJointPinningView();
+        highlightLegendItem(hit);
+
+        if (hit && jointTooltip) {
+          const pin = activeSkeletonRig.joints[hit];
+          jointTooltip.style.display = 'block';
+          jointTooltip.style.left = `${Math.min(200, Math.max(10, x + 12))}px`;
+          jointTooltip.style.top = `${Math.min(220, Math.max(10, y - 20))}px`;
+          jointTooltip.innerText = `${pin.name}: (${pin.x}, ${pin.y})`;
+        } else if (jointTooltip) {
+          jointTooltip.style.display = 'none';
+        }
+      }
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (draggedJointId) {
+      draggedJointId = null;
+      if (jointOverlay) jointOverlay.style.cursor = hoveredJointId ? 'grab' : 'crosshair';
+      if (jointTooltip) jointTooltip.style.display = 'none';
+      saveWizardCheckpoint();
+    }
+  });
+
+  jointLegendItems.forEach(item => {
+    item.addEventListener('mouseenter', () => {
+      const j = item.getAttribute('data-joint') as JointId | null;
+      if (j) {
+        hoveredJointId = j;
+        renderJointPinningView();
+      }
+    });
+    item.addEventListener('mouseleave', () => {
+      if (hoveredJointId) {
+        hoveredJointId = null;
+        renderJointPinningView();
+      }
+    });
+  });
+
+  // Nut Tu Dong Can Khop
+  btnRigAutoAlign?.addEventListener('click', () => {
+    stopTestCycle();
+    if (baseCharState.pixels) {
+      activeSkeletonRig = autoEstimateSkeletonRig(
+        baseCharState.pixels,
+        baseCharState.width || 64,
+        baseCharState.height || 64
+      );
+      renderJointPinningView();
+      saveWizardCheckpoint();
+    }
+  });
+
+  // Xem Thu Buoc Di (Test Cycle)
+  const stopTestCycle = () => {
+    if (testCycleTimer) {
+      clearInterval(testCycleTimer);
+      testCycleTimer = null;
+    }
+    isTestingCycle = false;
+    if (btnRigTestCycle) {
+      btnRigTestCycle.innerText = 'Xem Thử Bước Đi';
+      btnRigTestCycle.style.background = 'rgba(56, 189, 248, 0.15)';
+    }
+    renderJointPinningView();
+  };
+
+  const startTestCycle = () => {
+    if (!baseCharState.pixels || baseCharState.pixels.length === 0) return;
+    ensureSkeletonRig();
+    isTestingCycle = true;
+    if (btnRigTestCycle) {
+      btnRigTestCycle.innerText = 'Dừng Xem Thử';
+      btnRigTestCycle.style.background = 'rgba(239, 68, 68, 0.2)';
+    }
+
+    const charW = baseCharState.width || 64;
+    const charH = baseCharState.height || 64;
+    const scale = 256 / charW;
+    testCycleFrame = 0;
+
+    testCycleTimer = setInterval(() => {
+      if (!jointCanvas || !activeSkeletonRig) return;
+      const ctx = jointCanvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, 256, 256);
+      ctx.fillStyle = '#08090d';
+      ctx.fillRect(0, 0, 256, 256);
+
+      const chestY = activeSkeletonRig.joints.chest?.y ?? 25;
+      const hipsY = activeSkeletonRig.joints.hips?.y ?? 38;
+      const hipsX = activeSkeletonRig.joints.hips?.x ?? 32;
+
+      const t = (testCycleFrame / 4) * 2 * Math.PI;
+      const swingMag = 2.4;
+      const isBobbing = testCycleFrame % 2 === 1;
+      const bodyOffsetY = isBobbing ? -1 : 0;
+
+      for (const p of baseCharState.pixels!) {
+        if (!p.color) continue;
+        let tx = p.x;
+        let ty = p.y;
+
+        if (p.y <= chestY) {
+          ty = p.y + bodyOffsetY;
+        } else if (p.y <= hipsY) {
+          const blendFactor = (p.y - chestY) / Math.max(1, hipsY - chestY);
+          const waistOffsetY = Math.round(bodyOffsetY * (1 - blendFactor));
+          ty = p.y + waistOffsetY;
+        } else {
+          const isLeftLeg = p.x <= hipsX;
+          const legProgress = Math.min(1, Math.max(0, (p.y - hipsY) / Math.max(1, charH - hipsY)));
+          const legSwing = isLeftLeg ? Math.sin(t) * swingMag : -Math.sin(t) * swingMag;
+          tx = Math.round(p.x + legProgress * legSwing);
+
+          const isSwingingForward = isLeftLeg ? Math.sin(t) > 0 : -Math.sin(t) > 0;
+          const liftAmount = isSwingingForward ? Math.abs(Math.sin(t)) * 1.5 : 0;
+          ty = Math.round(p.y - legProgress * legProgress * liftAmount);
+        }
+
+        ctx.fillStyle = p.color;
+        ctx.fillRect(tx * scale, ty * scale, scale, scale);
+      }
+
+      testCycleFrame = (testCycleFrame + 1) % 4;
+    }, 120);
+  };
+
+  btnRigTestCycle?.addEventListener('click', () => {
+    if (isTestingCycle) {
+      stopTestCycle();
+    } else {
+      startTestCycle();
+    }
+  });
+
+  // Chuyen doi qua lai giua Subtabs
+  btnStep3TabActions?.addEventListener('click', () => {
+    btnStep3TabActions.classList.add('active');
+    btnStep3TabRigging?.classList.remove('active');
+    if (step3ActionsPanel) step3ActionsPanel.style.display = 'flex';
+    if (step3RiggingPanel) step3RiggingPanel.style.display = 'none';
+    stopTestCycle();
+  });
+
+  btnStep3TabRigging?.addEventListener('click', () => {
+    btnStep3TabRigging.classList.add('active');
+    btnStep3TabActions?.classList.remove('active');
+    if (step3RiggingPanel) step3RiggingPanel.style.display = 'flex';
+    if (step3ActionsPanel) step3ActionsPanel.style.display = 'none';
+    ensureSkeletonRig();
+    renderJointPinningView();
+  });
+
   // Bắt đầu tạo hoạt ảnh Sprite
   const handleGenerateAnimation = async () => {
     if (!baseCharState.seed) {
@@ -2786,6 +3231,7 @@ function initAiPixelModal(): void {
     }, 1000);
 
     try {
+      ensureSkeletonRig();
       const res = await fetch('http://127.0.0.1:3055/api/ai/generate-animation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2797,7 +3243,8 @@ function initAiPixelModal(): void {
           seed: baseCharState.seed,
           size: animSetupState.frameSize,
           removeBg: animSetupState.removeBg,
-          basePixels: baseCharState.pixels
+          basePixels: baseCharState.pixels,
+          skeletonRig: activeSkeletonRig
         })
       });
 
@@ -2973,6 +3420,12 @@ function initAiPixelModal(): void {
         const eng = c.getAttribute('data-engine');
         c.classList.toggle('active', eng === animSetupState.engine);
       });
+    }
+
+    if (cp.skeletonRig) {
+      activeSkeletonRig = cp.skeletonRig;
+    } else {
+      activeSkeletonRig = null;
     }
 
     // Đưa người dùng về đúng bước đã lưu

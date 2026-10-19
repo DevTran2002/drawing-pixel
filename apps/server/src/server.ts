@@ -276,7 +276,8 @@ const server = http.createServer(async (req, res) => {
           steps,
           size = 64,
           removeBg,
-          basePixels
+          basePixels,
+          skeletonRig
         } = payload;
 
         // 1. Che do 1: Khung xuong bien doi diem anh (Template Engine - Nhanh va on dinh 100%)
@@ -291,7 +292,8 @@ const server = http.createServer(async (req, res) => {
             basePixels: Array.isArray(basePixels) ? basePixels : [],
             width: parseInt(size, 10) || 64,
             height: parseInt(size, 10) || 64,
-            outputPrefix
+            outputPrefix,
+            skeletonRig
           });
 
           // Thong bao hoan tat qua WebSocket
@@ -308,7 +310,8 @@ const server = http.createServer(async (req, res) => {
             engine: 'template',
             action: animResult.action,
             frameCount: animResult.frameCount,
-            frames: animResult.frames
+            frames: animResult.frames,
+            skeletonRig: animResult.skeletonRig
           }));
           return;
         }

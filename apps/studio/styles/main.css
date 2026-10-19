@@ -1386,6 +1386,55 @@ body {
   font-weight: 700 !important;
 }
 
+/* Dinh dang cho Visual Joint Pinning Tool tai Buoc 3 */
+.step3-subtabs .btn {
+  background: #181824;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
 
+.step3-subtabs .btn:hover {
+  background: #1f1f30;
+  color: #ffffff;
+}
 
+.step3-subtabs .btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
 
+.joint-pinning-wrapper {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.joint-pinning-wrapper:hover {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3) !important;
+}
+
+.joint-legend-item {
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.joint-legend-item:hover {
+  background: #1e1e2d !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  transform: translateX(2px);
+}
+
+.joint-legend-item.active {
+  border-color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.15) !important;
+}
+
+#joint-tooltip {
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.1s ease;
+}
