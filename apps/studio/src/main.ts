@@ -2068,13 +2068,17 @@ function initAiPixelModal(): void {
 
   // Trang thai khung xuong va tuong tac gan khop
   let activeSkeletonRig: SkeletonRig | null = null;
-  let draggedJointId: JointId | null = null;
-  let hoveredJointId: JointId | null = null;
+  let draggedJointId: string | null = null;
+  let hoveredJointId: string | null = null;
+  let selectedJointId: string | null = null;
+  let isAddingJoint = false;
+  let showRigGrid = false;
+  let rigZoomScale = 1;
   let isTestingCycle = false;
   let testCycleTimer: any = null;
   let testCycleFrame = 0;
 
-  // Helper tu dong tinh toan 7 khop giai phau chuan dua tren Bounding Box
+  // Helper tu dong tinh toan 16 khop OpenPose Full chuan giai phau dua tren Bounding Box
   const autoEstimateSkeletonRig = (
     basePixels: PixelPoint[],
     width = 64,
@@ -2103,33 +2107,68 @@ function initAiPixelModal(): void {
     const charH = Math.max(1, maxY - minY + 1);
     const centerX = Math.floor((minX + maxX) / 2);
 
-    const headY = Math.max(0, minY + Math.floor(charH * 0.18));
-    const chestY = Math.max(0, minY + Math.floor(charH * 0.40));
-    const hipsY = Math.max(0, minY + Math.floor(charH * 0.60));
-    const kneeY = Math.max(0, minY + Math.floor(charH * 0.80));
+    const headY = Math.max(0, minY + Math.floor(charH * 0.12));
+    const neckY = Math.max(0, minY + Math.floor(charH * 0.25));
+    const chestY = Math.max(0, minY + Math.floor(charH * 0.38));
+    const hipsY = Math.max(0, minY + Math.floor(charH * 0.58));
+
+    // Canh tay
+    const armSpan = Math.max(3, Math.floor(charW * 0.28));
+    const elbowSpan = Math.max(4, Math.floor(charW * 0.36));
+    const wristSpan = Math.max(4, Math.floor(charW * 0.38));
+    const elbowY = Math.max(0, minY + Math.floor(charH * 0.44));
+    const wristY = Math.max(0, minY + Math.floor(charH * 0.58));
+
+    // Chan
+    const hipSpan = Math.max(2, Math.floor(charW * 0.16));
+    const kneeSpan = Math.max(2, Math.floor(charW * 0.20));
+    const kneeY = Math.max(0, minY + Math.floor(charH * 0.78));
     const footY = Math.min(height - 1, maxY);
 
-    const legSpacing = Math.max(2, Math.floor(charW * 0.22));
-
-    const joints: Record<JointId, JointPin> = {
-      head: { id: 'head', name: 'Đầu (Head)', x: centerX, y: headY, color: '#f59e0b', parent: 'chest' },
+    const joints: Record<string, JointPin> = {
+      // Dau & Co (OpenPose #ec4899 / #f59e0b)
+      head: { id: 'head', name: 'Đầu (Head)', x: centerX, y: headY, color: '#ec4899', parent: 'neck' },
+      neck: { id: 'neck', name: 'Cổ (Neck)', x: centerX, y: neckY, color: '#f59e0b', parent: 'chest' },
+      // Than
       chest: { id: 'chest', name: 'Ngực (Chest)', x: centerX, y: chestY, color: '#38bdf8' },
-      hips: { id: 'hips', name: 'Hông (Hips)', x: centerX, y: hipsY, color: '#60a5fa', parent: 'chest' },
-      left_knee: { id: 'left_knee', name: 'Gối Trái (L Knee)', x: Math.max(0, centerX - legSpacing), y: kneeY, color: '#4ade80', parent: 'hips' },
-      left_foot: { id: 'left_foot', name: 'Bàn Chân Trái (L Foot)', x: Math.max(0, centerX - legSpacing), y: footY, color: '#22c55e', parent: 'left_knee' },
-      right_knee: { id: 'right_knee', name: 'Gối Phải (R Knee)', x: Math.min(width - 1, centerX + legSpacing), y: kneeY, color: '#c084fc', parent: 'hips' },
-      right_foot: { id: 'right_foot', name: 'Bàn Chân Phải (R Foot)', x: Math.min(width - 1, centerX + legSpacing), y: footY, color: '#a855f7', parent: 'right_knee' },
-      weapon: { id: 'weapon', name: 'Vũ Khí / Tay (Weapon)', x: Math.min(width - 1, maxX + 2), y: Math.floor(minY + charH * 0.50), color: '#f43f5e', parent: 'chest' }
+      hips: { id: 'hips', name: 'Hông (Hips)', x: centerX, y: hipsY, color: '#0284c7', parent: 'chest' },
+      // Tay Trai (Vang Cam OpenPose)
+      left_shoulder: { id: 'left_shoulder', name: 'Vai Trái (L Shoulder)', x: Math.max(0, centerX - armSpan), y: neckY + 1, color: '#f97316', parent: 'neck' },
+      left_elbow: { id: 'left_elbow', name: 'Khuỷu Trái (L Elbow)', x: Math.max(0, centerX - elbowSpan), y: elbowY, color: '#eab308', parent: 'left_shoulder' },
+      left_wrist: { id: 'left_wrist', name: 'Cổ Tay Trái (L Wrist)', x: Math.max(0, centerX - wristSpan), y: wristY, color: '#fde047', parent: 'left_elbow' },
+      // Tay Phai (Xanh La OpenPose)
+      right_shoulder: { id: 'right_shoulder', name: 'Vai Phải (R Shoulder)', x: Math.min(width - 1, centerX + armSpan), y: neckY + 1, color: '#84cc16', parent: 'neck' },
+      right_elbow: { id: 'right_elbow', name: 'Khuỷu Phải (R Elbow)', x: Math.min(width - 1, centerX + elbowSpan), y: elbowY, color: '#22c55e', parent: 'right_shoulder' },
+      right_wrist: { id: 'right_wrist', name: 'Cổ Tay Phải (R Wrist)', x: Math.min(width - 1, centerX + wristSpan), y: wristY, color: '#4ade80', parent: 'right_elbow' },
+      // Chan Trai (Xanh Lam OpenPose)
+      left_hip: { id: 'left_hip', name: 'Háng Trái (L Hip)', x: Math.max(0, centerX - hipSpan), y: hipsY + 1, color: '#06b6d4', parent: 'hips' },
+      left_knee: { id: 'left_knee', name: 'Gối Trái (L Knee)', x: Math.max(0, centerX - kneeSpan), y: kneeY, color: '#38bdf8', parent: 'left_hip' },
+      left_foot: { id: 'left_foot', name: 'Bàn Chân Trái (L Foot)', x: Math.max(0, centerX - kneeSpan), y: footY, color: '#60a5fa', parent: 'left_knee' },
+      // Chan Phai (Tim OpenPose)
+      right_hip: { id: 'right_hip', name: 'Háng Phải (R Hip)', x: Math.min(width - 1, centerX + hipSpan), y: hipsY + 1, color: '#8b5cf6', parent: 'hips' },
+      right_knee: { id: 'right_knee', name: 'Gối Phải (R Knee)', x: Math.min(width - 1, centerX + kneeSpan), y: kneeY, color: '#a855f7', parent: 'right_hip' },
+      right_foot: { id: 'right_foot', name: 'Bàn Chân Phải (R Foot)', x: Math.min(width - 1, centerX + kneeSpan), y: footY, color: '#c084fc', parent: 'right_knee' },
+      // Vu Khi
+      weapon: { id: 'weapon', name: 'Vũ Khí (Weapon)', x: Math.min(width - 1, maxX + 2), y: Math.floor(minY + charH * 0.50), color: '#f43f5e', parent: 'right_wrist' }
     };
 
-    const bones: [JointId, JointId][] = [
-      ['head', 'chest'],
+    const bones: [string, string][] = [
+      ['head', 'neck'],
+      ['neck', 'chest'],
       ['chest', 'hips'],
-      ['hips', 'left_knee'],
+      ['neck', 'left_shoulder'],
+      ['left_shoulder', 'left_elbow'],
+      ['left_elbow', 'left_wrist'],
+      ['neck', 'right_shoulder'],
+      ['right_shoulder', 'right_elbow'],
+      ['right_elbow', 'right_wrist'],
+      ['hips', 'left_hip'],
+      ['left_hip', 'left_knee'],
       ['left_knee', 'left_foot'],
-      ['hips', 'right_knee'],
+      ['hips', 'right_hip'],
+      ['right_hip', 'right_knee'],
       ['right_knee', 'right_foot'],
-      ['chest', 'weapon']
+      ['right_wrist', 'weapon']
     ];
 
     return {
@@ -2308,9 +2347,16 @@ function initAiPixelModal(): void {
   const step3RiggingPanel = document.getElementById('step3-rigging-panel');
   const jointCanvas = document.getElementById('joint-pinning-canvas') as HTMLCanvasElement | null;
   const jointOverlay = document.getElementById('joint-pinning-overlay') as HTMLCanvasElement | null;
+  const jointPinningWrapper = document.getElementById('joint-pinning-wrapper');
   const jointTooltip = document.getElementById('joint-tooltip');
   const btnRigAutoAlign = document.getElementById('btn-rig-auto-align');
   const btnRigTestCycle = document.getElementById('btn-rig-test-cycle');
+  const btnRigToggleGrid = document.getElementById('btn-rig-toggle-grid');
+  const btnRigAddJoint = document.getElementById('btn-rig-add-joint');
+  const btnRigDeleteJoint = document.getElementById('btn-rig-delete-joint');
+  const rigZoomBtns = document.querySelectorAll('.rig-zoom-btn');
+  const customJointsSection = document.getElementById('custom-joints-section');
+  const customJointsList = document.getElementById('custom-joints-list');
   const jointLegendItems = document.querySelectorAll('.joint-legend-item');
 
   // Các phần tử tại Bước 4 (Live Animation Player)
@@ -2453,6 +2499,7 @@ function initAiPixelModal(): void {
         step3SeedLabel.innerText = `Seed: #${baseCharState.seed || '0'}`;
       }
       ensureSkeletonRig();
+      renderCustomJointsLegend();
       renderJointPinningView();
     } else if (validStep === 4) {
       stopTestCycle();
@@ -2828,6 +2875,9 @@ function initAiPixelModal(): void {
         const f = parseInt(btn.getAttribute('data-frames') || '4', 10);
         btn.classList.toggle('active', f === suggestedFrames);
       });
+      if (isTestingCycle) {
+        startTestCycle();
+      }
       saveWizardCheckpoint();
     });
   });
@@ -2860,17 +2910,80 @@ function initAiPixelModal(): void {
     }
   };
 
-  // Ve nhan vat mau va cac khop xuong len Canvas 256x256
+  // Cap nhat danh sach cac khop tu do (Custom Joints) tren Legend
+  const renderCustomJointsLegend = () => {
+    if (!customJointsList || !customJointsSection || !activeSkeletonRig) return;
+    const customEntries = Object.entries(activeSkeletonRig.joints).filter(([_, pin]) => pin.custom);
+
+    if (customEntries.length === 0) {
+      customJointsSection.style.display = 'none';
+      customJointsList.innerHTML = '';
+      return;
+    }
+
+    customJointsSection.style.display = 'block';
+    customJointsList.innerHTML = '';
+
+    for (const [id, pin] of customEntries) {
+      const item = document.createElement('div');
+      item.className = `joint-legend-item ${selectedJointId === id ? 'selected' : ''}`;
+      item.setAttribute('data-joint', id);
+      item.style.cssText = 'display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); cursor: pointer;';
+
+      const dot = document.createElement('span');
+      dot.style.cssText = `width: 8px; height: 8px; border-radius: 50%; background: ${pin.color}; display: inline-block; flex-shrink: 0;`;
+
+      const title = document.createElement('span');
+      title.style.cssText = `color: ${pin.color}; font-weight: 500; font-size: 10px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+      title.innerText = pin.name;
+
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'btn-remove-custom-joint';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.title = 'Xóa khớp này';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteJointById(id);
+      });
+
+      item.appendChild(dot);
+      item.appendChild(title);
+      item.appendChild(removeBtn);
+
+      item.addEventListener('click', () => {
+        selectedJointId = id;
+        highlightLegendItem(id);
+        renderJointPinningView();
+      });
+
+      item.addEventListener('mouseenter', () => {
+        hoveredJointId = id;
+        renderJointPinningView();
+      });
+
+      item.addEventListener('mouseleave', () => {
+        if (hoveredJointId === id) {
+          hoveredJointId = null;
+          renderJointPinningView();
+        }
+      });
+
+      customJointsList.appendChild(item);
+    }
+  };
+
+  // Ve nhan vat mau va cac khop xuong len Canvas 384x384
   const renderJointPinningView = () => {
     if (!jointCanvas || !jointOverlay) return;
     const ctx = jointCanvas.getContext('2d');
     const oCtx = jointOverlay.getContext('2d');
     if (!ctx || !oCtx) return;
 
-    const w = jointCanvas.width;
-    const h = jointCanvas.height;
+    const w = jointCanvas.width; // 384 px
+    const h = jointCanvas.height; // 384 px
     const charW = baseCharState.width || 64;
-    const scale = w / charW;
+    const charH = baseCharState.height || 64;
+    const scale = w / charW; // 6x scale
 
     // 1. Ve nen va nhan vat mau phong to
     ctx.clearRect(0, 0, w, h);
@@ -2888,6 +3001,7 @@ function initAiPixelModal(): void {
       }
     }
 
+    // Ve tung pixel cua nhan vat mau
     if (baseCharState.pixels) {
       for (const p of baseCharState.pixels) {
         if (!p.color) continue;
@@ -2896,54 +3010,121 @@ function initAiPixelModal(): void {
       }
     }
 
-    // 2. Ve khung xuong tren lop phu Overlay
+    // 2. Ve khung xuong va luoi tren lop phu Overlay
     oCtx.clearRect(0, 0, w, h);
+
+    // a. Ve Luoi Pixel Grid neu duoc bat
+    if (showRigGrid) {
+      oCtx.save();
+      oCtx.lineWidth = 0.6;
+      oCtx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+      for (let x = 0; x <= w; x += scale) {
+        oCtx.beginPath();
+        oCtx.moveTo(x, 0);
+        oCtx.lineTo(x, h);
+        oCtx.stroke();
+      }
+      for (let y = 0; y <= h; y += scale) {
+        oCtx.beginPath();
+        oCtx.moveTo(0, y);
+        oCtx.lineTo(w, y);
+        oCtx.stroke();
+      }
+      oCtx.restore();
+    }
+
     if (!activeSkeletonRig) return;
 
-    // a. Ve cac duong xuong (Bones)
-    oCtx.lineWidth = 3;
+    // b. Ve cac doan xuong (Bones)
     oCtx.lineCap = 'round';
+    oCtx.lineJoin = 'round';
+
     for (const [fromId, toId] of activeSkeletonRig.bones) {
       const fromJoint = activeSkeletonRig.joints[fromId];
       const toJoint = activeSkeletonRig.joints[toId];
       if (!fromJoint || !toJoint) continue;
 
-      oCtx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      const x1 = fromJoint.x * scale + scale / 2;
+      const y1 = fromJoint.y * scale + scale / 2;
+      const x2 = toJoint.x * scale + scale / 2;
+      const y2 = toJoint.y * scale + scale / 2;
+
+      // Xac dinh mau sac xuong theo cap doan OpenPose
+      let boneColor = 'rgba(56, 189, 248, 0.6)';
+      if (toId.startsWith('left_arm') || toId.includes('left_shoulder') || toId.includes('left_elbow') || toId.includes('left_wrist')) {
+        boneColor = 'rgba(249, 115, 22, 0.65)'; // Vang cam
+      } else if (toId.includes('right_shoulder') || toId.includes('right_elbow') || toId.includes('right_wrist')) {
+        boneColor = 'rgba(34, 197, 94, 0.65)'; // Xanh la
+      } else if (toId.includes('left_hip') || toId.includes('left_knee') || toId.includes('left_foot')) {
+        boneColor = 'rgba(6, 182, 212, 0.65)'; // Xanh ngoc
+      } else if (toId.includes('right_hip') || toId.includes('right_knee') || toId.includes('right_foot')) {
+        boneColor = 'rgba(168, 85, 247, 0.65)'; // Tim
+      } else if (toId === 'weapon') {
+        boneColor = 'rgba(244, 63, 94, 0.65)'; // Do hong
+      } else if (toJoint.custom) {
+        boneColor = 'rgba(16, 185, 129, 0.65)'; // Xanh luc tu do
+      }
+
+      // Duong vien bong mo
+      oCtx.save();
+      oCtx.strokeStyle = boneColor;
+      oCtx.lineWidth = 4;
       oCtx.beginPath();
-      oCtx.moveTo(fromJoint.x * scale + scale / 2, fromJoint.y * scale + scale / 2);
-      oCtx.lineTo(toJoint.x * scale + scale / 2, toJoint.y * scale + scale / 2);
+      oCtx.moveTo(x1, y1);
+      oCtx.lineTo(x2, y2);
       oCtx.stroke();
+      oCtx.restore();
     }
 
-    // b. Ve cac diem chot khop (Joint Pins)
-    for (const key of Object.keys(activeSkeletonRig.joints) as JointId[]) {
+    // c. Ve cac diem chot khop (Joint Pins)
+    for (const key of Object.keys(activeSkeletonRig.joints)) {
       const pin = activeSkeletonRig.joints[key];
       if (!pin) continue;
+
       const px = pin.x * scale + scale / 2;
       const py = pin.y * scale + scale / 2;
+      const isSelected = selectedJointId === key;
       const isHovered = hoveredJointId === key || draggedJointId === key;
-      const radius = isHovered ? 8 : 6;
+      const radius = isSelected ? 8.5 : (isHovered ? 7.5 : 6);
 
       oCtx.save();
+      // Bong phat sang
       oCtx.shadowColor = pin.color;
-      oCtx.shadowBlur = isHovered ? 12 : 6;
+      oCtx.shadowBlur = isSelected ? 16 : (isHovered ? 10 : 5);
 
+      // Than chot tron
       oCtx.fillStyle = pin.color;
       oCtx.beginPath();
       oCtx.arc(px, py, radius, 0, Math.PI * 2);
       oCtx.fill();
 
+      // Vien vien den
       oCtx.lineWidth = 2;
-      oCtx.strokeStyle = isHovered ? '#ffffff' : '#000000';
+      oCtx.strokeStyle = '#05070a';
       oCtx.stroke();
 
-      if (isHovered) {
-        oCtx.lineWidth = 1.5;
-        oCtx.strokeStyle = pin.color;
+      // Vong vien ngoai khi hover hoac select
+      if (isSelected) {
+        oCtx.lineWidth = 2;
+        oCtx.strokeStyle = '#ffffff';
         oCtx.beginPath();
         oCtx.arc(px, py, radius + 4, 0, Math.PI * 2);
         oCtx.stroke();
+
+        // Tieu de khop noi bat
+        oCtx.font = 'bold 10px monospace';
+        oCtx.fillStyle = '#ffffff';
+        oCtx.shadowColor = '#000000';
+        oCtx.shadowBlur = 4;
+        oCtx.fillText(pin.name.split(' ')[0], px + 12, py + 3);
+      } else if (isHovered) {
+        oCtx.lineWidth = 1.5;
+        oCtx.strokeStyle = pin.color;
+        oCtx.beginPath();
+        oCtx.arc(px, py, radius + 3, 0, Math.PI * 2);
+        oCtx.stroke();
       }
+
       oCtx.restore();
     }
   };
@@ -2961,16 +3142,16 @@ function initAiPixelModal(): void {
   };
 
   // Tim khop gan nhat voi vi tri chuot
-  const findJointAt = (canvasX: number, canvasY: number): JointId | null => {
+  const findJointAt = (canvasX: number, canvasY: number): string | null => {
     if (!activeSkeletonRig) return null;
     const charW = baseCharState.width || 64;
-    const scale = 256 / charW;
-    const hitRadius = 14;
+    const scale = 384 / charW;
+    const hitRadius = 16;
 
-    let closest: JointId | null = null;
+    let closest: string | null = null;
     let minDist = hitRadius;
 
-    for (const key of Object.keys(activeSkeletonRig.joints) as JointId[]) {
+    for (const key of Object.keys(activeSkeletonRig.joints)) {
       const pin = activeSkeletonRig.joints[key];
       if (!pin) continue;
       const px = pin.x * scale + scale / 2;
@@ -2984,22 +3165,107 @@ function initAiPixelModal(): void {
     return closest;
   };
 
-  const highlightLegendItem = (jointId: JointId | null) => {
+  const highlightLegendItem = (jointId: string | null) => {
     jointLegendItems.forEach(item => {
       const j = item.getAttribute('data-joint');
+      item.classList.toggle('selected', j === jointId);
       item.classList.toggle('active', j === jointId);
     });
+
+    if (customJointsList) {
+      customJointsList.querySelectorAll('.joint-legend-item').forEach(item => {
+        const j = item.getAttribute('data-joint');
+        item.classList.toggle('selected', j === jointId);
+        item.classList.toggle('active', j === jointId);
+      });
+    }
   };
 
-  // Bat su kien keo tha khop tren Overlay
+  // Xoa mot khop khoi Skeleton Rig
+  const deleteJointById = (targetId: string) => {
+    if (!activeSkeletonRig) return;
+    if (targetId === 'chest') {
+      alert('Không thể xóa khớp Ngực (Chest) vì đây là khớp gốc của toàn bộ cơ thể!');
+      return;
+    }
+
+    delete activeSkeletonRig.joints[targetId];
+    activeSkeletonRig.bones = activeSkeletonRig.bones.filter(
+      ([from, to]) => from !== targetId && to !== targetId
+    );
+
+    if (selectedJointId === targetId) {
+      selectedJointId = null;
+    }
+    if (hoveredJointId === targetId) {
+      hoveredJointId = null;
+    }
+
+    highlightLegendItem(null);
+    renderCustomJointsLegend();
+    renderJointPinningView();
+    saveWizardCheckpoint();
+  };
+
+  // Bat su kien click / drag tren Canvas Overlay
   jointOverlay?.addEventListener('mousedown', (e) => {
     if (isTestingCycle) stopTestCycle();
     const { x, y } = getCanvasCoords(e);
     const hit = findJointAt(x, y);
+
+    // Neu dang o che do Them Khop
+    if (isAddingJoint) {
+      const charW = baseCharState.width || 64;
+      const charH = baseCharState.height || 64;
+      const scale = 384 / charW;
+      const px = Math.max(0, Math.min(charW - 1, Math.round((x - scale / 2) / scale)));
+      const py = Math.max(0, Math.min(charH - 1, Math.round((y - scale / 2) / scale)));
+
+      const customId = `custom_${Date.now()}`;
+      const parentId = selectedJointId && activeSkeletonRig?.joints[selectedJointId]
+        ? selectedJointId
+        : (activeSkeletonRig?.joints.chest ? 'chest' : 'hips');
+
+      const customColors = ['#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#a855f7', '#14b8a6'];
+      const pickColor = customColors[Math.floor(Math.random() * customColors.length)];
+      const customCount = Object.keys(activeSkeletonRig?.joints || {}).filter(k => activeSkeletonRig?.joints[k].custom).length + 1;
+
+      if (activeSkeletonRig) {
+        activeSkeletonRig.joints[customId] = {
+          id: customId,
+          name: `Khớp Tự Do ${customCount}`,
+          x: px,
+          y: py,
+          color: pickColor,
+          parent: parentId,
+          custom: true
+        };
+        activeSkeletonRig.bones.push([parentId, customId]);
+      }
+
+      selectedJointId = customId;
+      isAddingJoint = false;
+      btnRigAddJoint?.classList.remove('active');
+      jointOverlay.style.cursor = 'crosshair';
+
+      renderCustomJointsLegend();
+      highlightLegendItem(customId);
+      renderJointPinningView();
+      saveWizardCheckpoint();
+      return;
+    }
+
+    // Neu nhap trung khop
     if (hit) {
       draggedJointId = hit;
+      selectedJointId = hit;
       jointOverlay.style.cursor = 'grabbing';
       highlightLegendItem(hit);
+      renderJointPinningView();
+    } else {
+      selectedJointId = null;
+      highlightLegendItem(null);
+      renderJointPinningView();
     }
   });
 
@@ -3010,7 +3276,7 @@ function initAiPixelModal(): void {
     if (draggedJointId) {
       const charW = baseCharState.width || 64;
       const charH = baseCharState.height || 64;
-      const scale = 256 / charW;
+      const scale = 384 / charW;
 
       const px = Math.max(0, Math.min(charW - 1, Math.round((x - scale / 2) / scale)));
       const py = Math.max(0, Math.min(charH - 1, Math.round((y - scale / 2) / scale)));
@@ -3023,23 +3289,22 @@ function initAiPixelModal(): void {
       if (jointTooltip) {
         const pin = activeSkeletonRig.joints[draggedJointId];
         jointTooltip.style.display = 'block';
-        jointTooltip.style.left = `${Math.min(200, Math.max(10, x + 12))}px`;
-        jointTooltip.style.top = `${Math.min(220, Math.max(10, y - 20))}px`;
+        jointTooltip.style.left = `${Math.min(320, Math.max(10, x + 14))}px`;
+        jointTooltip.style.top = `${Math.min(340, Math.max(10, y - 24))}px`;
         jointTooltip.innerText = `${pin.name}: (${px}, ${py})`;
       }
-    } else {
+    } else if (!isAddingJoint) {
       const hit = findJointAt(x, y);
       if (hit !== hoveredJointId) {
         hoveredJointId = hit;
         jointOverlay.style.cursor = hit ? 'grab' : 'crosshair';
         renderJointPinningView();
-        highlightLegendItem(hit);
 
         if (hit && jointTooltip) {
           const pin = activeSkeletonRig.joints[hit];
           jointTooltip.style.display = 'block';
-          jointTooltip.style.left = `${Math.min(200, Math.max(10, x + 12))}px`;
-          jointTooltip.style.top = `${Math.min(220, Math.max(10, y - 20))}px`;
+          jointTooltip.style.left = `${Math.min(320, Math.max(10, x + 14))}px`;
+          jointTooltip.style.top = `${Math.min(340, Math.max(10, y - 24))}px`;
           jointTooltip.innerText = `${pin.name}: (${pin.x}, ${pin.y})`;
         } else if (jointTooltip) {
           jointTooltip.style.display = 'none';
@@ -3051,29 +3316,98 @@ function initAiPixelModal(): void {
   window.addEventListener('mouseup', () => {
     if (draggedJointId) {
       draggedJointId = null;
-      if (jointOverlay) jointOverlay.style.cursor = hoveredJointId ? 'grab' : 'crosshair';
+      if (jointOverlay) jointOverlay.style.cursor = hoveredJointId ? 'grab' : (isAddingJoint ? 'copy' : 'crosshair');
       if (jointTooltip) jointTooltip.style.display = 'none';
       saveWizardCheckpoint();
     }
   });
 
+  // Ban phim ho tro: Bam Delete hoac Backspace de xoa khop dang chon
+  window.addEventListener('keydown', (e) => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedJointId) {
+      // Chi thuc thi khi Step 3 Rigging dang hien thi
+      if (step3RiggingPanel && step3RiggingPanel.style.display !== 'none') {
+        e.preventDefault();
+        deleteJointById(selectedJointId);
+      }
+    }
+  });
+
+  // Gan su kien click cho cac khop tren Legend co dinh
   jointLegendItems.forEach(item => {
+    const j = item.getAttribute('data-joint');
+    item.addEventListener('click', () => {
+      selectedJointId = j;
+      highlightLegendItem(j);
+      renderJointPinningView();
+    });
     item.addEventListener('mouseenter', () => {
-      const j = item.getAttribute('data-joint') as JointId | null;
       if (j) {
         hoveredJointId = j;
         renderJointPinningView();
       }
     });
     item.addEventListener('mouseleave', () => {
-      if (hoveredJointId) {
+      if (hoveredJointId === j) {
         hoveredJointId = null;
         renderJointPinningView();
       }
     });
   });
 
-  // Nut Tu Dong Can Khop
+  // Nut Bat/Tat Them Khop
+  btnRigAddJoint?.addEventListener('click', () => {
+    isAddingJoint = !isAddingJoint;
+    btnRigAddJoint.classList.toggle('active', isAddingJoint);
+    if (jointOverlay) {
+      jointOverlay.style.cursor = isAddingJoint ? 'copy' : 'crosshair';
+    }
+  });
+
+  // Nut Xoa Khop Dang Chon
+  btnRigDeleteJoint?.addEventListener('click', () => {
+    if (!selectedJointId) {
+      alert('Vui lòng chọn một khớp trên ảnh hoặc trong danh sách trước khi xóa!');
+      return;
+    }
+    deleteJointById(selectedJointId);
+  });
+
+  // Nut Bat/Tat Luoi Pixel
+  btnRigToggleGrid?.addEventListener('click', () => {
+    showRigGrid = !showRigGrid;
+    btnRigToggleGrid.classList.toggle('active', showRigGrid);
+    renderJointPinningView();
+  });
+
+  // Cac nut Zoom (1x, 1.5x, 2x)
+  rigZoomBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      rigZoomBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const zoom = parseFloat(btn.getAttribute('data-zoom') || '1');
+      rigZoomScale = zoom;
+
+      const baseSize = 384;
+      const targetSize = `${baseSize * zoom}px`;
+
+      if (jointPinningWrapper) {
+        jointPinningWrapper.style.width = targetSize;
+        jointPinningWrapper.style.height = targetSize;
+      }
+      if (jointCanvas) {
+        jointCanvas.style.width = targetSize;
+        jointCanvas.style.height = targetSize;
+      }
+      if (jointOverlay) {
+        jointOverlay.style.width = targetSize;
+        jointOverlay.style.height = targetSize;
+      }
+    });
+  });
+
+  // Nut Tu Dong Can Khop OpenPose Chuẩn
   btnRigAutoAlign?.addEventListener('click', () => {
     stopTestCycle();
     if (baseCharState.pixels) {
@@ -3082,12 +3416,15 @@ function initAiPixelModal(): void {
         baseCharState.width || 64,
         baseCharState.height || 64
       );
+      selectedJointId = null;
+      renderCustomJointsLegend();
+      highlightLegendItem(null);
       renderJointPinningView();
       saveWizardCheckpoint();
     }
   });
 
-  // Xem Thu Buoc Di (Test Cycle)
+  // Xem Thu Chuyen Dong (Test Cycle) ho tro day du moi hanh dong theo khung xuong OpenPose
   const stopTestCycle = () => {
     if (testCycleTimer) {
       clearInterval(testCycleTimer);
@@ -3095,7 +3432,7 @@ function initAiPixelModal(): void {
     }
     isTestingCycle = false;
     if (btnRigTestCycle) {
-      btnRigTestCycle.innerText = 'Xem Thử Bước Đi';
+      btnRigTestCycle.innerText = 'Xem Thử Chuyển Động';
       btnRigTestCycle.style.background = 'rgba(56, 189, 248, 0.15)';
     }
     renderJointPinningView();
@@ -3112,55 +3449,296 @@ function initAiPixelModal(): void {
 
     const charW = baseCharState.width || 64;
     const charH = baseCharState.height || 64;
-    const scale = 256 / charW;
+    const scale = 384 / charW;
     testCycleFrame = 0;
+
+    const rig = activeSkeletonRig!;
+    const neckY = rig.joints.neck?.y ?? Math.floor(charH * 0.25);
+    const chestY = rig.joints.chest?.y ?? Math.floor(charH * 0.38);
+    const hipsY = rig.joints.hips?.y ?? Math.floor(charH * 0.58);
+    const hipsX = rig.joints.hips?.x ?? Math.floor(charW / 2);
+    const centerX = Math.floor(charW / 2);
+
+    const leftShoulder = rig.joints.left_shoulder || { x: centerX - 8, y: neckY };
+    const rightShoulder = rig.joints.right_shoulder || { x: centerX + 8, y: neckY };
+    const leftElbow = rig.joints.left_elbow || { x: leftShoulder.x - 3, y: chestY };
+    const rightElbow = rig.joints.right_elbow || { x: rightShoulder.x + 3, y: chestY };
+    const leftWrist = rig.joints.left_wrist || { x: leftElbow.x - 2, y: hipsY };
+    const rightWrist = rig.joints.right_wrist || { x: rightElbow.x + 2, y: hipsY };
+    const weaponJoint = rig.joints.weapon || { x: rightWrist.x + 4, y: rightWrist.y };
+    const leftKnee = rig.joints.left_knee || { x: hipsX - 6, y: Math.floor(charH * 0.78) };
+    const rightKnee = rig.joints.right_knee || { x: hipsX + 6, y: Math.floor(charH * 0.78) };
+    const wristY = Math.max(leftWrist.y, rightWrist.y);
+
+    const distToSeg = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const l2 = dx * dx + dy * dy;
+      if (l2 === 0) return Math.hypot(px - x1, py - y1);
+      let t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l2));
+      return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+    };
+
+    const classifyPt = (p: PixelPoint) => {
+      if (weaponJoint && Math.hypot(p.x - weaponJoint.x, p.y - weaponJoint.y) <= 4.5) return 'WEAPON';
+      if (p.y <= neckY + 1 && Math.abs(p.x - centerX) <= charW * 0.4) return 'HEAD';
+      if (p.y <= hipsY) {
+        const dL = Math.min(distToSeg(p.x, p.y, leftShoulder.x, leftShoulder.y, leftElbow.x, leftElbow.y), distToSeg(p.x, p.y, leftElbow.x, leftElbow.y, leftWrist.x, leftWrist.y));
+        const dR = Math.min(distToSeg(p.x, p.y, rightShoulder.x, rightShoulder.y, rightElbow.x, rightElbow.y), distToSeg(p.x, p.y, rightElbow.x, rightElbow.y, rightWrist.x, rightWrist.y));
+        if (p.x < leftShoulder.x + 1 && (dL <= 5.5 || p.x < centerX - charW * 0.22)) return 'LEFT_ARM';
+        if (p.x > rightShoulder.x - 1 && (dR <= 5.5 || p.x > centerX + charW * 0.22)) return 'RIGHT_ARM';
+        if (p.y <= chestY) return 'CHEST';
+        return 'WAIST';
+      }
+      if (p.x <= hipsX) {
+        return p.y <= leftKnee.y ? 'LEFT_LEG_UPPER' : 'LEFT_LEG_LOWER';
+      } else {
+        return p.y <= rightKnee.y ? 'RIGHT_LEG_UPPER' : 'RIGHT_LEG_LOWER';
+      }
+    };
+
+    const action = animSetupState.action.toLowerCase();
+    const totalFrames = animSetupState.frameCount || 4;
 
     testCycleTimer = setInterval(() => {
       if (!jointCanvas || !activeSkeletonRig) return;
       const ctx = jointCanvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.clearRect(0, 0, 256, 256);
+      ctx.clearRect(0, 0, 384, 384);
       ctx.fillStyle = '#08090d';
-      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillRect(0, 0, 384, 384);
 
-      const chestY = activeSkeletonRig.joints.chest?.y ?? 25;
-      const hipsY = activeSkeletonRig.joints.hips?.y ?? 38;
-      const hipsX = activeSkeletonRig.joints.hips?.x ?? 32;
-
-      const t = (testCycleFrame / 4) * 2 * Math.PI;
-      const swingMag = 2.4;
-      const isBobbing = testCycleFrame % 2 === 1;
-      const bodyOffsetY = isBobbing ? -1 : 0;
-
-      for (const p of baseCharState.pixels!) {
-        if (!p.color) continue;
-        let tx = p.x;
-        let ty = p.y;
-
-        if (p.y <= chestY) {
-          ty = p.y + bodyOffsetY;
-        } else if (p.y <= hipsY) {
-          const blendFactor = (p.y - chestY) / Math.max(1, hipsY - chestY);
-          const waistOffsetY = Math.round(bodyOffsetY * (1 - blendFactor));
-          ty = p.y + waistOffsetY;
-        } else {
-          const isLeftLeg = p.x <= hipsX;
-          const legProgress = Math.min(1, Math.max(0, (p.y - hipsY) / Math.max(1, charH - hipsY)));
-          const legSwing = isLeftLeg ? Math.sin(t) * swingMag : -Math.sin(t) * swingMag;
-          tx = Math.round(p.x + legProgress * legSwing);
-
-          const isSwingingForward = isLeftLeg ? Math.sin(t) > 0 : -Math.sin(t) > 0;
-          const liftAmount = isSwingingForward ? Math.abs(Math.sin(t)) * 1.5 : 0;
-          ty = Math.round(p.y - legProgress * legProgress * liftAmount);
+      // Ve checkerboard nhe
+      ctx.fillStyle = '#11131c';
+      const gridSize = 16;
+      for (let y = 0; y < 384; y += gridSize) {
+        for (let x = 0; x < 384; x += gridSize) {
+          if ((Math.floor(x / gridSize) + Math.floor(y / gridSize)) % 2 === 1) {
+            ctx.fillRect(x, y, gridSize, gridSize);
+          }
         }
-
-        ctx.fillStyle = p.color;
-        ctx.fillRect(tx * scale, ty * scale, scale, scale);
       }
 
-      testCycleFrame = (testCycleFrame + 1) % 4;
-    }, 120);
+      const fIdx = testCycleFrame % totalFrames;
+
+      if (action === 'jump') {
+        let dChestY = 0;
+        let dWaistY = 0;
+        let dLegUpperY = 0;
+        let dLegLowerY = 0;
+        let dArmY = 0;
+        let dArmDx = 0;
+
+        if (fIdx === 0) {
+          dChestY = 2; dWaistY = 3; dLegUpperY = 3; dLegLowerY = 0; dArmY = 1; dArmDx = 2;
+        } else if (fIdx === 1) {
+          dChestY = -7; dWaistY = -6; dLegUpperY = -7; dLegLowerY = -9; dArmY = -10; dArmDx = -1;
+        } else if (fIdx === 2) {
+          dChestY = -4; dWaistY = -3; dLegUpperY = -4; dLegLowerY = -4; dArmY = -5; dArmDx = 0;
+        } else {
+          dChestY = 2; dWaistY = 3; dLegUpperY = 3; dLegLowerY = 0; dArmY = 0; dArmDx = -2;
+        }
+
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          const part = classifyPt(p);
+          let tx = p.x;
+          let ty = p.y;
+          switch (part) {
+            case 'HEAD':
+            case 'CHEST': ty += dChestY; break;
+            case 'WAIST': ty += dWaistY; break;
+            case 'LEFT_ARM': tx -= dArmDx; ty += dArmY; break;
+            case 'RIGHT_ARM':
+            case 'WEAPON': tx += dArmDx; ty += dArmY; break;
+            case 'LEFT_LEG_UPPER': tx -= (fIdx === 0 || fIdx === 3 ? 1 : 0); ty += dLegUpperY; break;
+            case 'RIGHT_LEG_UPPER': tx += (fIdx === 0 || fIdx === 3 ? 1 : 0); ty += dLegUpperY; break;
+            case 'LEFT_LEG_LOWER':
+            case 'RIGHT_LEG_LOWER': ty += dLegLowerY; break;
+          }
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+
+      } else if (action === 'attack' || action === 'slash') {
+        let bodyDx = 0, bodyDy = 0, swordDx = 0, swordDy = 0, offDx = 0, offDy = 0;
+        if (fIdx === 0) {
+          bodyDx = -1; swordDx = -4; swordDy = -4; offDx = 2; offDy = 1;
+        } else if (fIdx === 1) {
+          bodyDx = 3; bodyDy = 1; swordDx = 6; swordDy = 3; offDx = -3; offDy = 2;
+        } else if (fIdx === 2) {
+          bodyDx = 2; bodyDy = 1; swordDx = 4; swordDy = 4; offDx = -1;
+        }
+
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          const part = classifyPt(p);
+          let tx = p.x;
+          let ty = p.y;
+          switch (part) {
+            case 'HEAD':
+            case 'CHEST':
+            case 'WAIST': tx += bodyDx; ty += bodyDy; break;
+            case 'RIGHT_ARM':
+            case 'WEAPON': tx += swordDx; ty += swordDy; break;
+            case 'LEFT_ARM': tx += offDx; ty += offDy; break;
+            case 'LEFT_LEG_UPPER':
+            case 'LEFT_LEG_LOWER': tx += (fIdx === 1 ? -1 : 0); break;
+            case 'RIGHT_LEG_UPPER':
+            case 'RIGHT_LEG_LOWER': tx += (fIdx === 1 ? 2 : (fIdx === 0 ? -1 : 0)); break;
+          }
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+
+        // Vet chem quang (Slash VFX) tai Frame 1
+        if (fIdx === 1) {
+          const arcX = (weaponJoint.x + swordDx - 2) * scale;
+          const arcY = (weaponJoint.y + swordDy - 2) * scale;
+          const r = Math.max(10, Math.floor(charW * 0.65)) * scale;
+          ctx.save();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4;
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(arcX, arcY, r, -1.4, 1.1);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+      } else if (action === 'sit') {
+        const isShift = fIdx === 1;
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          const part = classifyPt(p);
+          let tx = p.x;
+          let ty = p.y;
+          switch (part) {
+            case 'HEAD':
+            case 'CHEST': ty += 6 + (isShift ? 1 : 0); break;
+            case 'WAIST': ty += 8 + (isShift ? 1 : 0); break;
+            case 'LEFT_ARM':
+            case 'RIGHT_ARM':
+            case 'WEAPON': ty += 8 + (isShift ? 1 : 0); break;
+            case 'LEFT_LEG_UPPER': tx -= 2; ty += 8; break;
+            case 'RIGHT_LEG_UPPER': tx += 2; ty += 8; break;
+            case 'LEFT_LEG_LOWER':
+            case 'RIGHT_LEG_LOWER': ty += 4; break;
+          }
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+
+      } else if (action === 'defeated') {
+        const isFlat = fIdx >= 1;
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          let tx = p.x;
+          let ty = p.y;
+          if (!isFlat) {
+            tx = p.x - Math.round(p.y * 0.1);
+            ty = p.y + 4;
+          } else {
+            const groundY = charH - 4;
+            ty = groundY - Math.round((charH - p.y) * 0.25);
+            tx = centerX + Math.round((p.y - chestY) * 0.8) + Math.round((p.x - centerX) * 0.5);
+          }
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+
+      } else if (action === 'run') {
+        const t = (fIdx / totalFrames) * 2 * Math.PI;
+        const swingMag = 3.6;
+        const bodyOffsetY = fIdx % 2 === 1 ? -1 : 0;
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          const part = classifyPt(p);
+          let tx = p.x + 1;
+          let ty = p.y;
+          switch (part) {
+            case 'HEAD':
+            case 'CHEST': ty += bodyOffsetY; break;
+            case 'WAIST': ty += Math.round(bodyOffsetY * 0.5); break;
+            case 'LEFT_ARM': {
+              const armSwing = -Math.sin(t) * 3.8;
+              tx += Math.round(armSwing);
+              ty += bodyOffsetY;
+              break;
+            }
+            case 'RIGHT_ARM':
+            case 'WEAPON': {
+              const armSwing = Math.sin(t) * 3.8;
+              tx += Math.round(armSwing);
+              ty += bodyOffsetY;
+              break;
+            }
+            case 'LEFT_LEG_UPPER':
+            case 'LEFT_LEG_LOWER': {
+              tx += Math.round(Math.sin(t) * swingMag);
+              break;
+            }
+            case 'RIGHT_LEG_UPPER':
+            case 'RIGHT_LEG_LOWER': {
+              tx += Math.round(-Math.sin(t) * swingMag);
+              break;
+            }
+          }
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+
+      } else if (action === 'idle') {
+        const bodyOffsetY = fIdx % 2 === 1 ? 1 : 0;
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          const part = classifyPt(p);
+          let tx = p.x;
+          let ty = p.y;
+          if (part === 'HEAD' || part === 'CHEST') ty += bodyOffsetY;
+          else if (part === 'WAIST' || part === 'LEFT_ARM' || part === 'RIGHT_ARM' || part === 'WEAPON') ty += Math.round(bodyOffsetY * 0.5);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+
+      } else {
+        // Walk (Di bo mac dinh)
+        const t = (fIdx / totalFrames) * 2 * Math.PI;
+        const swingMag = 2.4;
+        const bodyOffsetY = fIdx % 2 === 1 ? -1 : 0;
+
+        for (const p of baseCharState.pixels!) {
+          if (!p.color) continue;
+          const part = classifyPt(p);
+          let tx = p.x;
+          let ty = p.y;
+
+          if (part === 'HEAD' || part === 'CHEST') {
+            ty += bodyOffsetY;
+          } else if (part === 'WAIST') {
+            const blend = (p.y - chestY) / Math.max(1, hipsY - chestY);
+            ty += Math.round(bodyOffsetY * (1 - blend));
+          } else if (part === 'LEFT_ARM') {
+            tx += Math.round(-Math.sin(t) * 2.2);
+            ty += bodyOffsetY;
+          } else if (part === 'RIGHT_ARM' || part === 'WEAPON') {
+            tx += Math.round(Math.sin(t) * 2.2);
+            ty += bodyOffsetY;
+          } else if (part === 'LEFT_LEG_UPPER' || part === 'LEFT_LEG_LOWER') {
+            tx += Math.round(Math.sin(t) * swingMag);
+          } else {
+            tx += Math.round(-Math.sin(t) * swingMag);
+          }
+
+          ctx.fillStyle = p.color;
+          ctx.fillRect(tx * scale, ty * scale, scale, scale);
+        }
+      }
+
+      testCycleFrame = (testCycleFrame + 1) % totalFrames;
+    }, 130);
   };
 
   btnRigTestCycle?.addEventListener('click', () => {

@@ -282,7 +282,7 @@
 
     <!-- 4. Modal Sinh Anh Pixel Bang AI (SD 1.5 + LoRA) -->
     <div class="modal-backdrop" id="ai-modal" style="display: none;">
-      <div class="modal-dialog" style="max-width: 960px; width: 95vw;">
+      <div class="modal-dialog" style="max-width: 1200px; width: 95vw;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
             <h3>Pixel Art AI Studio (SD1.5 & LoRA)</h3>
@@ -607,71 +607,157 @@
 
                 <!-- TAB CON 2: GAN KHUNG XUONG THU CONG (VISUAL JOINT PINNING) -->
                 <div id="step3-rigging-panel" style="display: none; flex-direction: column; gap: 10px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                     <div>
-                      <span style="font-size: 12px; font-weight: 600; color: #38bdf8; display: block;">Chấm & Kéo Thả Khớp Xương (Visual Joint Pinning)</span>
-                      <span style="font-size: 10px; color: var(--text-muted);">Kéo các chốt tròn đến đúng vị trí giải phẫu của nhân vật (Đầu, Hông, Gối, Bàn chân)</span>
+                      <span style="font-size: 13px; font-weight: 700; color: #38bdf8; display: block;">Chấm & Gán Khung Xương OpenPose Chuẩn (Visual Skeleton Rigging)</span>
+                      <span style="font-size: 10.5px; color: var(--text-muted);">Chuẩn 16 khớp: Đầu, Cổ, Ngực, Vai, Khuỷu tay, Cổ tay, Háng, Gối, Bàn chân. Hỗ trợ thêm/xóa khớp tự do.</span>
                     </div>
-                    <div style="display: flex; gap: 6px;">
-                      <button type="button" class="btn btn-tiny" id="btn-rig-auto-align" title="Tự động tính toán lại 7 khớp giải phẫu từ hình mẫu">
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                      <!-- Nhóm nút Zoom -->
+                      <div class="rig-zoom-group" style="display: flex; gap: 2px; background: #13131a; padding: 2px; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <button type="button" class="btn btn-tiny rig-zoom-btn active" data-zoom="1" title="Kích thước 384x384 px (Tỷ lệ 6x)">1x</button>
+                        <button type="button" class="btn btn-tiny rig-zoom-btn" data-zoom="1.5" title="Phóng to 1.5x (576x576 px)">1.5x</button>
+                        <button type="button" class="btn btn-tiny rig-zoom-btn" data-zoom="2" title="Phóng to 2x (768x768 px)">2x</button>
+                      </div>
+                      <!-- Bật tắt Lưới Pixel -->
+                      <button type="button" class="btn btn-tiny" id="btn-rig-toggle-grid" title="Bật hoặc tắt lưới Pixel Grid để căn chỉnh chính xác">
+                        Lưới Pixel
+                      </button>
+                      <!-- Thêm Khớp Mới -->
+                      <button type="button" class="btn btn-tiny" id="btn-rig-add-joint" style="border-color: #10b981; color: #10b981;" title="Bấm vào đây rồi nhấp chuột lên ảnh để tạo khớp mới">
+                        + Thêm Khớp
+                      </button>
+                      <!-- Xóa Khớp Đang Chọn -->
+                      <button type="button" class="btn btn-tiny" id="btn-rig-delete-joint" style="border-color: #f43f5e; color: #f43f5e;" title="Xóa khớp đang được chọn">
+                        Xóa Khớp
+                      </button>
+                      <!-- Tự Động Căn Khớp -->
+                      <button type="button" class="btn btn-tiny" id="btn-rig-auto-align" title="Tự động tính toán lại 16 khớp chuẩn OpenPose từ hình mẫu">
                         Tự Động Căn Khớp
                       </button>
-                      <button type="button" class="btn btn-tiny" id="btn-rig-test-cycle" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;">
-                        Xem Thử Bước Đi
+                      <!-- Xem Thử Chuyển Động -->
+                      <button type="button" class="btn btn-tiny" id="btn-rig-test-cycle" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;" title="Xem trước chuyển động của hành động đang chọn theo các khớp đã định">
+                        Xem Thử Chuyển Động
                       </button>
                     </div>
                   </div>
 
-                  <div style="display: flex; gap: 14px; align-items: flex-start;">
-                    <!-- Canvas phong to 256x256 px + Lop phu Overlay -->
-                    <div class="joint-pinning-wrapper" style="position: relative; width: 256px; height: 256px; background: #08090d; border: 2px solid #1e293b; border-radius: 8px; overflow: hidden; user-select: none; box-shadow: 0 4px 20px rgba(0,0,0,0.6); flex-shrink: 0;">
-                      <canvas id="joint-pinning-canvas" width="256" height="256" style="display: block; width: 256px; height: 256px; image-rendering: pixelated;"></canvas>
-                      <canvas id="joint-pinning-overlay" width="256" height="256" style="position: absolute; top: 0; left: 0; width: 256px; height: 256px; pointer-events: auto; cursor: crosshair;"></canvas>
-                      <div id="joint-tooltip" style="position: absolute; display: none; pointer-events: none; background: rgba(0,0,0,0.85); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; border: 1px solid #38bdf8; z-index: 10; white-space: nowrap;"></div>
+                  <div style="display: flex; gap: 16px; align-items: flex-start;">
+                    <!-- Khung cuộn Canvas kích thước lớn 384x384 px -->
+                    <div class="joint-pinning-scroll-box" style="width: 392px; height: 392px; overflow: auto; border: 2px solid #1e293b; border-radius: 8px; background: #08090d; flex-shrink: 0; box-shadow: 0 4px 20px rgba(0,0,0,0.6);">
+                      <div class="joint-pinning-wrapper" id="joint-pinning-wrapper" style="position: relative; width: 384px; height: 384px; user-select: none;">
+                        <canvas id="joint-pinning-canvas" width="384" height="384" style="display: block; width: 384px; height: 384px; image-rendering: pixelated;"></canvas>
+                        <canvas id="joint-pinning-overlay" width="384" height="384" style="position: absolute; top: 0; left: 0; width: 384px; height: 384px; pointer-events: auto; cursor: crosshair;"></canvas>
+                        <div id="joint-tooltip" style="position: absolute; display: none; pointer-events: none; background: rgba(0,0,0,0.9); color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; border: 1px solid #38bdf8; z-index: 10; white-space: nowrap;"></div>
+                      </div>
                     </div>
 
-                    <!-- Danh sach Khop & Huong dan -->
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 11px;">
-                      <span style="font-weight: 600; color: var(--text-muted); font-size: 10.5px;">Danh sách các khớp:</span>
-                      <div class="joint-legend-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
-                        <div class="joint-legend-item" data-joint="head" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
-                          <span style="color: #f59e0b; font-weight: 500; font-size: 10px;">Đầu (Head)</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="chest" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
-                          <span style="color: #38bdf8; font-weight: 500; font-size: 10px;">Ngực (Chest)</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="hips" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; display: inline-block;"></span>
-                          <span style="color: #60a5fa; font-weight: 500; font-size: 10px;">Hông (Hips)</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="left_knee" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block;"></span>
-                          <span style="color: #4ade80; font-weight: 500; font-size: 10px;">Gối Trái (L Knee)</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="left_foot" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block;"></span>
-                          <span style="color: #22c55e; font-weight: 500; font-size: 10px;">Bàn Chân Trái</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="right_knee" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #c084fc; display: inline-block;"></span>
-                          <span style="color: #c084fc; font-weight: 500; font-size: 10px;">Gối Phải (R Knee)</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="right_foot" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #a855f7; display: inline-block;"></span>
-                          <span style="color: #a855f7; font-weight: 500; font-size: 10px;">Bàn Chân Phải</span>
-                        </div>
-                        <div class="joint-legend-item" data-joint="weapon" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                          <span style="width: 8px; height: 8px; border-radius: 50%; background: #f43f5e; display: inline-block;"></span>
-                          <span style="color: #f43f5e; font-weight: 500; font-size: 10px;">Vũ Khí / Tay</span>
+                    <!-- Danh sách Khớp phân nhóm & Bảng điều khiển -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; font-size: 11px; max-height: 400px; overflow-y: auto; padding-right: 4px;">
+                      <!-- Nhóm 1: Thân & Đầu -->
+                      <div>
+                        <span style="font-weight: 600; color: #94a3b8; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">1. Trục Thân & Đầu</span>
+                        <div class="joint-legend-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                          <div class="joint-legend-item" data-joint="head" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ec4899; display: inline-block;"></span>
+                            <span style="color: #ec4899; font-weight: 500; font-size: 10px;">Đầu (Head)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="neck" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                            <span style="color: #f59e0b; font-weight: 500; font-size: 10px;">Cổ (Neck)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="chest" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+                            <span style="color: #38bdf8; font-weight: 500; font-size: 10px;">Ngực (Chest - Gốc)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="hips" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #0284c7; display: inline-block;"></span>
+                            <span style="color: #0284c7; font-weight: 500; font-size: 10px;">Hông (Hips)</span>
+                          </div>
                         </div>
                       </div>
-                      <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 4px; padding: 6px 8px; line-height: 1.4; color: #94a3b8; font-size: 10px; margin-top: 2px;">
-                        <strong style="color: #38bdf8;">Đặc tính Soft-Skinning:</strong><br/>
-                        - Khớp <strong>Hông (Hips)</strong> là ranh giới giữa thân trên và hai chân.<br/>
-                        - Khoảng cách giữa <strong>Ngực</strong> và <strong>Hông</strong> sẽ co giãn mềm giúp không bao giờ bị đứt gãy hoặc hở eo pixel.<br/>
-                        - Bấm <strong>"Xem Thử Bước Đi"</strong> để thấy preview chuyển động mượt mà tức thì.
+
+                      <!-- Nhóm 2: Hai Cánh Tay -->
+                      <div>
+                        <span style="font-weight: 600; color: #94a3b8; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">2. Cánh Tay (Trái & Phải)</span>
+                        <div class="joint-legend-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                          <div class="joint-legend-item" data-joint="left_shoulder" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #f97316; display: inline-block;"></span>
+                            <span style="color: #f97316; font-weight: 500; font-size: 10px;">Vai Trái (L Shoulder)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="right_shoulder" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #84cc16; display: inline-block;"></span>
+                            <span style="color: #84cc16; font-weight: 500; font-size: 10px;">Vai Phải (R Shoulder)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="left_elbow" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; display: inline-block;"></span>
+                            <span style="color: #eab308; font-weight: 500; font-size: 10px;">Khuỷu Trái (L Elbow)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="right_elbow" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block;"></span>
+                            <span style="color: #22c55e; font-weight: 500; font-size: 10px;">Khuỷu Phải (R Elbow)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="left_wrist" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #fde047; display: inline-block;"></span>
+                            <span style="color: #fde047; font-weight: 500; font-size: 10px;">Cổ Tay Trái (L Wrist)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="right_wrist" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block;"></span>
+                            <span style="color: #4ade80; font-weight: 500; font-size: 10px;">Cổ Tay Phải (R Wrist)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="weapon" style="grid-column: span 2; display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #f43f5e; display: inline-block;"></span>
+                            <span style="color: #f43f5e; font-weight: 500; font-size: 10px;">Vũ Khí / Cầm Tay (Weapon)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Nhóm 3: Hai Chân -->
+                      <div>
+                        <span style="font-weight: 600; color: #94a3b8; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">3. Hai Chân (Trái & Phải)</span>
+                        <div class="joint-legend-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                          <div class="joint-legend-item" data-joint="left_hip" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; display: inline-block;"></span>
+                            <span style="color: #06b6d4; font-weight: 500; font-size: 10px;">Háng Trái (L Hip)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="right_hip" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #8b5cf6; display: inline-block;"></span>
+                            <span style="color: #8b5cf6; font-weight: 500; font-size: 10px;">Háng Phải (R Hip)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="left_knee" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+                            <span style="color: #38bdf8; font-weight: 500; font-size: 10px;">Gối Trái (L Knee)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="right_knee" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #a855f7; display: inline-block;"></span>
+                            <span style="color: #a855f7; font-weight: 500; font-size: 10px;">Gối Phải (R Knee)</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="left_foot" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; display: inline-block;"></span>
+                            <span style="color: #60a5fa; font-weight: 500; font-size: 10px;">Bàn Chân Trái</span>
+                          </div>
+                          <div class="joint-legend-item" data-joint="right_foot" style="display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #13131a; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #c084fc; display: inline-block;"></span>
+                            <span style="color: #c084fc; font-weight: 500; font-size: 10px;">Bàn Chân Phải</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Nhóm 4: Khớp Tùy Biến (Custom Joints) -->
+                      <div id="custom-joints-section" style="display: none;">
+                        <span style="font-weight: 600; color: #10b981; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">4. Khớp Tự Do (Custom)</span>
+                        <div id="custom-joints-list" class="joint-legend-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                          <!-- Render động bởi Javascript -->
+                        </div>
+                      </div>
+
+                      <!-- Hướng dẫn thao tác -->
+                      <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 4px; padding: 8px 10px; line-height: 1.5; color: #94a3b8; font-size: 10px; margin-top: 2px;">
+                        <strong style="color: #38bdf8;">Hướng dẫn thao tác:</strong><br/>
+                        - <strong>Kéo thả chốt:</strong> Nhấp giữ chốt khớp và kéo đến vị trí giải phẫu chuẩn.<br/>
+                        - <strong>Thêm khớp tùy biến:</strong> Bấm nút <em>"+ Thêm Khớp"</em> rồi click vị trí bất kỳ trên ảnh để tạo khớp mới.<br/>
+                        - <strong>Xóa khớp:</strong> Nhấp chọn khớp cần xóa rồi bấm nút <em>"Xóa Khớp"</em> (hoặc phím Delete).<br/>
+                        - <strong>Bật Lưới Pixel:</strong> Giúp căn chính xác từng tọa độ điểm ảnh pixel art.
                       </div>
                     </div>
                   </div>

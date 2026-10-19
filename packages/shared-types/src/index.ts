@@ -151,31 +151,43 @@ export interface McpDrawPayload {
   outputPath?: string;
 }
 
-// Cac kieu du lieu cho Khung Xuong Hoat Anh (Skeleton Rigging)
+// Cac kieu du lieu cho Khung Xuong Hoat Anh (Skeleton Rigging - Chuan OpenPose Full)
 export type JointId =
   | 'head'
+  | 'neck'
   | 'chest'
   | 'hips'
+  | 'left_shoulder'
+  | 'left_elbow'
+  | 'left_wrist'
+  | 'right_shoulder'
+  | 'right_elbow'
+  | 'right_wrist'
+  | 'left_hip'
   | 'left_knee'
   | 'left_foot'
+  | 'right_hip'
   | 'right_knee'
   | 'right_foot'
-  | 'weapon';
+  | 'weapon'
+  | string; // Cho phep them cac khop tuy bien custom
 
 export interface JointPin {
-  id: JointId;
+  id: string;
   name: string;
   x: number;
   y: number;
-  parent?: JointId;
+  parent?: string;
   color: string;
+  custom?: boolean;
 }
 
 export interface SkeletonRig {
   width: number;
   height: number;
-  rootJoint: JointId;
-  joints: Record<JointId, JointPin>;
-  bones: [JointId, JointId][];
+  rootJoint: string;
+  joints: Record<string, JointPin>;
+  bones: [string, string][];
 }
+
 
