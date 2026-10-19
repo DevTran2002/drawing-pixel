@@ -1,5 +1,14 @@
 [
   {
+    "id": "item_1792400539068",
+    "filename": "artwork_1792400539068.png",
+    "name": "HeroSprite",
+    "createdAt": "2026-10-19T09:02:19.072Z",
+    "width": 24,
+    "height": 24,
+    "sourceType": "custom"
+  },
+  {
     "id": "item_1792141253344",
     "filename": "artwork_1792141253344.png",
     "name": "AI Pixel (128x128)",

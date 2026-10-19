@@ -16,6 +16,25 @@ const stateStore = new StateStore();
 const galleryManager = new GalleryManager();
 const connectedClients = new Set<WebSocket>();
 
+// Giao dien va bo nho dem luu ket qua sinh anh AI gan nhat
+interface LastAiResult {
+  id: string;
+  type: 'character' | 'animation';
+  status: 'processing' | 'completed' | 'error';
+  timestamp: number;
+  prompt?: string;
+  outputPath?: string;
+  width?: number;
+  height?: number;
+  pixels?: { x: number; y: number; color: string | null }[];
+  pixelCount?: number;
+  seed?: number;
+  frames?: any[];
+  error?: string;
+}
+
+let lastAiResult: LastAiResult | null = null;
+
 // 1. Tao HTTP Server
 const server = http.createServer(async (req, res) => {
   // CORS Headers
@@ -37,6 +56,16 @@ const server = http.createServer(async (req, res) => {
       status: 'ok',
       connectedClients: connectedClients.size,
       project: stateStore.getProject()
+    }));
+    return;
+  }
+
+  // API Lay ket qua sinh anh AI gan nhat (ho tro phuc hoi khi fetch bi ngat socket)
+  if (url.pathname === '/api/ai/last-result' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      result: lastAiResult
     }));
     return;
   }
@@ -63,10 +92,14 @@ const server = http.createServer(async (req, res) => {
           );
         } else if (payload.type === 'ADD_FRAME') {
           stateStore.addFrame(payload.clipName);
+        } else if ((payload as any).type === 'PROJECT_SYNC' && (payload as any).project) {
+          stateStore.setProject((payload as any).project);
         }
 
-        // Phat song cho tat ca cac client Studio dang mo
-        broadcastToStudio(payload);
+        // Phat song cho tat ca cac client Studio dang mo (neu khong phai PROJECT_SYNC)
+        if ((payload as any).type !== 'PROJECT_SYNC') {
+          broadcastToStudio(payload);
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, project: stateStore.getProject() }));
@@ -84,7 +117,10 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { outputPath, scale } = JSON.parse(body);
+        const { outputPath, scale, project: clientProject } = JSON.parse(body);
+        if (clientProject) {
+          stateStore.setProject(clientProject);
+        }
         const result = await stateStore.exportSpriteSheet(outputPath, scale || 1);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, result }));
@@ -166,6 +202,23 @@ const server = http.createServer(async (req, res) => {
 
   // API Yeu cau mo hinh LoRA sinh anh moi va tu dong nap vao Canvas
   if (url.pathname === '/api/ai/generate' && req.method === 'POST') {
+    // Vo hieu hoa timeout cho socket de xu ly cac tac vu AI ton thoi gian tren CPU
+    req.setTimeout(0);
+    res.setTimeout(0);
+    if (req.socket) {
+      req.socket.setTimeout(0);
+      req.socket.setKeepAlive(true, 10000);
+      req.socket.setNoDelay(true);
+    }
+
+    const genId = 'char_' + Date.now();
+    lastAiResult = {
+      id: genId,
+      type: 'character',
+      status: 'processing',
+      timestamp: Date.now()
+    };
+
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
@@ -238,6 +291,27 @@ const server = http.createServer(async (req, res) => {
           broadcastToStudio(syncPayload as any);
         }
 
+        // Luu lai ket qua thanh cong de client co the truy van khuc phuc
+        lastAiResult = {
+          id: genId,
+          type: 'character',
+          status: 'completed',
+          timestamp: Date.now(),
+          prompt,
+          outputPath,
+          width,
+          height,
+          pixels,
+          pixelCount: pixels.length,
+          seed: resolvedSeed
+        };
+
+        // Phat song su kien hoan tat qua WebSocket
+        broadcastToStudio({
+          type: 'AI_COMPLETED' as any,
+          result: lastAiResult
+        } as any);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
@@ -250,6 +324,13 @@ const server = http.createServer(async (req, res) => {
           project: stateStore.getProject()
         }));
       } catch (err: any) {
+        lastAiResult = {
+          id: genId,
+          type: 'character',
+          status: 'error',
+          error: err.message,
+          timestamp: Date.now()
+        };
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
@@ -259,6 +340,23 @@ const server = http.createServer(async (req, res) => {
 
   // API Sinh chuoi hoat anh SpriteSheet dong bo va tra ve cac Frame con
   if (url.pathname === '/api/ai/generate-animation' && req.method === 'POST') {
+    // Vo hieu hoa timeout cho socket de xu ly tien trinh AI lau dai
+    req.setTimeout(0);
+    res.setTimeout(0);
+    if (req.socket) {
+      req.socket.setTimeout(0);
+      req.socket.setKeepAlive(true, 10000);
+      req.socket.setNoDelay(true);
+    }
+
+    const animGenId = 'anim_' + Date.now();
+    lastAiResult = {
+      id: animGenId,
+      type: 'animation',
+      status: 'processing',
+      timestamp: Date.now()
+    };
+
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
@@ -304,6 +402,14 @@ const server = http.createServer(async (req, res) => {
             percent: 100,
             message: `Hoàn tất tạo ${animResult.frameCount} frames hoạt ảnh bằng Khung Xương Pixel!`
           } as any);
+
+          lastAiResult = {
+            id: animGenId,
+            type: 'animation',
+            status: 'completed',
+            timestamp: Date.now(),
+            frames: animResult.frames
+          };
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -371,6 +477,14 @@ const server = http.createServer(async (req, res) => {
             onProgress
           });
 
+          lastAiResult = {
+            id: animGenId,
+            type: 'animation',
+            status: 'completed',
+            timestamp: Date.now(),
+            frames: refinedResult.frames
+          };
+
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             success: true,
@@ -407,6 +521,14 @@ const server = http.createServer(async (req, res) => {
           onProgress
         });
 
+        lastAiResult = {
+          id: animGenId,
+          type: 'animation',
+          status: 'completed',
+          timestamp: Date.now(),
+          frames: animResult.frames
+        };
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
@@ -416,6 +538,13 @@ const server = http.createServer(async (req, res) => {
           frames: animResult.frames
         }));
       } catch (err: any) {
+        lastAiResult = {
+          id: animGenId,
+          type: 'animation',
+          status: 'error',
+          error: err.message,
+          timestamp: Date.now()
+        };
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }
@@ -468,7 +597,10 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { name } = body ? JSON.parse(body) : {};
+        const { name, project: clientProject } = body ? JSON.parse(body) : {};
+        if (clientProject) {
+          stateStore.setProject(clientProject);
+        }
         const item = await galleryManager.saveCanvasItem(stateStore.getProject(), name);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, item }));
@@ -579,6 +711,13 @@ export function broadcastToStudio(payload: McpDrawPayload): void {
   }
 }
 
+// Vo hieu hoa timeout de dam bao ket noi giua Studio va Server khong bi ngat khi sinh AI tren CPU
+server.timeout = 0;
+server.requestTimeout = 0;
+server.headersTimeout = 0;
+server.keepAliveTimeout = 600000;
+
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Pixel Draw WebSocket Bridge dang lang nghe tai http://127.0.0.1:${PORT}`);
 });
+

@@ -47,6 +47,11 @@ export class CanvasEngine {
     this.layerBuffers.clear();
     const currentFrame = this.getCurrentFrame();
     if (currentFrame) {
+      // Tu dong dong bo activeLayerId thuoc ve frame hien tai neu dang tro vao layer cua frame khac
+      const hasActiveLayer = currentFrame.layers.some(l => l.id === this.project.activeLayerId);
+      if (!hasActiveLayer && currentFrame.layers.length > 0) {
+        this.project.activeLayerId = currentFrame.layers[0].id;
+      }
       for (const layer of currentFrame.layers) {
         this.layerBuffers.set(
           layer.id,
@@ -65,7 +70,16 @@ export class CanvasEngine {
   }
 
   getActiveLayerBuffer(): PixelBuffer | undefined {
-    return this.layerBuffers.get(this.project.activeLayerId);
+    let buf = this.layerBuffers.get(this.project.activeLayerId);
+    if (!buf) {
+      // Fallback tu dong: neu layerBuffers chua co activeLayerId, tu dong lay layer dau tien cua frame
+      const currentFrame = this.getCurrentFrame();
+      if (currentFrame && currentFrame.layers.length > 0) {
+        this.project.activeLayerId = currentFrame.layers[0].id;
+        buf = this.layerBuffers.get(this.project.activeLayerId);
+      }
+    }
+    return buf;
   }
 
   // Can giua canvas vao trung tam viewport

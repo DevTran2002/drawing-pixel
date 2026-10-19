@@ -113,6 +113,9 @@ export class AnimationController {
     }
 
     this.project.activeFrameIndex = insertIndex;
+    if (newLayers.length > 0) {
+      this.project.activeLayerId = newLayers[0].id;
+    }
     return newFrame;
   }
 
@@ -138,6 +141,14 @@ export class AnimationController {
     // Dieu chinh vi tri activeFrameIndex
     if (this.project.activeFrameIndex >= this.project.frames.length) {
       this.project.activeFrameIndex = this.project.frames.length - 1;
+    }
+
+    const currentFrame = this.project.frames[this.project.activeFrameIndex];
+    if (currentFrame && currentFrame.layers.length > 0) {
+      const hasLayer = currentFrame.layers.some(l => l.id === this.project.activeLayerId);
+      if (!hasLayer) {
+        this.project.activeLayerId = currentFrame.layers[0].id;
+      }
     }
 
     return true;

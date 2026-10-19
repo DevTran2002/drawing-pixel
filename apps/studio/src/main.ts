@@ -1232,6 +1232,13 @@ function renderTimeline(): void {
         return;
       }
       project.activeFrameIndex = idx;
+      const targetFrame = project.frames[idx];
+      if (targetFrame && targetFrame.layers.length > 0) {
+        const hasLayer = targetFrame.layers.some(l => l.id === project.activeLayerId);
+        if (!hasLayer) {
+          project.activeLayerId = targetFrame.layers[0].id;
+        }
+      }
       canvasEngine.rebuildBuffers();
       renderAll();
     });
@@ -1280,6 +1287,13 @@ function togglePlayback(): void {
 // Khi previewPlayer chuyen frame, dong bo ca Canvas chinh va danh dau timeline
 previewPlayer.onFrameChange = (frameIndex: number) => {
   project.activeFrameIndex = frameIndex;
+  const targetFrame = project.frames[frameIndex];
+  if (targetFrame && targetFrame.layers.length > 0) {
+    const hasLayer = targetFrame.layers.some(l => l.id === project.activeLayerId);
+    if (!hasLayer) {
+      project.activeLayerId = targetFrame.layers[0].id;
+    }
+  }
   // Highlight the card tren timeline
   const cards = document.querySelectorAll('.frame-card');
   cards.forEach((c, i) => {
@@ -1457,9 +1471,38 @@ function initWebSocketBridge(): void {
           return;
         }
 
+        // Xu ly su kien hoan thanh AI tu server (ho tro client nhan ngay ket qua ke ca khi HTTP bi ngat)
+        if (payload.type === 'AI_COMPLETED' && payload.result) {
+          latestAiCompletedResult = payload.result;
+          return;
+        }
+
         // Xu ly dong bo toan bo Project tu Server (vi du khi nap anh moi hoac doi kich thuoc 64x64)
         if (payload.type === 'PROJECT_SYNC' && payload.project) {
           const newProj = payload.project;
+
+          // Bao ve: Neu client dang co du lieu nhan vat (nhieu frame hoac co pixel)
+          // ma server gui xuong project rong (khong co pixel) thi KHONG ghi de len client
+          let clientPx = 0;
+          for (const f of project.frames) {
+            for (const l of f.layers) {
+              clientPx += Object.keys(l.pixels || {}).length;
+            }
+          }
+
+          let serverPx = 0;
+          for (const f of (newProj.frames || [])) {
+            for (const l of (f.layers || [])) {
+              serverPx += Object.keys(l.pixels || {}).length;
+            }
+          }
+
+          if (clientPx > 0 && serverPx === 0) {
+            // Server gui du an rong, gui nguoc lai du an cua client de server cap nhat
+            syncProjectToServer();
+            return;
+          }
+
           project.id = newProj.id;
           project.name = newProj.name;
           project.width = newProj.width;
@@ -1528,6 +1571,44 @@ function initWebSocketBridge(): void {
   } catch (err) {
     setTimeout(initWebSocketBridge, 3000);
   }
+}
+
+// Bien toan cuc luu tru su kien AI_COMPLETED tu server
+let latestAiCompletedResult: any = null;
+
+// Helper kiem tra va khôi phuc ket qua AI tu server neu ket noi fetch bi ngat
+async function fetchLastAiResultFallback(expectedType: 'character' | 'animation', maxRetries = 6, delayMs = 1200): Promise<any | null> {
+  if (latestAiCompletedResult && latestAiCompletedResult.type === expectedType && latestAiCompletedResult.status === 'completed') {
+    return latestAiCompletedResult;
+  }
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/ai/last-result');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.result) {
+          const r = data.result;
+          if (r.type === expectedType && r.status === 'completed') {
+            latestAiCompletedResult = r;
+            return r;
+          }
+          if (r.status === 'error') {
+            throw new Error(r.error || 'Máy chủ báo lỗi khi sinh ảnh AI');
+          }
+        }
+      }
+    } catch (e: any) {
+      if (e.message && e.message.includes('Máy chủ báo lỗi')) throw e;
+    }
+    if (i < maxRetries - 1) {
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+  }
+
+  return (latestAiCompletedResult && latestAiCompletedResult.type === expectedType && latestAiCompletedResult.status === 'completed')
+    ? latestAiCompletedResult
+    : null;
 }
 
 // Helper format thoi gian giay -> MM:SS
@@ -2001,6 +2082,22 @@ function initAiPixelModal(): void {
         alert('Lỗi sinh ảnh: ' + (data.error || 'Thao tác thất bại'));
       }
     } catch (err: any) {
+      if (statusText) statusText.innerText = 'Đang tự động khôi phục kết quả từ máy chủ...';
+      try {
+        const recovered = await fetchLastAiResultFallback('character', 6, 1500);
+        if (recovered && recovered.pixels && recovered.pixels.length > 0) {
+          if (barFill) barFill.style.width = '100%';
+          if (percentText) percentText.innerText = '100%';
+          if (statusText) statusText.innerText = 'Hoàn tất! Đã khôi phục và nạp vào Canvas.';
+          setTimeout(() => {
+            modal.style.display = 'none';
+          }, 600);
+          return;
+        }
+      } catch (recoverErr: any) {
+        alert('Lỗi sinh ảnh: ' + (recoverErr.message || err.message));
+        return;
+      }
       alert('Lỗi kết nối máy chủ AI: ' + err.message);
     } finally {
       clearInterval(localTimer);
@@ -2750,6 +2847,27 @@ function initAiPixelModal(): void {
       goToStep(2);
 
     } catch (err: any) {
+      // Co che tu dong phuc hoi neu ket noi fetch bi ngat socket sau khi chay CPU lau
+      if (statusText) statusText.innerText = 'Đang tự động khôi phục kết quả từ máy chủ...';
+      try {
+        const recovered = await fetchLastAiResultFallback('character', 6, 1500);
+        if (recovered && recovered.pixels && recovered.pixels.length > 0) {
+          baseCharState.prompt = recovered.prompt || basePrompt;
+          baseCharState.seed = recovered.seed || null;
+          baseCharState.pixels = recovered.pixels;
+          baseCharState.width = recovered.width || 64;
+          baseCharState.height = recovered.height || 64;
+          baseCharState.locked = false;
+          baseCharState.dataUrl = renderPixelsToDataUrl(recovered.pixels, baseCharState.width, baseCharState.height);
+
+          goToStep(2);
+          return;
+        }
+      } catch (recoverErr: any) {
+        alert('Lỗi tạo nhân vật mẫu: ' + (recoverErr.message || err.message));
+        return;
+      }
+
       alert('Lỗi tạo nhân vật mẫu: ' + err.message);
     } finally {
       clearInterval(baseTimer);
@@ -3984,6 +4102,25 @@ function initAiPixelModal(): void {
       saveWizardCheckpoint();
 
     } catch (err: any) {
+      if (statusText) statusText.innerText = 'Đang tự động khôi phục kết quả hoạt ảnh từ máy chủ...';
+      try {
+        const recovered = await fetchLastAiResultFallback('animation', 6, 1500);
+        if (recovered && Array.isArray(recovered.frames) && recovered.frames.length > 0) {
+          animSetupState.frames = recovered.frames;
+          livePlayerIndex = 0;
+          startLivePlayer();
+
+          if (btnWizardFinish) btnWizardFinish.style.display = 'inline-flex';
+          if (btnWizardChangeAction) btnWizardChangeAction.style.display = 'inline-flex';
+
+          saveWizardCheckpoint();
+          return;
+        }
+      } catch (recoverErr: any) {
+        alert('Lỗi tạo hoạt ảnh: ' + (recoverErr.message || err.message));
+        return;
+      }
+
       alert('Lỗi tạo hoạt ảnh: ' + err.message);
       // Giữ nguyên bước 4 để người dùng thấy lỗi và có thể quay lại bước 3 mà không mất dữ liệu
     } finally {
@@ -4329,7 +4466,7 @@ function initGalleryModal(): void {
       const res = await fetch('http://127.0.0.1:3055/api/gallery/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: artName || 'Chưa đặt tên' })
+        body: JSON.stringify({ name: artName || 'Chưa đặt tên', project })
       });
       const data = await res.json();
       if (data.success) {
@@ -5144,23 +5281,20 @@ function initExportModal(): void {
 
       ctx.imageSmoothingEnabled = false;
 
-      // Ve lan luot cac visible layers
+      // Ve lan luot cac visible layers cua frame hien tai
       for (const layer of activeFrame.layers) {
         if (!layer.visible) continue;
         if (layer.groupId) {
           const group = project.groups?.find(g => g.id === layer.groupId);
           if (group && group.visible === false) continue;
         }
-        const buffer = canvasEngine.getLayerBuffer(layer.id);
-        if (!buffer) continue;
-
         ctx.save();
         ctx.globalAlpha = layer.opacity;
-        const pixels = buffer.getAllPixels();
-        for (const p of pixels) {
-          if (!p.color) continue;
-          ctx.fillStyle = p.color;
-          ctx.fillRect(p.x * currentScale, p.y * currentScale, currentScale, currentScale);
+        for (const [key, color] of Object.entries(layer.pixels)) {
+          if (!color) continue;
+          const [px, py] = key.split(',').map(Number);
+          ctx.fillStyle = color;
+          ctx.fillRect(px * currentScale, py * currentScale, currentScale, currentScale);
         }
         ctx.restore();
       }
@@ -5170,8 +5304,80 @@ function initExportModal(): void {
       link.href = offCanvas.toDataURL('image/png');
       link.click();
       modal.style.display = 'none';
+
     } else {
-      btnServer?.click();
+      // Xuat dai anh SpriteSheet gom toan bo cac Frames
+      const frameCount = project.frames.length;
+      if (frameCount === 0) return;
+
+      const fw = project.width * currentScale;
+      const fh = project.height * currentScale;
+      const totalW = fw * frameCount;
+      const totalH = fh;
+
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = totalW;
+      offCanvas.height = totalH;
+      const ctx = offCanvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.imageSmoothingEnabled = false;
+
+      // Ve lan luot tung frame len dai anh ngang
+      for (let f = 0; f < frameCount; f++) {
+        const frame = project.frames[f];
+        const destX = f * fw;
+
+        for (const layer of frame.layers) {
+          if (!layer.visible) continue;
+          if (layer.groupId) {
+            const group = project.groups?.find(g => g.id === layer.groupId);
+            if (group && group.visible === false) continue;
+          }
+          ctx.save();
+          ctx.globalAlpha = layer.opacity;
+          for (const [key, color] of Object.entries(layer.pixels)) {
+            if (!color) continue;
+            const [px, py] = key.split(',').map(Number);
+            ctx.fillStyle = color;
+            ctx.fillRect(destX + px * currentScale, py * currentScale, currentScale, currentScale);
+          }
+          ctx.restore();
+        }
+      }
+
+      // 1. Tai tep PNG SpriteSheet truc tiep ve may tinh
+      const link = document.createElement('a');
+      link.download = `${project.name || 'SpriteSheet'}_${frameCount}frames_${totalW}x${totalH}.png`;
+      link.href = offCanvas.toDataURL('image/png');
+      link.click();
+
+      // 2. Tao va tai tep JSON Metadata di kem
+      const meta = {
+        name: project.name || 'SpriteSheet',
+        framesCount: frameCount,
+        frameWidth: fw,
+        frameHeight: fh,
+        totalWidth: totalW,
+        totalHeight: totalH,
+        scale: currentScale,
+        clips: project.clips || [],
+        frames: project.frames.map((fr, idx) => ({
+          index: idx,
+          durationMs: fr.durationMs,
+          x: idx * fw,
+          y: 0,
+          w: fw,
+          h: fh
+        }))
+      };
+      const jsonBlob = new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' });
+      const jsonLink = document.createElement('a');
+      jsonLink.download = `${project.name || 'SpriteSheet'}_meta.json`;
+      jsonLink.href = URL.createObjectURL(jsonBlob);
+      jsonLink.click();
+
+      modal.style.display = 'none';
     }
   });
 
@@ -5182,7 +5388,7 @@ function initExportModal(): void {
       const res = await fetch('http://127.0.0.1:3055/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outputPath, scale: currentScale })
+        body: JSON.stringify({ outputPath, scale: currentScale, project })
       });
       const data = await res.json();
       if (data.success) {
