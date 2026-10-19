@@ -39,6 +39,7 @@ const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
 const history = new HistoryManager(50);
 const animController = new AnimationController(project);
 const selectionManager = new SelectionManager();
+let globalOpenAiWizardWithBaseChar: ((pixels: PixelPoint[], w: number, h: number, name: string) => void) | null = null;
 
 // Lay cac phan tu DOM
 const mainCanvas = document.getElementById('main-canvas') as HTMLCanvasElement;
@@ -703,13 +704,14 @@ mainCanvas.addEventListener('wheel', (e) => {
   renderAll();
 }, { passive: false });
 
-// Click vao badge zoom de can giua nhanh
+// Click vao badge zoom de tu dong can vua toan man hinh (Fit to Screen)
 const zoomBadge = document.getElementById('canvas-zoom-badge');
 if (zoomBadge) {
   zoomBadge.style.cursor = 'pointer';
-  zoomBadge.title = 'Click để căn giữa tranh (Shift + 0)';
+  zoomBadge.title = 'Click để căn vừa toàn màn hình (Fit to Screen)';
   zoomBadge.addEventListener('click', () => {
-    canvasEngine.centerViewport();
+    canvasEngine.fitToScreen();
+    zoomBadge.innerText = `${Math.round(canvasEngine.zoom * 100)}%`;
     renderAll();
   });
 }
@@ -2186,8 +2188,8 @@ function initAiPixelModal(): void {
     frameCount: 4,
     frameSize: 64,
     removeBg: true,
-    engine: 'hybrid' as 'hybrid' | 'template' | 'ai',
-    refineStrength: 0.38,
+    engine: 'template' as 'hybrid' | 'template' | 'ai',
+    refineStrength: 0.62,
     frames: [] as {
       frameIndex: number;
       width: number;
@@ -2849,12 +2851,98 @@ function initAiPixelModal(): void {
     goToStep(3);
   });
 
+  // Tải ảnh mẫu từ máy tính tại Bước 1 và Bước 2 của AI Wizard
+  const btnWizardUploadBase = document.getElementById('btn-wizard-upload-base');
+  const btnStep2UploadChar = document.getElementById('btn-step2-upload-char');
+  const wizardBaseUploadInput = document.getElementById('wizard-base-upload-input') as HTMLInputElement | null;
+
+  const handleUploadBaseChar = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const isStrip = img.width >= img.height * 1.5;
+        const frameW = isStrip ? img.height : img.width;
+        const frameH = img.height;
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = frameW;
+        offCanvas.height = frameH;
+        const ctx = offCanvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, frameW, frameH, 0, 0, frameW, frameH);
+        const imgData = ctx.getImageData(0, 0, frameW, frameH);
+        const data = imgData.data;
+
+        const pixels: PixelPoint[] = [];
+        for (let y = 0; y < frameH; y++) {
+          for (let x = 0; x < frameW; x++) {
+            const idx = (y * frameW + x) * 4;
+            const a = data[idx + 3];
+            if (a > 20) {
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+              pixels.push({ x, y, color: hex });
+            }
+          }
+        }
+
+        baseCharState.prompt = `Import: ${file.name.slice(0, 16)}`;
+        baseCharState.seed = Math.floor(Math.random() * 900000000) + 100000000;
+        baseCharState.pixels = pixels;
+        baseCharState.width = frameW;
+        baseCharState.height = frameH;
+        baseCharState.dataUrl = offCanvas.toDataURL('image/png');
+        baseCharState.locked = false;
+
+        goToStep(2);
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  btnWizardUploadBase?.addEventListener('click', () => {
+    if (wizardBaseUploadInput) {
+      wizardBaseUploadInput.value = '';
+      wizardBaseUploadInput.click();
+    }
+  });
+
+  btnStep2UploadChar?.addEventListener('click', () => {
+    if (wizardBaseUploadInput) {
+      wizardBaseUploadInput.value = '';
+      wizardBaseUploadInput.click();
+    }
+  });
+
+  wizardBaseUploadInput?.addEventListener('change', () => {
+    const file = wizardBaseUploadInput.files?.[0];
+    if (file) handleUploadBaseChar(file);
+  });
+
+  globalOpenAiWizardWithBaseChar = (pixels, w, h, name) => {
+    baseCharState.prompt = `Import: ${name.slice(0, 16)}`;
+    baseCharState.seed = Math.floor(Math.random() * 900000000) + 100000000;
+    baseCharState.pixels = pixels;
+    baseCharState.width = w;
+    baseCharState.height = h;
+    baseCharState.dataUrl = renderPixelsToDataUrl(pixels, w, h);
+    baseCharState.locked = false;
+    modal.style.display = 'flex';
+    goToStep(2);
+  };
+
   // ==========================================
   // XỬ LÝ BƯỚC 3: CẤU HÌNH HOẠT CẢNH
   // ==========================================
   const animEngineCards = document.querySelectorAll('.anim-engine-card');
   const actionCards = document.querySelectorAll('.anim-action-card');
   const frameBtns = document.querySelectorAll('.anim-frame-btn');
+  const aiStrengthPanel = document.getElementById('ai-strength-panel');
+  const aiStrengthSlider = document.getElementById('ai-strength-slider') as HTMLInputElement | null;
+  const aiStrengthVal = document.getElementById('ai-strength-val');
   const hybridStrengthPanel = document.getElementById('hybrid-strength-panel');
   const hybridStrengthSlider = document.getElementById('hybrid-strength-slider') as HTMLInputElement | null;
   const hybridStrengthVal = document.getElementById('hybrid-strength-val');
@@ -2863,13 +2951,33 @@ function initAiPixelModal(): void {
     card.addEventListener('click', () => {
       animEngineCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      const eng = (card.getAttribute('data-engine') || 'hybrid') as 'hybrid' | 'template' | 'ai';
+      const eng = (card.getAttribute('data-engine') || 'ai') as 'hybrid' | 'template' | 'ai';
       animSetupState.engine = eng;
+      if (aiStrengthPanel) {
+        aiStrengthPanel.style.display = eng === 'ai' ? 'flex' : 'none';
+      }
       if (hybridStrengthPanel) {
         hybridStrengthPanel.style.display = eng === 'hybrid' ? 'flex' : 'none';
       }
+      if (eng === 'ai') {
+        animSetupState.refineStrength = parseFloat(aiStrengthSlider?.value || '0.62');
+      } else if (eng === 'hybrid') {
+        animSetupState.refineStrength = parseFloat(hybridStrengthSlider?.value || '0.38');
+      }
       saveWizardCheckpoint();
     });
+  });
+
+  aiStrengthSlider?.addEventListener('input', () => {
+    const val = parseFloat(aiStrengthSlider.value) || 0.62;
+    animSetupState.refineStrength = val;
+    if (aiStrengthVal) {
+      let desc = 'Chuẩn chuyển động game mượt';
+      if (val < 0.55) desc = 'Ưu tiên giữ dáng tĩnh';
+      else if (val > 0.68) desc = 'Tư thế vung đòn cực mạnh';
+      aiStrengthVal.innerText = `${val.toFixed(2)} (${desc})`;
+    }
+    saveWizardCheckpoint();
   });
 
   hybridStrengthSlider?.addEventListener('input', () => {
@@ -3808,8 +3916,8 @@ function initAiPixelModal(): void {
 
     const isHybrid = animSetupState.engine === 'hybrid';
     const isTemplate = animSetupState.engine === 'template';
-    let engineLabel = 'AI Tạo Sinh Tự Do';
-    if (isHybrid) engineLabel = 'Khung Xương + AI Vẽ Bù';
+    let engineLabel = '2D Pixel Toolkit (AI Sprite Sheet)';
+    if (isHybrid) engineLabel = 'Khung Xương + AI Vá Nứt';
     else if (isTemplate) engineLabel = 'Khung Xương Thuần';
 
     const barFill = document.getElementById('ai-progress-bar-fill');
@@ -3822,9 +3930,9 @@ function initAiPixelModal(): void {
     if (statusText) statusText.innerText = `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}" bằng ${engineLabel}...`;
     if (barFill) barFill.style.width = isTemplate ? '80%' : (isHybrid ? '15%' : '0%');
     if (percentText) percentText.innerText = isTemplate ? '80%' : (isHybrid ? '15%' : '0%');
-    if (stepsBadge) stepsBadge.innerText = isTemplate ? 'Template Engine' : (isHybrid ? 'Hybrid Refiner' : `0 / 18 steps`);
+    if (stepsBadge) stepsBadge.innerText = isTemplate ? 'Template Engine' : (isHybrid ? 'Hybrid Refiner' : `2D Pixel Toolkit (LoRA)`);
     if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
-    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : (isHybrid ? 'Ước tính: ~25s' : 'Còn lại: Đang tính...');
+    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : (isHybrid ? 'Ước tính: ~25s' : 'Ước tính: ~18s');
     if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = true;
 
     const startTime = Date.now();
@@ -4014,7 +4122,7 @@ function initAiPixelModal(): void {
       animSetupState.action = cp.animation.action || 'walk';
       animSetupState.frameCount = cp.animation.frameCount || 4;
       animSetupState.frameSize = cp.animation.frameSize || 64;
-      animSetupState.engine = (cp.animation.engine || 'hybrid') as 'hybrid' | 'template' | 'ai';
+      animSetupState.engine = (cp.animation.engine || 'template') as 'hybrid' | 'template' | 'ai';
       if (cp.animation.refineStrength !== undefined) {
         animSetupState.refineStrength = cp.animation.refineStrength;
       }
@@ -4028,21 +4136,35 @@ function initAiPixelModal(): void {
         c.classList.toggle('active', eng === animSetupState.engine);
       });
 
+      const aiStrengthPanel = document.getElementById('ai-strength-panel');
+      const aiStrengthSlider = document.getElementById('ai-strength-slider') as HTMLInputElement | null;
+      const aiStrengthVal = document.getElementById('ai-strength-val');
       const hybridStrengthPanel = document.getElementById('hybrid-strength-panel');
       const hybridStrengthSlider = document.getElementById('hybrid-strength-slider') as HTMLInputElement | null;
       const hybridStrengthVal = document.getElementById('hybrid-strength-val');
 
+      if (aiStrengthPanel) {
+        aiStrengthPanel.style.display = animSetupState.engine === 'ai' ? 'flex' : 'none';
+      }
       if (hybridStrengthPanel) {
         hybridStrengthPanel.style.display = animSetupState.engine === 'hybrid' ? 'flex' : 'none';
       }
-      if (hybridStrengthSlider) {
+      if (animSetupState.engine === 'ai' && aiStrengthSlider) {
+        aiStrengthSlider.value = `${animSetupState.refineStrength}`;
+        if (aiStrengthVal) {
+          let desc = 'Chuẩn chuyển động game mượt';
+          if (animSetupState.refineStrength < 0.55) desc = 'Ưu tiên giữ dáng tĩnh';
+          else if (animSetupState.refineStrength > 0.68) desc = 'Tư thế vung đòn cực mạnh';
+          aiStrengthVal.innerText = `${animSetupState.refineStrength.toFixed(2)} (${desc})`;
+        }
+      } else if (hybridStrengthSlider) {
         hybridStrengthSlider.value = `${animSetupState.refineStrength}`;
-      }
-      if (hybridStrengthVal) {
-        let desc = 'Cân bằng chuẩn';
-        if (animSetupState.refineStrength < 0.30) desc = 'Ưu tiên giữ nét gốc';
-        else if (animSetupState.refineStrength > 0.45) desc = 'Ưu tiên vẽ bù sáng tạo';
-        hybridStrengthVal.innerText = `${animSetupState.refineStrength.toFixed(2)} (${desc})`;
+        if (hybridStrengthVal) {
+          let desc = 'Cân bằng chuẩn';
+          if (animSetupState.refineStrength < 0.30) desc = 'Ưu tiên giữ nét gốc';
+          else if (animSetupState.refineStrength > 0.45) desc = 'Ưu tiên vẽ bù sáng tạo';
+          hybridStrengthVal.innerText = `${animSetupState.refineStrength.toFixed(2)} (${desc})`;
+        }
       }
     }
 
@@ -4293,12 +4415,271 @@ function initResizeModal(): void {
   });
 }
 
-// 12. Nhap anh tu may tinh thanh Layer moi (Image Import)
+// 12. Nhập ảnh & Cắt SpriteSheet thông minh (Smart Image & SpriteSheet Import)
 function initImageImport(): void {
   const btnImport = document.getElementById('btn-import-image');
   const fileInput = document.getElementById('image-import-input') as HTMLInputElement | null;
+  const modal = document.getElementById('import-smart-modal');
+  const btnClose = document.getElementById('btn-close-import-smart-modal');
+  const btnCancel = document.getElementById('btn-cancel-import-smart');
+  const btnApply = document.getElementById('btn-apply-import-smart');
+  const previewImg = document.getElementById('import-smart-preview-img') as HTMLImageElement | null;
+  const dimenLabel = document.getElementById('import-smart-dimen-label');
+  const typeBadge = document.getElementById('import-smart-type-badge');
+  const hintBox = document.getElementById('import-smart-hint-box');
+  const modeCards = document.querySelectorAll('#import-smart-modal .anim-engine-card');
+  const spritesheetConfig = document.getElementById('import-spritesheet-config');
+  const framesCountInput = document.getElementById('import-smart-frames-count') as HTMLInputElement | null;
+  const frameSizeLabel = document.getElementById('import-smart-frame-size-label');
+  const clipNameInput = document.getElementById('import-smart-clip-name') as HTMLInputElement | null;
+  const fpsInput = document.getElementById('import-smart-fps') as HTMLInputElement | null;
+  const targetSizeSelect = document.getElementById('import-smart-target-size') as HTMLSelectElement | null;
+  const splitModeSelect = document.getElementById('import-smart-split-mode') as HTMLSelectElement | null;
+  const removeBgCheck = document.getElementById('import-smart-remove-bg') as HTMLInputElement | null;
+  const bgTypeSelect = document.getElementById('import-smart-bg-type') as HTMLSelectElement | null;
+  const bgToleranceInput = document.getElementById('import-smart-bg-tolerance') as HTMLInputElement | null;
 
-  if (!btnImport || !fileInput) return;
+  let loadedImg: HTMLImageElement | null = null;
+  let loadedFileName = '';
+  let activeMode: 'spritesheet' | 'base_char' | 'new_canvas' | 'layer' = 'spritesheet';
+
+  if (!btnImport || !fileInput || !modal) return;
+
+  // 12.1. Thuat toan Edge Flood-Fill xoa phong nen ngoai (Bao toan tap de & mat trang)
+  const removeEdgeBackground = (
+    c: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    mode: string,
+    tolerance: number
+  ) => {
+    const imgData = c.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    const total = w * h;
+
+    let tr = 255, tg = 255, tb = 255;
+    if (mode === 'green') {
+      tr = 0; tg = 255; tb = 0;
+    } else if (mode === 'black') {
+      tr = 0; tg = 0; tb = 0;
+    } else if (mode === 'auto' || mode === 'white') {
+      const sampleIndices = [0, (w - 1) * 4, (h - 1) * w * 4, (total - 1) * 4];
+      let sr = 0, sg = 0, sb = 0, sc = 0;
+      for (const idx of sampleIndices) {
+        if (data[idx + 3] > 10) {
+          sr += data[idx]; sg += data[idx + 1]; sb += data[idx + 2]; sc++;
+        }
+      }
+      if (sc > 0) {
+        tr = Math.round(sr / sc); tg = Math.round(sg / sc); tb = Math.round(sb / sc);
+      }
+    }
+
+    const isMatch = (r: number, g: number, b: number) => {
+      return (
+        Math.abs(r - tr) <= tolerance &&
+        Math.abs(g - tg) <= tolerance &&
+        Math.abs(b - tb) <= tolerance
+      );
+    };
+
+    const visited = new Uint8Array(total);
+    const queue = new Int32Array(total);
+    let head = 0, tail = 0;
+
+    // Quet 4 bien ngoai (Top, Bottom, Left, Right)
+    for (let x = 0; x < w; x++) {
+      const topIdx = x * 4;
+      if (isMatch(data[topIdx], data[topIdx + 1], data[topIdx + 2])) {
+        visited[x] = 1;
+        queue[tail++] = x;
+      }
+      const bPos = (h - 1) * w + x;
+      const bIdx = bPos * 4;
+      if (!visited[bPos] && isMatch(data[bIdx], data[bIdx + 1], data[bIdx + 2])) {
+        visited[bPos] = 1;
+        queue[tail++] = bPos;
+      }
+    }
+
+    for (let y = 0; y < h; y++) {
+      const lPos = y * w;
+      const lIdx = lPos * 4;
+      if (!visited[lPos] && isMatch(data[lIdx], data[lIdx + 1], data[lIdx + 2])) {
+        visited[lPos] = 1;
+        queue[tail++] = lPos;
+      }
+      const rPos = y * w + (w - 1);
+      const rIdx = rPos * 4;
+      if (!visited[rPos] && isMatch(data[rIdx], data[rIdx + 1], data[rIdx + 2])) {
+        visited[rPos] = 1;
+        queue[tail++] = rPos;
+      }
+    }
+
+    // Loang BFS tu ngoai vao trong
+    while (head < tail) {
+      const pos = queue[head++];
+      const x = pos % w;
+      const y = Math.floor(pos / w);
+      data[pos * 4 + 3] = 0; // Xoa thanh trong suot
+
+      const neighbors = [
+        y > 0 ? pos - w : -1,
+        y < h - 1 ? pos + w : -1,
+        x > 0 ? pos - 1 : -1,
+        x < w - 1 ? pos + 1 : -1
+      ];
+
+      for (const nPos of neighbors) {
+        if (nPos >= 0 && !visited[nPos]) {
+          const nIdx = nPos * 4;
+          if (isMatch(data[nIdx], data[nIdx + 1], data[nIdx + 2])) {
+            visited[nPos] = 1;
+            queue[tail++] = nPos;
+          }
+        }
+      }
+    }
+
+    c.putImageData(imgData, 0, 0);
+  };
+
+  // 12.2. Thuat toan Smart Valley tim diem cat toi uu giua cac nhan vat
+  const findSmartCuts = (c: CanvasRenderingContext2D, w: number, h: number, count: number): number[] => {
+    if (count <= 1) return [0, w];
+    const imgData = c.getImageData(0, 0, w, h);
+    const data = imgData.data;
+
+    const xDensity = new Int32Array(w);
+    for (let x = 0; x < w; x++) {
+      let pixels = 0;
+      for (let y = 0; y < h; y++) {
+        if (data[(y * w + x) * 4 + 3] > 25) pixels++;
+      }
+      xDensity[x] = pixels;
+    }
+
+    const cuts = [0];
+    const step = w / count;
+    const searchRadius = Math.max(12, Math.floor(step * 0.45));
+
+    for (let k = 1; k < count; k++) {
+      const centerTheory = Math.round(k * step);
+      const minSearch = Math.max(cuts[k - 1] + 16, centerTheory - searchRadius);
+      const maxSearch = Math.min(w - 16, centerTheory + searchRadius);
+
+      let bestX = centerTheory;
+      let minScore = Infinity;
+
+      for (let x = minSearch; x <= maxSearch; x++) {
+        const density = xDensity[x];
+        const dist = Math.abs(x - centerTheory);
+        const score = density * 1000 + dist;
+        if (score < minScore) {
+          minScore = score;
+          bestX = x;
+        }
+      }
+      cuts.push(bestX);
+    }
+    cuts.push(w);
+    return cuts;
+  };
+
+  const updateFrameCalculations = () => {
+    if (!loadedImg || !framesCountInput || !frameSizeLabel) return;
+    const count = Math.max(1, parseInt(framesCountInput.value, 10) || 1);
+    const rawFw = Math.floor(loadedImg.width / count);
+    const rawFh = loadedImg.height;
+    const targetSizeVal = targetSizeSelect?.value || '64';
+    if (targetSizeVal !== 'original' && rawFh > parseInt(targetSizeVal, 10)) {
+      const targetH = parseInt(targetSizeVal, 10) || 64;
+      const scale = targetH / rawFh;
+      const fw = Math.max(16, Math.round(rawFw * scale));
+      frameSizeLabel.innerText = `${fw} x ${targetH} px (Đã tối ưu)`;
+    } else {
+      frameSizeLabel.innerText = `${rawFw} x ${rawFh} px`;
+    }
+  };
+
+  framesCountInput?.addEventListener('input', updateFrameCalculations);
+  targetSizeSelect?.addEventListener('change', updateFrameCalculations);
+
+  modeCards.forEach(card => {
+    card.addEventListener('click', () => {
+      modeCards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      activeMode = (card.getAttribute('data-mode') || 'spritesheet') as any;
+      if (spritesheetConfig) {
+        spritesheetConfig.style.display = activeMode === 'spritesheet' ? 'flex' : 'none';
+      }
+    });
+  });
+
+  const openSmartImport = (file: File) => {
+    loadedFileName = file.name;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        loadedImg = img;
+        if (previewImg) previewImg.src = img.src;
+        if (dimenLabel) dimenLabel.innerText = `${img.width} x ${img.height} px`;
+
+        // Tự động nhận diện tỷ lệ: nếu W >= H * 1.4 -> Sprite Sheet
+        const isStrip = img.width >= img.height * 1.4;
+        let guessedFrames = 1;
+        if (isStrip) {
+          const ratio = img.width / img.height;
+          guessedFrames = Math.max(2, Math.round(ratio));
+        }
+
+        if (typeBadge) {
+          typeBadge.innerText = isStrip ? `Sprite Sheet (${guessedFrames} Frames)` : 'Ảnh Tĩnh (Single)';
+          typeBadge.style.color = isStrip ? '#4ade80' : '#38bdf8';
+          typeBadge.style.borderColor = isStrip ? '#22c55e' : '#0284c7';
+        }
+
+        if (hintBox) {
+          if (isStrip) {
+            hintBox.innerHTML = `Phát hiện đây là <strong>Dải Sprite Sheet (${img.width}x${img.height}px)</strong>. Tự động xóa phông nền và phân tách từng frame thông minh!`;
+            hintBox.style.background = 'rgba(74, 222, 128, 0.1)';
+            hintBox.style.borderColor = 'rgba(74, 222, 128, 0.3)';
+          } else {
+            hintBox.innerHTML = `Ảnh có kích thước <strong>${img.width}x${img.height}px</strong>. Bạn có thể nạp làm Mẫu Nhân Vật trong AI Puppet Rigging hoặc tạo Canvas mới.`;
+            hintBox.style.background = 'rgba(56, 189, 248, 0.1)';
+            hintBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+          }
+        }
+
+        if (framesCountInput) {
+          framesCountInput.value = `${guessedFrames}`;
+        }
+        if (clipNameInput) {
+          const baseName = file.name.replace(/\.[^/.]+$/, '').toUpperCase();
+          clipNameInput.value = isStrip ? `CLIP_${baseName}` : 'CLIP_DEFAULT';
+        }
+
+        updateFrameCalculations();
+
+        // Mặc định chọn chế độ phù hợp
+        modeCards.forEach(c => {
+          const m = c.getAttribute('data-mode');
+          const isTarget = isStrip ? m === 'spritesheet' : m === 'new_canvas';
+          c.classList.toggle('active', isTarget);
+        });
+        activeMode = isStrip ? 'spritesheet' : 'new_canvas';
+        if (spritesheetConfig) {
+          spritesheetConfig.style.display = isStrip ? 'flex' : 'none';
+        }
+
+        modal.style.display = 'flex';
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   btnImport.addEventListener('click', () => {
     fileInput.value = '';
@@ -4307,79 +4688,410 @@ function initImageImport(): void {
 
   fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
-    if (!file) return;
+    if (file) openSmartImport(file);
+  });
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const offCanvas = document.createElement('canvas');
-        offCanvas.width = img.width;
-        offCanvas.height = img.height;
-        const ctx = offCanvas.getContext('2d');
-        if (!ctx) return;
+  // Hỗ trợ Kéo & Thả (Drag & Drop) toàn cục trên cửa sổ Studio
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      openSmartImport(file);
+    }
+  });
 
-        ctx.drawImage(img, 0, 0);
-        const imgData = ctx.getImageData(0, 0, img.width, img.height);
-        const data = imgData.data;
+  const closeSmartModal = () => {
+    modal.style.display = 'none';
+    loadedImg = null;
+  };
 
-        // Mo rong canvas neu can
-        if (img.width > project.width || img.height > project.height) {
-          project.width = Math.max(img.width, project.width);
-          project.height = Math.max(img.height, project.height);
-          const sizeBadge = document.getElementById('canvas-size-badge');
-          if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
-          const resLabel = document.getElementById('canvas-resolution');
-          if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
-          onionSkinRenderer.resize(project.width, project.height);
-        }
+  btnClose?.addEventListener('click', closeSmartModal);
+  btnCancel?.addEventListener('click', closeSmartModal);
 
-        const offsetX = Math.floor((project.width - img.width) / 2);
-        const offsetY = Math.floor((project.height - img.height) / 2);
+  // Thực hiện nhập ảnh theo chế độ đã chọn
+  btnApply?.addEventListener('click', () => {
+    if (!loadedImg) return;
+    const img = loadedImg;
 
-        const newLayerId = `layer_${Date.now()}`;
-        const activeFrame = project.frames[project.activeFrameIndex] || project.frames[0];
-        const newLayer = {
-          id: newLayerId,
-          name: `Import: ${file.name.slice(0, 12)}`,
-          visible: true,
-          locked: false,
-          opacity: 1.0,
-          pixels: {} as Record<string, PixelColor>
-        };
+    if (activeMode === 'spritesheet') {
+      const count = Math.max(1, parseInt(framesCountInput?.value || '4', 10));
+      const fps = Math.max(1, parseInt(fpsInput?.value || '8', 10));
+      const clipName = clipNameInput?.value.trim() || `CLIP_${Date.now()}`;
+      const targetSizeVal = targetSizeSelect?.value || '64';
+      const splitMode = splitModeSelect?.value || 'smart';
+      const shouldRemoveBg = removeBgCheck?.checked ?? true;
+      const bgType = bgTypeSelect?.value || 'auto';
+      const bgTolerance = parseInt(bgToleranceInput?.value || '35', 10);
+
+      // 1. Khoi tao canvas chua anh goc de tien hanh xu ly xoa phong
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = img.width;
+      sourceCanvas.height = img.height;
+      const sCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      if (!sCtx) return;
+      sCtx.drawImage(img, 0, 0);
+
+      // 2. Xoa phong nen tu dong bang Edge Flood Fill
+      if (shouldRemoveBg) {
+        removeEdgeBackground(sCtx, img.width, img.height, bgType, bgTolerance);
+      }
+
+      // 3. Xac dinh cac ranh gioi cat frame
+      let cuts: number[] = [];
+      if (splitMode === 'smart') {
+        cuts = findSmartCuts(sCtx, img.width, img.height, count);
+      } else {
+        const step = img.width / count;
+        cuts = [0];
+        for (let k = 1; k < count; k++) cuts.push(Math.round(k * step));
+        cuts.push(img.width);
+      }
+
+      // 4. Tim Bounding Box cua tung nhan vat trong tung frame
+      const sData = sCtx.getImageData(0, 0, img.width, img.height).data;
+      const frameBoxes: { minX: number; maxX: number; minY: number; maxY: number; hasPixels: boolean }[] = [];
+      let maxCharW = 0;
+      let maxCharH = 0;
+
+      for (let f = 0; f < count; f++) {
+        const sx = cuts[f];
+        const ex = cuts[f + 1];
+        let minX = ex, maxX = sx, minY = img.height, maxY = 0, hasPixels = false;
 
         for (let y = 0; y < img.height; y++) {
-          for (let x = 0; x < img.width; x++) {
-            const idx = (y * img.width + x) * 4;
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            const a = data[idx + 3];
-            if (a > 20) {
-              const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-              newLayer.pixels[coordToKey(x + offsetX, y + offsetY)] = hex;
+          for (let x = sx; x < ex; x++) {
+            const a = sData[(y * img.width + x) * 4 + 3];
+            if (a > 25) {
+              hasPixels = true;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
             }
           }
         }
 
-        activeFrame.layers.push(newLayer);
-        project.activeLayerId = newLayerId;
-        canvasEngine.rebuildBuffers();
-        canvasEngine.centerViewport();
-        renderAll();
+        frameBoxes.push({ minX, maxX, minY, maxY, hasPixels });
+        if (hasPixels) {
+          const cw = maxX - minX + 1;
+          const ch = maxY - minY + 1;
+          if (cw > maxCharW) maxCharW = cw;
+          if (ch > maxCharH) maxCharH = ch;
+        }
+      }
 
-        // Dong bo voi server
-        try {
-          fetch('http://127.0.0.1:3055/api/draw', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'PROJECT_SYNC', project })
-          }).catch(() => {});
-        } catch (_) {}
+      // 5. Tinh toan kich thuoc canvas frame sau toi uu
+      let finalFh = img.height;
+      let finalFw = Math.max(16, Math.round(img.width / count));
+      let globalScale = 1.0;
+
+      if (targetSizeVal !== 'original') {
+        const targetH = parseInt(targetSizeVal, 10) || 64;
+        if (img.height > targetH) {
+          globalScale = targetH / img.height;
+          finalFh = targetH;
+          const scaledMaxCharW = Math.round(maxCharW * globalScale);
+          finalFw = Math.max(scaledMaxCharW + 8, Math.round((img.width / count) * globalScale));
+        }
+      }
+
+      project.width = finalFw;
+      project.height = finalFh;
+      project.frames = [];
+
+      const frameCanvas = document.createElement('canvas');
+      frameCanvas.width = finalFw;
+      frameCanvas.height = finalFh;
+      const fCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
+      if (!fCtx) return;
+
+      fCtx.imageSmoothingEnabled = true;
+      fCtx.imageSmoothingQuality = 'high';
+
+      // 6. Cat va can giua tung nhan vat vao Frame
+      for (let f = 0; f < count; f++) {
+        fCtx.clearRect(0, 0, finalFw, finalFh);
+        const sx = cuts[f];
+        const ex = cuts[f + 1];
+        const segW = ex - sx;
+        const box = frameBoxes[f];
+
+        if (splitMode === 'smart' && box.hasPixels) {
+          // Can giua nhan vat theo truc X va can chan tiep dat theo truc Y
+          const charW = box.maxX - box.minX + 1;
+          const charH = box.maxY - box.minY + 1;
+          const destCharW = Math.round(charW * globalScale);
+          const destCharH = Math.round(charH * globalScale);
+
+          const destX = Math.round((finalFw - destCharW) / 2);
+          const bottomPadding = 2;
+          const destY = Math.max(0, finalFh - destCharH - bottomPadding);
+
+          fCtx.drawImage(
+            sourceCanvas,
+            box.minX, box.minY, charW, charH,
+            destX, destY, destCharW, destCharH
+          );
+        } else {
+          // Che do cat luoi deu
+          const scaledSegW = Math.round(segW * globalScale);
+          const destX = Math.round((finalFw - scaledSegW) / 2);
+          fCtx.drawImage(
+            sourceCanvas,
+            sx, 0, segW, img.height,
+            destX, 0, scaledSegW, finalFh
+          );
+        }
+
+        const frameData = fCtx.getImageData(0, 0, finalFw, finalFh);
+        const data = frameData.data;
+        const pixelsRecord: Record<string, PixelColor> = {};
+
+        for (let y = 0; y < finalFh; y++) {
+          for (let x = 0; x < finalFw; x++) {
+            const idx = (y * finalFw + x) * 4;
+            const a = data[idx + 3];
+            if (a > 20) {
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+              pixelsRecord[coordToKey(x, y)] = hex;
+            }
+          }
+        }
+
+        project.frames.push({
+          id: `frame_${f + 1}_${Date.now()}`,
+          durationMs: Math.round(1000 / fps),
+          layers: [
+            {
+              id: `layer_import_${f + 1}`,
+              name: `Frame ${f + 1}`,
+              visible: true,
+              locked: false,
+              opacity: 1.0,
+              pixels: pixelsRecord
+            }
+          ]
+        });
+      }
+
+      // 7. Tao Animation Clip va cap nhat giao dien
+      const clipId = `clip_${Date.now()}`;
+      project.clips = [
+        {
+          id: clipId,
+          name: clipName,
+          startFrame: 0,
+          endFrame: count - 1,
+          fps,
+          loop: true
+        }
+      ];
+
+      project.activeFrameIndex = 0;
+      project.activeLayerId = project.frames[0].layers[0].id;
+      animController.setActiveClip(clipId);
+
+      const sizeBadge = document.getElementById('canvas-size-badge');
+      if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+      const resLabel = document.getElementById('canvas-resolution');
+      if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+      canvasEngine.rebuildBuffers();
+      canvasEngine.fitToScreen();
+      const zoomBadge = document.getElementById('canvas-zoom-badge');
+      if (zoomBadge) zoomBadge.innerText = `${Math.round(canvasEngine.zoom * 100)}%`;
+      onionSkinRenderer.resize(project.width, project.height);
+      renderAll();
+      syncProjectToServer();
+      closeSmartModal();
+
+    } else if (activeMode === 'base_char') {
+      const isStrip = img.width >= img.height * 1.4;
+      const count = isStrip ? Math.max(2, Math.round(img.width / img.height)) : 1;
+      const rawFw = isStrip ? Math.floor(img.width / count) : img.width;
+      const rawFh = img.height;
+
+      // Xoa phong nen neu duoc chon
+      const shouldRemoveBg = removeBgCheck?.checked ?? true;
+      const bgType = bgTypeSelect?.value || 'auto';
+      const bgTolerance = parseInt(bgToleranceInput?.value || '35', 10);
+
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = img.width;
+      sourceCanvas.height = img.height;
+      const sCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      if (!sCtx) return;
+      sCtx.drawImage(img, 0, 0);
+
+      if (shouldRemoveBg) {
+        removeEdgeBackground(sCtx, img.width, img.height, bgType, bgTolerance);
+      }
+
+      let targetFw = rawFw;
+      let targetFh = rawFh;
+      if (rawFh > 96) {
+        targetFh = 64;
+        const scale = 64 / rawFh;
+        targetFw = Math.max(16, Math.round(rawFw * scale));
+      }
+
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = targetFw;
+      offCanvas.height = targetFh;
+      const ctx = offCanvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(sourceCanvas, 0, 0, rawFw, rawFh, 0, 0, targetFw, targetFh);
+      const imgData = ctx.getImageData(0, 0, targetFw, targetFh);
+      const data = imgData.data;
+
+      const pixels: PixelPoint[] = [];
+      for (let y = 0; y < targetFh; y++) {
+        for (let x = 0; x < targetFw; x++) {
+          const idx = (y * targetFw + x) * 4;
+          const a = data[idx + 3];
+          if (a > 20) {
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            pixels.push({ x, y, color: hex });
+          }
+        }
+      }
+
+      closeSmartModal();
+      globalOpenAiWizardWithBaseChar?.(pixels, targetFw, targetFh, loadedFileName);
+
+    } else if (activeMode === 'new_canvas') {
+      project.width = img.width;
+      project.height = img.height;
+      project.frames = [
+        {
+          id: `frame_1_${Date.now()}`,
+          durationMs: 125,
+          layers: []
+        }
+      ];
+
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = img.width;
+      offCanvas.height = img.height;
+      const ctx = offCanvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, img.width, img.height);
+      const data = imgData.data;
+      const pixelsRecord: Record<string, PixelColor> = {};
+
+      for (let y = 0; y < img.height; y++) {
+        for (let x = 0; x < img.width; x++) {
+          const idx = (y * img.width + x) * 4;
+          const a = data[idx + 3];
+          if (a > 20) {
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            pixelsRecord[coordToKey(x, y)] = hex;
+          }
+        }
+      }
+
+      const layerId = `layer_${Date.now()}`;
+      project.frames[0].layers = [
+        {
+          id: layerId,
+          name: `Ảnh: ${loadedFileName.slice(0, 12)}`,
+          visible: true,
+          locked: false,
+          opacity: 1.0,
+          pixels: pixelsRecord
+        }
+      ];
+      project.activeFrameIndex = 0;
+      project.activeLayerId = layerId;
+
+      const sizeBadge = document.getElementById('canvas-size-badge');
+      if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+      const resLabel = document.getElementById('canvas-resolution');
+      if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+      canvasEngine.rebuildBuffers();
+      canvasEngine.fitToScreen();
+      const zoomBadge = document.getElementById('canvas-zoom-badge');
+      if (zoomBadge) zoomBadge.innerText = `${Math.round(canvasEngine.zoom * 100)}%`;
+      onionSkinRenderer.resize(project.width, project.height);
+      renderAll();
+      syncProjectToServer();
+      closeSmartModal();
+
+    } else {
+      // Chế độ layer: giữ nguyên canvas
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = img.width;
+      offCanvas.height = img.height;
+      const ctx = offCanvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, img.width, img.height);
+      const data = imgData.data;
+
+      if (img.width > project.width || img.height > project.height) {
+        project.width = Math.max(img.width, project.width);
+        project.height = Math.max(img.height, project.height);
+        const sizeBadge = document.getElementById('canvas-size-badge');
+        if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+        const resLabel = document.getElementById('canvas-resolution');
+        if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+        onionSkinRenderer.resize(project.width, project.height);
+      }
+
+      const offsetX = Math.floor((project.width - img.width) / 2);
+      const offsetY = Math.floor((project.height - img.height) / 2);
+
+      const newLayerId = `layer_${Date.now()}`;
+      const activeFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+      const newLayer = {
+        id: newLayerId,
+        name: `Import: ${loadedFileName.slice(0, 12)}`,
+        visible: true,
+        locked: false,
+        opacity: 1.0,
+        pixels: {} as Record<string, PixelColor>
       };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+
+      for (let y = 0; y < img.height; y++) {
+        for (let x = 0; x < img.width; x++) {
+          const idx = (y * img.width + x) * 4;
+          const a = data[idx + 3];
+          if (a > 20) {
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            newLayer.pixels[coordToKey(x + offsetX, y + offsetY)] = hex;
+          }
+        }
+      }
+
+      activeFrame.layers.push(newLayer);
+      project.activeLayerId = newLayerId;
+      canvasEngine.rebuildBuffers();
+      canvasEngine.fitToScreen();
+      const zoomBadge = document.getElementById('canvas-zoom-badge');
+      if (zoomBadge) zoomBadge.innerText = `${Math.round(canvasEngine.zoom * 100)}%`;
+      renderAll();
+      syncProjectToServer();
+      closeSmartModal();
+    }
   });
 }
 

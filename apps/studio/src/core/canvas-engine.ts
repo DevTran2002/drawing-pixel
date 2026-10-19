@@ -25,6 +25,7 @@ export class CanvasEngine {
 
   // Cache buffer cho frame va layer dang duoc chon
   private layerBuffers: Map<string, PixelBuffer> = new Map();
+  private layerOffscreenCanvases: Map<string, HTMLCanvasElement> = new Map();
 
   constructor(options: CanvasEngineOptions) {
     this.canvas = options.canvas;
@@ -75,6 +76,24 @@ export class CanvasEngine {
       x: Math.floor((this.canvas.width - totalWidth) / 2),
       y: Math.floor((this.canvas.height - totalHeight) / 2)
     };
+  }
+
+  // Tu dong tinh toan Zoom de toan bo buc tranh nam vua van chinh giua Viewport
+  fitToScreen(): void {
+    if (this.canvas.width <= 0 || this.canvas.height <= 0 || this.project.width <= 0 || this.project.height <= 0) return;
+    const padding = 60;
+    const availW = Math.max(100, this.canvas.width - padding);
+    const availH = Math.max(100, this.canvas.height - padding);
+    const maxZoomW = availW / this.project.width;
+    const maxZoomH = availH / this.project.height;
+    const bestZoom = Math.min(maxZoomW, maxZoomH);
+
+    if (bestZoom >= 1) {
+      this.zoom = Math.max(1, Math.min(32, Math.floor(bestZoom)));
+    } else {
+      this.zoom = Math.max(1, Math.round(bestZoom * 10) / 10);
+    }
+    this.centerViewport();
   }
 
   // Thay doi kich thuoc canvas viewport phu hop voi container thuc te
@@ -168,10 +187,40 @@ export class CanvasEngine {
         ctx.globalAlpha = layer.opacity;
 
         const pixels = buffer.getAllPixels();
-        for (const p of pixels) {
-          if (!p.color) continue;
-          ctx.fillStyle = p.color;
-          ctx.fillRect(p.x * this.zoom, p.y * this.zoom, this.zoom, this.zoom);
+        if (pixels.length > 2500 || this.project.width * this.project.height > 10000) {
+          let off = this.layerOffscreenCanvases.get(layer.id);
+          if (!off || off.width !== this.project.width || off.height !== this.project.height) {
+            off = document.createElement('canvas');
+            off.width = this.project.width;
+            off.height = this.project.height;
+            this.layerOffscreenCanvases.set(layer.id, off);
+          }
+          const offCtx = off.getContext('2d');
+          if (offCtx) {
+            offCtx.clearRect(0, 0, off.width, off.height);
+            const imgData = offCtx.createImageData(off.width, off.height);
+            const data32 = new Uint32Array(imgData.data.buffer);
+            for (const p of pixels) {
+              if (!p.color) continue;
+              const idx = p.y * off.width + p.x;
+              const hex = p.color.replace('#', '');
+              if (hex.length >= 6) {
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                data32[idx] = (255 << 24) | (b << 16) | (g << 8) | r;
+              }
+            }
+            offCtx.putImageData(imgData, 0, 0);
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(off, 0, 0, artWidth, artHeight);
+          }
+        } else {
+          for (const p of pixels) {
+            if (!p.color) continue;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x * this.zoom, p.y * this.zoom, this.zoom, this.zoom);
+          }
         }
         ctx.restore();
       }

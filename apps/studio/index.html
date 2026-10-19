@@ -488,6 +488,7 @@
               <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px;">
                 <button class="btn btn-small" id="btn-step2-back-step1">Quay lại sửa Prompt</button>
                 <button class="btn btn-small" id="btn-step2-reroll">Vẽ lại mẫu khác (Reroll)</button>
+                <button class="btn btn-small" id="btn-step2-upload-char" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;" title="Tải ảnh nhân vật có sẵn từ máy tính để làm mẫu">Tải Ảnh Mẫu Từ Máy Tính</button>
                 <button class="btn btn-small" id="btn-step2-use-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Nạp ngay ảnh mẫu này vào Canvas chính">Nạp Bức Này Vào Canvas (Ảnh Tĩnh)</button>
                 <button class="btn btn-small btn-primary" id="btn-step2-lock" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Chốt Mẫu Này & Sang Bước 3</button>
               </div>
@@ -512,32 +513,46 @@
                 <!-- CHON CONG NGHE SINH HOAT ANH -->
                 <div>
                   <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Công nghệ sinh hoạt ảnh (Animation Engine):</label>
-                  <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px;">
-                    <button type="button" class="anim-engine-card active" id="anim-engine-hybrid" data-engine="hybrid">
+                  <div style="display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px;">
+                    <button type="button" class="anim-engine-card active" id="anim-engine-template" data-engine="template">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
-                        <span style="font-weight: 700; font-size: 11px; color: #38bdf8;">Khung Xương + AI Vẽ Bù</span>
-                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border-radius: 4px; font-weight: 600;">Khuyên dùng</span>
+                        <span style="font-weight: 700; font-size: 11px; color: #4ade80;">Puppet Rigging 2D</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(74, 222, 128, 0.25); color: #4ade80; border-radius: 4px; font-weight: 600;">Khuyên dùng • Giữ 100% Nét</span>
                       </div>
-                      <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Khung xương định hình tư thế, Model AI tự động khâu liền vết rách &amp; nếp gấp trang phục.</span>
+                      <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Xoay khớp phân cấp (Pivot Rotation) &amp; khâu liền vết rách. Giữ 100% mắt xanh, tóc nâu, sải bước và chém kiếm mượt (&lt; 1s).</span>
                     </button>
-                    <button type="button" class="anim-engine-card" id="anim-engine-template" data-engine="template">
+                    <button type="button" class="anim-engine-card" id="anim-engine-hybrid" data-engine="hybrid">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
-                        <span style="font-weight: 600; font-size: 11px; color: #4ade80;">Khung Xương Thuần</span>
-                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(74, 222, 128, 0.2); color: #4ade80; border-radius: 4px;">Tức thì (&lt;1s)</span>
+                        <span style="font-weight: 600; font-size: 11px; color: #38bdf8;">Khung Xương + AI Vá</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-radius: 4px;">Hybrid OpenPose</span>
                       </div>
-                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Biến đổi hình học giữ 100% pixel gốc, phù hợp dáng đi nhẹ không vung tay quá đà.</span>
+                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Khung xương định hình góc xoay thô, Model AI khâu liền các nếp gấp trang phục.</span>
                     </button>
                     <button type="button" class="anim-engine-card" id="anim-engine-ai" data-engine="ai">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
-                        <span style="font-weight: 600; font-size: 11px; color: #c084fc;">AI Tạo Sinh Tự Do</span>
-                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(168, 85, 247, 0.2); color: #c084fc; border-radius: 4px;">SD 1.5 LoRA</span>
+                        <span style="font-weight: 600; font-size: 11px; color: #c084fc;">2D Pixel Toolkit (AI)</span>
+                        <span style="font-size: 9px; padding: 1px 5px; background: rgba(168, 85, 247, 0.2); color: #c084fc; border-radius: 4px;">SD LoRA</span>
                       </div>
-                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Dải ảnh ngang tỷ lệ 1:1 không méo, tư thế biến ảo và vệt kiếm quang nghệ thuật.</span>
+                      <span style="font-size: 10px; color: var(--text-muted); display: block; line-height: 1.3;">Mô hình LoRA sinh Sprite Sheet tự do từ Prompt và mẫu tham chiếu.</span>
                     </button>
                   </div>
 
+                  <!-- BANG DIEU CHINH DO BIEN DOI DONG HOC CHO 2D PIXEL TOOLKIT AI -->
+                  <div id="ai-strength-panel" style="display: flex; flex-direction: column; gap: 4px; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 6px; padding: 8px 12px; margin-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 11px; font-weight: 600; color: #c084fc;">Độ biến đổi tư thế động học (Motion Strength):</span>
+                      <span id="ai-strength-val" style="font-size: 11px; font-weight: 700; color: #c084fc; font-family: monospace;">0.62 (Chuẩn chuyển động game mượt)</span>
+                    </div>
+                    <input type="range" id="ai-strength-slider" min="0.45" max="0.75" step="0.02" value="0.62" style="width: 100%; cursor: pointer;">
+                    <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-muted); line-height: 1.2;">
+                      <span>0.45: Bám sát dáng tĩnh ban đầu</span>
+                      <span>0.62: Cân bằng chuyển động mềm &amp; nhận diện mẫu</span>
+                      <span>0.75: Tư thế vung đòn cực mạnh</span>
+                    </div>
+                  </div>
+
                   <!-- BANG DIEU CHINH MUC DO AI VE BU CHO HYBRID ENGINE -->
-                  <div id="hybrid-strength-panel" style="display: flex; flex-direction: column; gap: 4px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 8px 12px; margin-top: 6px;">
+                  <div id="hybrid-strength-panel" style="display: none; flex-direction: column; gap: 4px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 8px 12px; margin-top: 6px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                       <span style="font-size: 11px; font-weight: 600; color: #38bdf8;">Mức độ AI vẽ bù &amp; khâu liền vết rách (Strength):</span>
                       <span id="hybrid-strength-val" style="font-size: 11px; font-weight: 700; color: #38bdf8; font-family: monospace;">0.38 (Cân bằng chuẩn)</span>
@@ -841,6 +856,8 @@
           <div style="display: flex; gap: 8px;">
             <button class="btn" id="btn-wizard-back" style="display: none;">Quay lại</button>
             <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất vào Canvas">Nạp Ảnh Gần Nhất</button>
+            <button class="btn" id="btn-wizard-upload-base" style="border-color: #38bdf8; color: #38bdf8;" title="Tải file ảnh nhân vật từ máy tính để làm mẫu gán khung xương">Tải Mẫu Từ Máy Tính</button>
+            <input type="file" id="wizard-base-upload-input" accept="image/png,image/jpeg,image/webp" style="display: none;" />
           </div>
           <div style="display: flex; gap: 8px;">
             <!-- Cac nut dong ung voi tung buoc -->
@@ -958,6 +975,134 @@
         </div>
         <div class="modal-footer">
           <button class="btn" id="btn-close-gallery-footer">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. Modal Nhập Ảnh & Cắt SpriteSheet Thông Minh (Smart Import Modal) -->
+    <div class="modal-backdrop" id="import-smart-modal" style="display: none;">
+      <div class="modal-dialog" style="max-width: 560px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3>Nhập Ảnh & Cắt SpriteSheet (Smart Import)</h3>
+            <span class="brand-badge" id="import-smart-type-badge" style="color: #4ade80; border-color: #22c55e;">Sprite Sheet</span>
+          </div>
+          <button class="modal-close" id="btn-close-import-smart-modal">&times;</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- Khung xem truoc anh goc -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+              <span>Ảnh tải lên:</span>
+              <span id="import-smart-dimen-label" style="font-family: monospace; color: #38bdf8;">0 x 0 px</span>
+            </div>
+            <div style="max-height: 180px; overflow-x: auto; overflow-y: hidden; background: #0c0d14; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; display: flex; align-items: center; justify-content: center;">
+              <img id="import-smart-preview-img" style="max-height: 140px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.6));" />
+            </div>
+          </div>
+
+          <!-- Canh bao phat hien ti le -->
+          <div id="import-smart-hint-box" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; font-size: 11px; line-height: 1.4; color: #cbd5e1;">
+            Hệ thống phát hiện đây là <strong>Dải Sprite Sheet (Ngang)</strong>. Bạn có thể tự động chia đều thành các Frame hoạt cảnh để phát chuyển động ngay trong Studio!
+          </div>
+
+          <!-- Chon che do nhap -->
+          <div>
+            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Chọn cách nhập vào Studio:</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <button type="button" class="anim-engine-card active" id="import-mode-spritesheet" data-mode="spritesheet" style="text-align: left; padding: 10px;">
+                <div style="font-weight: 700; font-size: 11px; color: #4ade80; margin-bottom: 2px;">Cắt Sprite Sheet (Hoạt Ảnh)</div>
+                <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Chia thành N Frame hoạt cảnh trên Timeline, tạo Animation Clip và xem chuyển động ngay.</span>
+              </button>
+              <button type="button" class="anim-engine-card" id="import-mode-base-char" data-mode="base_char" style="text-align: left; padding: 10px;">
+                <div style="font-weight: 700; font-size: 11px; color: #38bdf8; margin-bottom: 2px;">Nạp Vào AI Puppet Rigging</div>
+                <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Lấy mẫu nhân vật chuyển sang Bước 2/3 để gán khung xương và sinh chuyển động mới.</span>
+              </button>
+              <button type="button" class="anim-engine-card" id="import-mode-new-canvas" data-mode="new_canvas" style="text-align: left; padding: 10px;">
+                <div style="font-weight: 700; font-size: 11px; color: #f59e0b; margin-bottom: 2px;">Tạo Canvas Mới Theo Ảnh</div>
+                <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Tạo Canvas bằng đúng kích thước ảnh tải lên để vẽ hoặc chỉnh sửa từng pixel.</span>
+              </button>
+              <button type="button" class="anim-engine-card" id="import-mode-layer" data-mode="layer" style="text-align: left; padding: 10px;">
+                <div style="font-weight: 700; font-size: 11px; color: #c084fc; margin-bottom: 2px;">Chèn Layer Vào Canvas Hiện Tại</div>
+                <span style="font-size: 10px; color: #cbd5e1; display: block; line-height: 1.3;">Giữ nguyên kích thước Canvas và thêm ảnh dưới dạng một Layer mới.</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bang cau hinh danh rieng cho Cat SpriteSheet -->
+          <div id="import-spritesheet-config" style="background: #13131a; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Số lượng Frames:</label>
+                <input type="number" id="import-smart-frames-count" class="modal-input" min="1" max="64" value="4" style="width: 100%; font-size: 12px; padding: 6px;" />
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Kích thước mỗi Frame (px):</label>
+                <div id="import-smart-frame-size-label" style="font-size: 12px; color: #4ade80; font-family: monospace; padding: 6px; background: rgba(0,0,0,0.4); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">64 x 64 px</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tên Hoạt Cảnh (Clip Name):</label>
+                <input type="text" id="import-smart-clip-name" class="modal-input" value="CLIP_IMPORT" style="width: 100%; font-size: 12px; padding: 6px;" />
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tốc độ phát (FPS):</label>
+                <input type="number" id="import-smart-fps" class="modal-input" min="1" max="30" value="8" style="width: 100%; font-size: 12px; padding: 6px;" />
+              </div>
+            </div>
+
+            <!-- Che do tach nhan vat thong minh hoac luoi -->
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div style="flex: 1;">
+                <label style="font-size: 11px; color: #4ade80; display: block; margin-bottom: 4px; font-weight: 600;">Chế độ cắt Frame:</label>
+                <select id="import-smart-split-mode" class="btn btn-small" style="width: 100%; font-size: 11px; padding: 6px; background: #0c0d14; border-color: rgba(74, 222, 128, 0.4);">
+                  <option value="smart" selected>Tự động tách từng nhân vật (AI Smart Valley • Chống lẫn lộn frame)</option>
+                  <option value="grid">Chia đều theo lưới số học (Uniform Grid • Chuẩn Sprite)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Xoa phong nen tu dong -->
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: #38bdf8;">
+                  <input type="checkbox" id="import-smart-remove-bg" checked style="accent-color: #38bdf8; width: 14px; height: 14px; cursor: pointer;" />
+                  Tự động xóa phông nền (Auto Remove Background)
+                </label>
+                <span style="font-size: 10px; color: #94a3b8;">Xóa nền ngoài, giữ tạp dề & mắt</span>
+              </div>
+              <div id="import-smart-bg-options" style="display: flex; gap: 10px; align-items: center;">
+                <div style="flex: 2;">
+                  <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Màu phông nền:</label>
+                  <select id="import-smart-bg-type" class="btn btn-small" style="width: 100%; font-size: 11px; padding: 4px 6px; background: #0c0d14;">
+                    <option value="auto" selected>Tự nhận diện màu nền từ viền góc</option>
+                    <option value="white">Nền Trắng (Solid White / #FFFFFF)</option>
+                    <option value="green">Nền Xanh lá (Chroma Key Green)</option>
+                    <option value="black">Nền Đen (#000000)</option>
+                  </select>
+                </div>
+                <div style="flex: 1;">
+                  <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px;">Độ nhạy (0-100):</label>
+                  <input type="number" id="import-smart-bg-tolerance" class="modal-input" min="5" max="150" value="35" style="width: 100%; font-size: 11px; padding: 4px 6px;" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size: 11px; color: #38bdf8; display: block; margin-bottom: 4px; font-weight: 600;">Tối ưu hóa kích thước Pixel Art (Tránh giật lag):</label>
+              <select id="import-smart-target-size" class="btn btn-small" style="width: 100%; font-size: 11px; padding: 6px; background: #0c0d14; border-color: rgba(56, 189, 248, 0.4);">
+                <option value="64" selected>Thu nhỏ về chiều cao 64 px (Khuyên dùng • Chuẩn RPG Game 60 FPS siêu mượt)</option>
+                <option value="96">Thu nhỏ về chiều cao 96 px (Độ nét chi tiết cao)</option>
+                <option value="128">Thu nhỏ về chiều cao 128 px (HD Sprite)</option>
+                <option value="original">Giữ nguyên kích thước gốc (Cảnh báo: Nếu ảnh >256px sẽ rất nặng)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <button class="btn" id="btn-cancel-import-smart">Hủy Bỏ</button>
+          <button class="btn btn-primary" id="btn-apply-import-smart" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Xác Nhận Nhập Vào Studio</button>
         </div>
       </div>
     </div>

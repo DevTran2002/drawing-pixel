@@ -63,6 +63,36 @@ export function loadPngToPixels(imagePath: string): { width: number; height: num
   return { width: png.width, height: png.height, pixels };
 }
 
+// Luu danh sach diem anh PixelPoint thanh tep anh PNG
+export function savePixelsToPng(pixels: PixelPoint[], w: number, h: number, filePath: string): void {
+  const png = new PNG({ width: w, height: h });
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = 0;
+    png.data[i + 1] = 0;
+    png.data[i + 2] = 0;
+    png.data[i + 3] = 0;
+  }
+
+  for (const p of pixels) {
+    if (p.x >= 0 && p.x < w && p.y >= 0 && p.y < h && p.color) {
+      const idx = (w * p.y + p.x) << 2;
+      const hex = p.color.replace('#', '');
+      if (hex.length >= 6) {
+        png.data[idx] = parseInt(hex.substring(0, 2), 16);
+        png.data[idx + 1] = parseInt(hex.substring(2, 4), 16);
+        png.data[idx + 2] = parseInt(hex.substring(4, 6), 16);
+        png.data[idx + 3] = 255;
+      }
+    }
+  }
+
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(filePath, PNG.sync.write(png));
+}
+
 export interface AiProgressInfo {
   stage: string;
   step?: number;
@@ -319,6 +349,9 @@ export interface AiAnimationOptions {
   size?: number;
   resample?: 'NEAREST' | 'LANCZOS';
   removeBg?: boolean;
+  basePixels?: PixelPoint[];
+  initImage?: string;
+  strength?: number;
   onProgress?: AiProgressCallback;
 }
 
@@ -349,10 +382,14 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
     const action = opts.action || 'walk';
     const frameCount = opts.frameCount || 4;
     const checkpoint = opts.checkpoint ? (path.isAbsolute(opts.checkpoint) ? opts.checkpoint : path.join(projectRoot, opts.checkpoint)) : path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
-    // Uu tien dung LoRA Pixel F2 cho Sprite hoat anh
-    const loraPath = opts.loraPath ? (path.isAbsolute(opts.loraPath) ? opts.loraPath : path.join(projectRoot, opts.loraPath)) : path.join(projectRoot, 'models', 'lora', 'pixel_f2.safetensors');
-    const loraScale = opts.loraScale !== undefined ? opts.loraScale : 0.65;
-    const steps = opts.steps || 18;
+    
+    // Uu tien dung LoRA 2D Pixel Toolkit chuyen dung cho game sprite sheet
+    const toolkitLora = path.join(projectRoot, 'models', 'lora', '2d_pixel_sprites_64.safetensors');
+    const defaultLora = fs.existsSync(toolkitLora) ? toolkitLora : path.join(projectRoot, 'models', 'lora', 'pixel_f2.safetensors');
+    const loraPath = opts.loraPath ? (path.isAbsolute(opts.loraPath) ? opts.loraPath : path.join(projectRoot, opts.loraPath)) : defaultLora;
+    const isToolkit = loraPath.includes('2d_pixel_sprites');
+    const loraScale = opts.loraScale !== undefined ? opts.loraScale : (isToolkit ? 0.85 : 0.65);
+    const steps = opts.steps || (isToolkit ? 20 : 18);
     const size = opts.size || 64;
     const resample = opts.resample || 'NEAREST';
     const removeBg = opts.removeBg ?? true;
@@ -360,6 +397,14 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
 
     const timestamp = Date.now();
     const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `ai_anim_${timestamp}`);
+
+    let tempRefCharPath: string | undefined = undefined;
+    if (opts.initImage && fs.existsSync(opts.initImage)) {
+      tempRefCharPath = opts.initImage;
+    } else if (opts.basePixels && opts.basePixels.length > 0) {
+      tempRefCharPath = path.join(projectRoot, 'storage', 'outputs', `temp_ref_char_${timestamp}.png`);
+      savePixelsToPng(opts.basePixels, size, size, tempRefCharPath);
+    }
 
     const args = [
       '-u',
@@ -377,6 +422,12 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
       '--action', action
     ];
 
+    if (tempRefCharPath) {
+      args.push('--init_image', tempRefCharPath);
+      const actualStrength = opts.strength !== undefined ? opts.strength : 0.62;
+      args.push('--strength', `${actualStrength}`);
+    }
+
     if (removeBg) {
       args.push('--remove_bg');
     }
@@ -386,6 +437,7 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
 
     console.log(`[AI Animation] Dang chay script tao chuoi hoat anh: ${pythonExe} ${args.join(' ')}`);
 
+    const hasRef = Boolean(tempRefCharPath);
     onProgress?.({
       stage: 'init',
       step: 0,
@@ -393,7 +445,9 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
       percent: 0,
       elapsed: 0,
       eta: 0,
-      message: `Đang khởi tạo chu kỳ ${action} (${frameCount} frames)...`
+      message: hasRef
+        ? `Đang tạo SpriteSheet tham chiếu nhân vật mẫu (${action}, ${frameCount} frames)...`
+        : `Đang khởi tạo chu kỳ ${action} (${frameCount} frames)...`
     });
 
     const child = spawn(pythonExe, args, { cwd: projectRoot });

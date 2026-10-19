@@ -107,20 +107,35 @@ def generate_pixel_art(
     if not any("pixel" in t.lower() for t in tags):
         tags.insert(0, "pixel art")
 
-    # Neu o che do sinh hoat anh SpriteSheet, bo sung cac tag dan huong chuyen dong
+    # Tu dong phat hien va uu tien LoRA 2D Pixel Toolkit chuyen dung cho game animation
+    toolkit_lora = "models/lora/2d_pixel_sprites_64.safetensors"
+    if animation_mode and os.path.exists(toolkit_lora):
+        if not lora_path or "portrait" in lora_path:
+            lora_path = toolkit_lora
+            lora_scale = 0.85
+
+    # Neu o che do sinh hoat anh SpriteSheet, bo sung cac tag dan huong chuyen dong chuan 2D Pixel Toolkit
     if animation_mode:
         action_clean = action.lower().strip()
-        tags.insert(1, "(horizontal sprite sheet sequence:1.3)")
+        tags.insert(0, "pixel, pixel art, pixelart, xiangsu, xiang su")
+        tags.insert(1, "((Side view)), full body, solid white background, clean outline")
+        tags.insert(2, f"horizontal sprite sheet sequence, {frame_count} side by side sub-frames, same character")
         if "walk" in action_clean:
-            tags.insert(2, f"({action_clean} in place cycle:1.2)")
+            tags.insert(3, "(in-place walk cycle animation:1.3), (smooth walking stride, alternating legs, swinging arms:1.2)")
         elif "attack" in action_clean or "slash" in action_clean:
-            tags.insert(2, "(slashing sword attack with bright slash arc motion trail:1.3)")
+            tags.insert(3, "(dynamic slashing sword attack combo:1.3), (bright weapon slash arc trail:1.3), (anticipation to strike follow-through:1.2)")
         elif "jump" in action_clean:
-            tags.insert(2, "(jumping sequence, preparation crouch, airborne pose, landing:1.3)")
+            tags.insert(3, "(jumping animation sequence:1.3), (anticipation crouch, midair leap apex, landing impact:1.3)")
+        elif "run" in action_clean:
+            tags.insert(3, "(running sprint cycle:1.3), (fast stride, forward leaning body:1.2)")
+        elif "idle" in action_clean:
+            tags.insert(3, "(idle breathing animation:1.2), (subtle standing stance:1.1)")
+        elif "sit" in action_clean:
+            tags.insert(3, "(sitting rest sequence:1.3), (resting on ground:1.2)")
+        elif "defeated" in action_clean:
+            tags.insert(3, "(falling down knockdown sequence:1.3), (lying on floor defeated:1.2)")
         else:
-            tags.insert(2, f"({action_clean} animation:1.2)")
-        tags.insert(3, f"{frame_count} side by side sub-frames")
-        tags.insert(4, "full body centered in each frame")
+            tags.insert(3, f"({action_clean} animation:1.2)")
 
     # Phan loai va dua tag boi canh len dau ngay sau trigger pixel art
     bg_keywords = ["background", "white background", "simple background", "flat background", "transparent background"]
@@ -137,7 +152,7 @@ def generate_pixel_art(
     # Neu co yeu cau nen don gian hoac animation mode, loai bo cay coi dao bay moc da
     has_simple_bg = any("simple" in t.lower() or "white" in t.lower() or "flat" in t.lower() for t in bg_tags)
     if (has_simple_bg or animation_mode) and "tree" not in negative_prompt.lower():
-        negative_prompt = f"{negative_prompt}, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds, merged frames, cut off body, displaced, blurry, distorted, bad anatomy"
+        negative_prompt = f"{negative_prompt}, 3d, photorealistic, realistic, render, blurry, smooth, noisy, distorted, disfigured, malformed, bad anatomy, merged frames, cut off body, displaced, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds, floating pixels"
 
     # Xu ly che do Hybrid AI Refinement: Khau lien vet rach va lam muot chuyen dong khung xuong
     if refine_meta and os.path.exists(refine_meta):
@@ -234,9 +249,9 @@ def generate_pixel_art(
         print(f"AI_STAGE:DONE:Hoan tat ve bu {total_frames} frames hoat anh bang Hybrid AI!", flush=True)
         return refined_frame_files[0] if refined_frame_files else ""
 
-    # Xu ly anh don le Img2Img neu co init_image
+    # Xu ly Img2Img neu co init_image (ca anh don le lan chuoi SpriteSheet tham chieu)
     if init_image and os.path.exists(init_image):
-        print(f"AI_STAGE:REFINE_SINGLE:Bat dau tinh chinh anh bang Img2Img (do manh {strength})...", flush=True)
+        print(f"AI_STAGE:REFINE_SINGLE:Bat dau tao anh Img2Img (do manh {strength})...", flush=True)
         if checkpoint and os.path.exists(checkpoint):
             pipe = StableDiffusionImg2ImgPipeline.from_single_file(
                 checkpoint,
@@ -255,12 +270,37 @@ def generate_pixel_art(
             pipe.load_lora_weights(lora_path)
 
         cross_attention_kwargs = {"scale": lora_scale} if lora_scale is not None else None
-        init_pil = Image.open(init_image)
-        if init_pil.mode != "RGBA":
-            init_pil = init_pil.convert("RGBA")
-        bg_white = Image.new("RGB", init_pil.size, (255, 255, 255))
-        bg_white.paste(init_pil, mask=init_pil.split()[3])
-        init_img_512 = bg_white.resize((512, 512), Image.Resampling.NEAREST)
+        
+        sub_frame_size = 256
+        if animation_mode and frame_count > 1:
+            print(f"AI_STAGE:REFINE_ANIM:Khoi tao dai anh tham chieu tu nhan vat mau ({frame_count} frames)...", flush=True)
+            strip_w = sub_frame_size * frame_count
+            strip_h = sub_frame_size
+            init_strip = Image.new("RGB", (strip_w, strip_h), (255, 255, 255))
+
+            char_pil = Image.open(init_image)
+            if char_pil.mode != "RGBA":
+                char_pil = char_pil.convert("RGBA")
+
+            char_h_target = int(strip_h * 0.78)
+            char_w_target = int(char_pil.width * (char_h_target / max(1, char_pil.height)))
+            char_resized = char_pil.resize((char_w_target, char_h_target), Image.Resampling.NEAREST)
+
+            for i in range(frame_count):
+                x_offset = i * sub_frame_size + (sub_frame_size - char_w_target) // 2
+                y_offset = (sub_frame_size - char_h_target) // 2
+                init_strip.paste(char_resized, (x_offset, y_offset), mask=char_resized.split()[3])
+
+            input_sd_image = init_strip
+            actual_strength = strength if (strength is not None and strength > 0.45) else 0.62
+        else:
+            init_pil = Image.open(init_image)
+            if init_pil.mode != "RGBA":
+                init_pil = init_pil.convert("RGBA")
+            bg_white = Image.new("RGB", init_pil.size, (255, 255, 255))
+            bg_white.paste(init_pil, mask=init_pil.split()[3])
+            input_sd_image = bg_white.resize((512, 512), Image.Resampling.NEAREST)
+            actual_strength = strength if strength is not None else 0.38
 
         if seed is None or seed <= 0:
             seed = int(torch.randint(1, 2147483647, (1,)).item())
@@ -269,8 +309,8 @@ def generate_pixel_art(
         res = pipe(
             prompt=enriched_prompt,
             negative_prompt=negative_prompt,
-            image=init_img_512,
-            strength=strength,
+            image=input_sd_image,
+            strength=actual_strength,
             num_inference_steps=steps,
             guidance_scale=guidance_scale,
             generator=generator,
@@ -278,10 +318,47 @@ def generate_pixel_art(
         )
         raw_img = res.images[0]
 
+        # 1. Luu ban anh goc SpriteSheet hoac anh don
+        total_w, total_h = raw_img.size
+        raw_out = f"{output_prefix}_raw_{total_w}x{total_h}.png"
+        raw_img.save(raw_out)
+
+        # 2. Xu ly cat frame neu o che do SpriteSheet
+        if animation_mode and frame_count > 1:
+            print(f"AI_STAGE:SLICE:Dang tu dong cat {frame_count} frames chuyen dong tu SpriteSheet...", flush=True)
+            slice_w = total_w // frame_count
+            frame_files = []
+            import json
+
+            for i in range(frame_count):
+                crop_box = (i * slice_w, 0, (i + 1) * slice_w, total_h)
+                sub_img = raw_img.crop(crop_box)
+                if remove_bg:
+                    sub_img = remove_background_safe(sub_img, tolerance=22)
+                sub_pixel = sub_img.resize((target_pixel_size, target_pixel_size), Image.Resampling.NEAREST)
+                frame_path = f"{output_prefix}_frame_{i}.png"
+                sub_pixel.save(frame_path)
+                frame_files.append(frame_path)
+
+            meta_data = {
+                "frameCount": frame_count,
+                "action": action,
+                "engine": "ai",
+                "frameFiles": frame_files,
+                "spriteSheetRaw": raw_out
+            }
+            meta_path = f"{output_prefix}_anim_meta.json"
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(meta_data, f, ensure_ascii=False, indent=2)
+
+            print(f"AI_ANIM_RESULT:{meta_path}", flush=True)
+            print(f"AI_STAGE:DONE:Da tao thanh cong {frame_count} frames hoat anh cho hanh dong {action}!", flush=True)
+            return frame_files[0]
+
+        # 3. Xu ly anh don le
         processed_img = raw_img
         if remove_bg:
             processed_img = remove_background_safe(raw_img, tolerance=24)
-
         resample_filter = Image.Resampling.NEAREST if resample_method.upper() == "NEAREST" else Image.Resampling.LANCZOS
         pixel_img = processed_img.resize((target_pixel_size, target_pixel_size), resample_filter)
         pixel_out = f"{output_prefix}_pixel_{target_pixel_size}x{target_pixel_size}.png"

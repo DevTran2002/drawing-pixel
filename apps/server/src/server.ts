@@ -383,7 +383,7 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        // 3. Che do 3: AI Tao Sinh Tu Do (AI SpriteSheet)
+        // 3. Che do 3: 2D Pixel Toolkit (AI SpriteSheet Reference-guided)
         const onProgress = (progress: any) => {
           broadcastToStudio({
             type: 'AI_PROGRESS',
@@ -398,10 +398,12 @@ const server = http.createServer(async (req, res) => {
           seed: seed ? parseInt(seed, 10) : undefined,
           checkpoint,
           loraPath,
-          loraScale: loraScale !== undefined ? parseFloat(loraScale) : 0.65,
-          steps: steps ? parseInt(steps, 10) : 18,
+          loraScale: loraScale !== undefined ? parseFloat(loraScale) : undefined,
+          steps: steps ? parseInt(steps, 10) : undefined,
           size: size ? parseInt(size, 10) : 64,
           removeBg: removeBg ?? true,
+          basePixels: Array.isArray(basePixels) && basePixels.length > 0 ? basePixels : undefined,
+          strength: typeof strength === 'number' ? strength : (strength ? parseFloat(strength) : 0.62),
           onProgress
         });
 
