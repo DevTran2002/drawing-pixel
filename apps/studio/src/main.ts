@@ -3048,23 +3048,51 @@ function initAiPixelModal(): void {
     });
 
     // 3. Cập nhật các nút ở chân Modal (Footer)
+    const btnLoadExistingAi = document.getElementById('btn-load-existing-ai');
+    const btnWizardUploadBase = document.getElementById('btn-wizard-upload-base');
+
     if (btnWizardBack) {
       btnWizardBack.style.display = validStep > 1 ? 'inline-flex' : 'none';
+      if (validStep === 2) {
+        btnWizardBack.innerText = 'Quay lại Bước 1';
+      } else if (validStep === 3) {
+        btnWizardBack.innerText = 'Quay lại Bước 2';
+      } else if (validStep === 4) {
+        btnWizardBack.innerText = 'Quay lại Bước 3';
+      }
     }
+
+    if (btnLoadExistingAi) {
+      btnLoadExistingAi.style.display = validStep === 1 ? 'inline-flex' : 'none';
+    }
+
+    if (btnWizardUploadBase) {
+      btnWizardUploadBase.style.display = (validStep === 1 || validStep === 2) ? 'inline-flex' : 'none';
+      btnWizardUploadBase.innerText = validStep === 2 ? 'Tải mẫu khác từ máy' : 'Tải Mẫu Từ Máy Tính';
+    }
+
     if (btnWizardDrawStatic) {
       btnWizardDrawStatic.style.display = validStep === 1 ? 'inline-flex' : 'none';
     }
     if (btnWizardDrawBase) {
       btnWizardDrawBase.style.display = validStep === 1 ? 'inline-flex' : 'none';
     }
+
     if (btnWizardStep2UseStatic) {
       btnWizardStep2UseStatic.style.display = validStep === 2 && !!baseCharState.dataUrl ? 'inline-flex' : 'none';
     }
-    if (btnWizardNextStep) {
-      // Ở Bước 1: cho phép tiếp tục nếu đã có ảnh mẫu; ở Bước 2: cho phép nếu đã chốt mẫu
-      const canProceed = (validStep === 1 && !!baseCharState.dataUrl) || (validStep === 2 && baseCharState.locked);
-      btnWizardNextStep.style.display = canProceed ? 'inline-flex' : 'none';
+
+    if (btnStep2Lock) {
+      btnStep2Lock.style.display = validStep === 2 ? 'inline-flex' : 'none';
+      btnStep2Lock.disabled = !baseCharState.seed;
+      btnStep2Lock.innerText = baseCharState.locked ? 'Đã Chốt Mẫu (Sang Bước 3)' : 'Chốt Mẫu Này & Sang Bước 3';
     }
+
+    if (btnWizardNextStep) {
+      // Chỉ hiện ở bước 1 khi đã có ảnh mẫu mà không cần vẽ lại
+      btnWizardNextStep.style.display = (validStep === 1 && !!baseCharState.dataUrl) ? 'inline-flex' : 'none';
+    }
+
     if (btnWizardGenerateAnim) {
       btnWizardGenerateAnim.style.display = validStep === 3 ? 'inline-flex' : 'none';
     }

@@ -716,19 +716,13 @@
                 <span id="anim-base-seed-text" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">Seed: Ngẫu nhiên</span>
               </div>
 
-              <!-- Cac nut thao tac tai Buoc 2 -->
-              <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px;">
-                <button class="btn btn-small" id="btn-step2-back-step1">Quay lại sửa Prompt</button>
-                <button class="btn btn-small" id="btn-step2-reroll">Vẽ lại mẫu khác (Reroll)</button>
-                <button class="btn btn-small" id="btn-step2-upload-char" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;" title="Tải ảnh nhân vật có sẵn từ máy tính để làm mẫu">Tải Ảnh Mẫu Từ Máy Tính</button>
-                <button class="btn btn-small" id="btn-step2-use-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Nạp ngay ảnh mẫu này vào Canvas chính">Nạp Bức Này Vào Canvas (Ảnh Tĩnh)</button>
-                <button class="btn btn-small btn-primary" id="btn-step2-lock" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Chốt Mẫu Này & Sang Bước 3</button>
-              </div>
-
-              <!-- Nut bat tat bo chia luoi Sprite Sheet & Xem chuyen dong -->
-              <div style="margin-top: 4px;">
-                <button type="button" class="btn btn-small" id="btn-step2-toggle-slicer" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); border: 1px solid #a78bfa; color: #ffffff; font-weight: 600; padding: 6px 14px; box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);">
-                  Cắt Lưới Sprite Sheet &amp; Xem Thử Chuyển Động
+              <!-- Thanh cong cu xem truoc gon gang o Buoc 2 (Reroll va Cat Luoi) -->
+              <div class="step2-quick-bar" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px;">
+                <button type="button" class="btn btn-small" id="btn-step2-reroll" style="padding: 6px 14px; font-weight: 500;" title="Tao lai mau nhan vat khac voi Seed ngau nhien moi">
+                  Vẽ lại mẫu khác (Reroll)
+                </button>
+                <button type="button" class="btn btn-small" id="btn-step2-toggle-slicer" style="background: rgba(124, 58, 237, 0.15); border: 1px solid rgba(167, 139, 250, 0.4); color: #c084fc; font-weight: 500; padding: 6px 14px;" title="Mo bo cat cac o tu Sprite Sheet de xem truoc hoat anh">
+                  Cắt Lưới Sprite Sheet &amp; Xem Thử
                 </button>
               </div>
 
@@ -1175,19 +1169,20 @@
           </div>
         </div>
 
-        <!-- Footer Modal Dieu Huong 4 Buoc -->
-        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; gap: 8px;">
-            <button class="btn" id="btn-wizard-back" style="display: none;">Quay lại</button>
+        <!-- Footer Modal Dieu Huong 4 Buoc Chuan Muc -->
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid rgba(255,255,255,0.08); background: #0e0f16;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn" id="btn-wizard-back" style="display: none; padding: 6px 14px;">Quay lại</button>
             <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất vào Canvas">Nạp Ảnh Gần Nhất</button>
-            <button class="btn" id="btn-wizard-upload-base" style="border-color: #38bdf8; color: #38bdf8;" title="Tải file ảnh nhân vật từ máy tính để làm mẫu gán khung xương">Tải Mẫu Từ Máy Tính</button>
+            <button class="btn" id="btn-wizard-upload-base" style="border-color: #38bdf8; color: #38bdf8;" title="Tải file ảnh nhân vật từ máy tính để làm mẫu">Tải Mẫu Từ Máy Tính</button>
             <input type="file" id="wizard-base-upload-input" accept="image/png,image/jpeg,image/webp" style="display: none;" />
           </div>
-          <div style="display: flex; gap: 8px;">
+          <div style="display: flex; gap: 10px; align-items: center;">
             <!-- Cac nut dong ung voi tung buoc -->
-            <button class="btn btn-ai" id="btn-wizard-draw-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Vẽ và nạp trực tiếp ảnh tĩnh vào Canvas không qua các bước tiếp">Vẽ & Nạp Vào Canvas (Ảnh Tĩnh)</button>
-            <button class="btn btn-ai" id="btn-wizard-draw-base" title="Vẽ nhân vật chuẩn và chuyển sang Bước 2 để tạo hoạt ảnh">Vẽ Mẫu & Tiếp Tục Hoạt Ảnh</button>
-            <button class="btn btn-small" id="btn-wizard-step2-use-static" style="display: none; background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;">Nạp Bức Này Vào Canvas</button>
+            <button class="btn btn-ai" id="btn-wizard-draw-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Vẽ và nạp trực tiếp ảnh tĩnh vào Canvas không qua các bước tiếp">Vẽ &amp; Nạp Vào Canvas (Ảnh Tĩnh)</button>
+            <button class="btn btn-ai" id="btn-wizard-draw-base" title="Vẽ nhân vật chuẩn và chuyển sang Bước 2 để tạo hoạt ảnh">Vẽ Mẫu &amp; Tiếp Tục Hoạt Ảnh</button>
+            <button class="btn btn-small" id="btn-wizard-step2-use-static" style="display: none; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.6); color: #38bdf8; padding: 6px 14px;" title="Nạp ngay ảnh mẫu này vào Canvas chính">Nạp Vào Canvas (Ảnh Tĩnh)</button>
+            <button class="btn btn-primary" id="btn-step2-lock" style="display: none; background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399; font-weight: 600; padding: 7px 18px; box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);" title="Chốt mẫu nhân vật này và chuyển sang Bước 3">Chốt Mẫu Này &amp; Sang Bước 3</button>
             <button class="btn btn-primary" id="btn-wizard-next-step" style="display: none;">Tiếp Tục</button>
             <button class="btn btn-ai" id="btn-wizard-generate-anim" style="display: none; background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;">
               Bắt Đầu Tạo Hoạt Ảnh
