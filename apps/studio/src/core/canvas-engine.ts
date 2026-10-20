@@ -278,10 +278,15 @@ export class CanvasEngine {
 
   // Thuoc tinh luu tru vung chon va floating selection
   public selectionRect: { x: number; y: number; width: number; height: number } | null = null;
+  public selectionMask: Set<string> | null = null;
   public floatingSelection: any | null = null;
 
   public setSelection(rect: { x: number; y: number; width: number; height: number } | null): void {
     this.selectionRect = rect;
+  }
+
+  public setSelectionMask(mask: Set<string> | null): void {
+    this.selectionMask = mask;
   }
 
   public setFloatingSelection(floating: any | null): void {
@@ -290,16 +295,31 @@ export class CanvasEngine {
 
   private renderSelectionOverlay(rect: { x: number; y: number; width: number; height: number }): void {
     const ctx = this.ctx;
+
+    // Neu co mask tung diem anh pixel (do Magic Wand chon)
+    if (this.selectionMask && this.selectionMask.size > 0) {
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
+      for (const key of this.selectionMask) {
+        const parts = key.split(',');
+        const px = parseInt(parts[0], 10);
+        const py = parseInt(parts[1], 10);
+        ctx.fillRect(px * this.zoom, py * this.zoom, this.zoom, this.zoom);
+      }
+    } else {
+      const rx = rect.x * this.zoom;
+      const ry = rect.y * this.zoom;
+      const rw = rect.width * this.zoom;
+      const rh = rect.height * this.zoom;
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
+      ctx.fillRect(rx, ry, rw, rh);
+    }
+
+    // Vien net dut marching ants bao ngoai bounding box
     const rx = rect.x * this.zoom;
     const ry = rect.y * this.zoom;
     const rw = rect.width * this.zoom;
     const rh = rect.height * this.zoom;
 
-    // Phu mau xanh duong nhe
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.18)';
-    ctx.fillRect(rx, ry, rw, rh);
-
-    // Vien net dut marching ants
     ctx.save();
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.5;

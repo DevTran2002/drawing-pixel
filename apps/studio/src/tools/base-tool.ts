@@ -17,6 +17,7 @@ export type ToolType =
   | 'lighten'
   | 'darken'
   | 'select'
+  | 'magicwand'
   | 'move';
 
 export interface ToolContext {

@@ -58,8 +58,8 @@ export class AnimationController {
   // Them clip moi hoac bo sung frame vao clip
   addClip(name: string, frameCount = 1, fps = 10, loop = true): AnimationClip {
     let clip = this.getClip(name);
+    const startFrame = this.project.frames.length;
     if (!clip) {
-      const startFrame = this.project.frames.length;
       clip = {
         id: `clip_${Date.now()}_${name}`,
         name,
@@ -70,9 +70,28 @@ export class AnimationController {
       };
       this.project.clips.push(clip);
     }
+
+    const templateFrame = this.project.frames[this.project.frames.length - 1] || this.project.frames[0];
     for (let i = 0; i < frameCount; i++) {
-      this.addFrameToActiveClip(true);
+      const newLayers: LayerData[] = templateFrame ? templateFrame.layers.map(layer => ({
+        id: `layer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: layer.name,
+        visible: layer.visible,
+        locked: layer.locked,
+        opacity: layer.opacity,
+        pixels: { ...layer.pixels }
+      })) : [];
+
+      const newFrame: FrameData = {
+        id: `frame_${Date.now()}_${i}`,
+        durationMs: templateFrame?.durationMs || 100,
+        layers: newLayers
+      };
+
+      this.project.frames.push(newFrame);
     }
+
+    clip.endFrame = clip.startFrame + frameCount - 1;
     return clip;
   }
 

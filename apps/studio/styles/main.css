@@ -68,6 +68,125 @@ body {
   border: 1px solid var(--border-color);
 }
 
+/* 1.2 App Menu Bar & Dropdown System */
+.nav-menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.nav-menu-item {
+  position: relative;
+}
+
+.nav-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-menu-btn:hover,
+.nav-menu-item.active .nav-menu-btn {
+  background-color: var(--bg-hover);
+  color: #ffffff;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background-color: #181924;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 4px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+}
+
+.nav-menu-item.active .dropdown-menu {
+  display: block;
+}
+
+.dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.dropdown-item:hover {
+  background-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.dropdown-item:hover .menu-shortcut {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.menu-shortcut {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+  margin-left: 16px;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 5px 0;
+}
+
+.nav-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-history-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background-color: #1e1e28;
+  padding: 2px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.btn-icon-only {
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-only:hover {
+  background-color: var(--bg-hover);
+  color: #ffffff;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
@@ -627,6 +746,139 @@ body {
   gap: 10px;
 }
 
+/* Color Adjustments Modal & Custom Sliders */
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  background-color: #12131b;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.modal-tab-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-tab-btn:hover {
+  color: #ffffff;
+}
+
+.modal-tab-btn.active {
+  background-color: var(--bg-card);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.color-slider {
+  width: 100%;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+.hue-slider {
+  background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+/* Floating Tool Dialog - Photoshop Style (Khong che mo Canvas, co the keo tha) */
+.floating-tool-backdrop {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  pointer-events: none !important;
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+}
+
+.floating-tool-dialog {
+  pointer-events: auto !important;
+  position: fixed;
+  top: 75px;
+  right: 28px;
+  margin: 0;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  background-color: rgba(22, 23, 34, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+  user-select: none;
+}
+
+.floating-tool-dialog.is-see-through {
+  background-color: rgba(22, 23, 34, 0.65) !important;
+  backdrop-filter: blur(8px);
+}
+
+.draggable-header {
+  cursor: grab !important;
+  user-select: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 14px;
+}
+
+.draggable-header:active {
+  cursor: grabbing !important;
+}
+
+.drag-handle-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  letter-spacing: -2px;
+  margin-right: 4px;
+  opacity: 0.6;
+}
+
+.btn-tool-opacity {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-tool-opacity:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.btn-tool-opacity.active {
+  color: #38bdf8;
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+}
+
 .modal-textarea {
   width: 100%;
   background-color: var(--bg-dark);
@@ -799,16 +1051,100 @@ body {
   background-color: #3b82f6;
 }
 
-/* 6. Gallery Modal & Grid Styles */
+/* 6. Gallery Modal & Grid Styles (Gallery 2.0) */
 .modal-gallery {
-  width: 820px;
-  max-width: 95vw;
+  width: 900px;
+  max-width: 96vw;
+}
+
+.gallery-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.gallery-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  overflow-x: auto;
+}
+
+.gallery-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.gallery-tab:hover {
+  color: var(--text-color);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.gallery-tab.active {
+  color: #ffffff;
+  background-color: var(--accent-color);
+  border-color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.gallery-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gallery-search-input {
+  flex: 1;
+  min-width: 220px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.gallery-search-input:focus {
+  border-color: var(--accent-color);
+}
+
+.gallery-sort-select {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.gallery-sort-select:focus {
+  border-color: var(--accent-color);
 }
 
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
+  padding: 2px;
 }
 
 .gallery-card {
@@ -819,12 +1155,22 @@ body {
   display: flex;
   flex-direction: column;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .gallery-card:hover {
   border-color: var(--accent-color);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.gallery-card.is-project {
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.gallery-card.is-project:hover {
+  border-color: #38bdf8;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.25);
 }
 
 .gallery-thumb-container {
@@ -842,6 +1188,7 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow: hidden;
 }
 
 .gallery-thumb-img {
@@ -860,7 +1207,7 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 600;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 15, 20, 0.85);
   backdrop-filter: blur(4px);
 }
 
@@ -874,11 +1221,22 @@ body {
   border: 1px solid #2563eb;
 }
 
+.badge-project {
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+}
+
+.badge-animation {
+  color: #fbbf24;
+  border: 1px solid #d97706;
+}
+
 .gallery-card-info {
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
 }
 
 .gallery-card-title {
@@ -893,19 +1251,26 @@ body {
 .gallery-card-meta {
   font-size: 10px;
   color: var(--text-muted);
+  line-height: 1.3;
 }
 
 .gallery-card-actions {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 6px;
 }
 
 .gallery-card-actions button {
-  flex: 1;
-  font-size: 11px;
+  flex: 1 1 calc(50% - 4px);
+  min-width: 60px;
+  font-size: 10px;
   padding: 4px 6px;
   justify-content: center;
+}
+
+.gallery-card-actions .btn-full-width {
+  flex: 1 1 100%;
 }
 
 .btn-danger {

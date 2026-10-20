@@ -7,80 +7,146 @@
     <link rel="stylesheet" href="./styles/main.css" />
   </head>
   <body>
-    <!-- 1. Thanh dieu huong tren cung -->
+    <!-- 1. Thanh dieu huong tren cung (Photoshop / Aseprite Menu Style) -->
     <header class="top-nav">
+      <!-- 1.1 Brand & Thong tin Canvas -->
       <div class="brand-section">
         <span class="brand-title">Pixel Studio</span>
         <button class="brand-badge brand-badge-btn" id="canvas-size-badge" title="Nhấn để đổi kích thước Canvas">24x24 px</button>
         <span class="brand-badge" id="canvas-zoom-badge" title="Nhấn để căn giữa Canvas">1600%</span>
       </div>
 
-      <div class="nav-actions">
-        <!-- Undo -->
-        <button class="btn btn-small" id="btn-undo" title="Hoàn tác (Ctrl+Z)">
-          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M3 10h10a5 5 0 0 1 5 5v2M3 10l6-6M3 10l6 6"/></svg>
-          Undo
-        </button>
-        <!-- Redo -->
-        <button class="btn btn-small" id="btn-redo" title="Làm lại (Ctrl+Y)">
-          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-6-6M21 10l-6 6"/></svg>
-          Redo
-        </button>
+      <!-- 1.2 Thanh Menu Tha Xuong (App Menu Bar) -->
+      <nav class="nav-menu-bar" id="app-menu-bar">
+        <!-- Menu Tep (File) -->
+        <div class="nav-menu-item" data-menu="file">
+          <button class="nav-menu-btn" id="menu-btn-file">Tệp</button>
+          <div class="dropdown-menu" id="dropdown-file">
+            <button class="dropdown-item" id="menu-file-new">
+              <span>Dự án mới (New)</span>
+              <span class="menu-shortcut">Alt+N</span>
+            </button>
+            <button class="dropdown-item" id="menu-file-open">
+              <span>Mở file dự án (.pxdraw)...</span>
+              <span class="menu-shortcut">Ctrl+O</span>
+            </button>
+            <button class="dropdown-item" id="menu-file-save-local">
+              <span>Lưu dự án về máy (.pxdraw)</span>
+              <span class="menu-shortcut">Ctrl+S</span>
+            </button>
+            <button class="dropdown-item" id="btn-save-gallery">
+              <span>Lưu vào Kho (Gallery)</span>
+              <span class="menu-shortcut">Ctrl+Shift+S</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="btn-import-image">
+              <span>Nhập ảnh từ máy (Import)...</span>
+            </button>
+            <button class="dropdown-item" id="menu-file-export">
+              <span>Xuất ảnh & Sprite (Export)...</span>
+              <span class="menu-shortcut">Ctrl+E</span>
+            </button>
+          </div>
+        </div>
 
-        <!-- Transformations: Flip & Rotate -->
-        <div class="nav-btn-group">
-          <button class="btn btn-small" id="btn-flip-h" title="Lật ngang (Flip Horizontal)">
-            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5V7zm8 0v10l5-5-5-5zM12 3v18"/></svg>
-            Flip H
+        <!-- Menu Chinh sua (Edit) -->
+        <div class="nav-menu-item" data-menu="edit">
+          <button class="nav-menu-btn" id="menu-btn-edit">Chỉnh sửa</button>
+          <div class="dropdown-menu" id="dropdown-edit">
+            <button class="dropdown-item" id="btn-undo">
+              <span>Hoàn tác (Undo)</span>
+              <span class="menu-shortcut">Ctrl+Z</span>
+            </button>
+            <button class="dropdown-item" id="btn-redo">
+              <span>Làm lại (Redo)</span>
+              <span class="menu-shortcut">Ctrl+Y</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="btn-flip-h">
+              <span>Lật ngang (Flip Horizontal)</span>
+              <span class="menu-shortcut">H</span>
+            </button>
+            <button class="dropdown-item" id="btn-flip-v">
+              <span>Lật dọc (Flip Vertical)</span>
+              <span class="menu-shortcut">V</span>
+            </button>
+            <button class="dropdown-item" id="btn-rotate-90">
+              <span>Xoay 90 độ (Rotate 90°)</span>
+              <span class="menu-shortcut">R</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="menu-edit-resize">
+              <span>Đổi kích thước Canvas (Resize)...</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Menu Mau sac (Adjustments) -->
+        <div class="nav-menu-item" data-menu="adjust">
+          <button class="nav-menu-btn" id="menu-btn-adjust">Màu sắc</button>
+          <div class="dropdown-menu" id="dropdown-adjust">
+            <button class="dropdown-item" id="menu-adj-hsl">
+              <span>Sắc độ / Độ bão hòa (HSL)...</span>
+              <span class="menu-shortcut">Ctrl+U</span>
+            </button>
+            <button class="dropdown-item" id="menu-adj-replace">
+              <span>Thay thế màu (Palette Swap)...</span>
+            </button>
+            <button class="dropdown-item" id="menu-adj-brightness">
+              <span>Độ sáng & Độ tương phản...</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="menu-adj-invert">
+              <span>Đảo màu (Invert Colors)</span>
+              <span class="menu-shortcut">Ctrl+I</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Menu Hien thi (View) -->
+        <div class="nav-menu-item" data-menu="view">
+          <button class="nav-menu-btn" id="menu-btn-view">Hiển thị</button>
+          <div class="dropdown-menu" id="dropdown-view">
+            <button class="dropdown-item" id="btn-toggle-grid">
+              <span>Lưới Pixel (Grid)</span>
+              <span class="menu-shortcut">G</span>
+            </button>
+            <button class="dropdown-item" id="btn-toggle-pivot">
+              <span>Điểm neo (Pivot)</span>
+            </button>
+            <button class="dropdown-item" id="btn-toggle-symmetry">
+              <span>Đối xứng trục X (Sym X)</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="menu-view-reset-zoom">
+              <span>Căn giữa & Đặt lại 100%</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- 1.3 Tac vu nhanh va Trang thai ket noi ben phai -->
+      <div class="nav-quick-actions">
+        <!-- Quick Undo/Redo icons -->
+        <div class="quick-history-group">
+          <button class="btn btn-icon-only" id="quick-undo" title="Hoàn tác (Ctrl+Z)">
+            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M3 10h10a5 5 0 0 1 5 5v2M3 10l6-6M3 10l6 6"/></svg>
           </button>
-          <button class="btn btn-small" id="btn-flip-v" title="Lật dọc (Flip Vertical)">
-            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 8l5-5 5 5H7zm0 8h10l-5 5-5-5zM3 12h18"/></svg>
-            Flip V
-          </button>
-          <button class="btn btn-small" id="btn-rotate-90" title="Xoay 90 độ (Rotate 90°)">
-            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            Rot 90°
+          <button class="btn btn-icon-only" id="quick-redo" title="Làm lại (Ctrl+Y)">
+            <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-6-6M21 10l-6 6"/></svg>
           </button>
         </div>
 
-        <!-- Grid -->
-        <button class="btn btn-small" id="btn-toggle-grid" title="Bật/tắt lưới">
-          <svg class="btn-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
-          Grid
-        </button>
-        <!-- Pivot -->
-        <button class="btn btn-small" id="btn-toggle-pivot" title="Bật/tắt điểm neo">
-          <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
-          Pivot
-        </button>
-        <!-- Sym X -->
-        <button class="btn btn-small" id="btn-toggle-symmetry" title="Đối xứng dọc trục X">
-          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2v20M4 18l4-12 4 12M20 18l-4-12-4 12"/></svg>
-          Sym X
-        </button>
-
+        <!-- Trang thai MCP Bridge -->
         <div class="status-badge" id="mcp-status" title="Trạng thái kết nối MCP Bridge">
           <span class="status-dot" id="status-dot"></span>
           <span id="status-text">Bridge: Offline</span>
         </div>
 
-        <!-- Nhập ảnh (Import) -->
-        <button class="btn btn-small" id="btn-import-image" title="Nhập ảnh từ máy tính thành Layer mới">
-          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          Import
-        </button>
-        <input type="file" id="image-import-input" accept="image/png,image/jpeg,image/webp" style="display: none;" />
-
-        <!-- Kho Ảnh (Gallery) -->
-        <button class="btn btn-gallery" id="btn-open-gallery" title="Mở kho lưu trữ và lịch sử tranh ảnh đã tạo">
+        <!-- Kho Anh -->
+        <button class="btn btn-gallery" id="btn-open-gallery" title="Mở kho lưu trữ và lịch sử tác phẩm">
           <svg class="btn-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           Kho Ảnh
-        </button>
-
-        <!-- Lưu vào Kho (Save) -->
-        <button class="btn btn-save" id="btn-save-gallery" title="Lưu tranh hiện tại vào kho ảnh">
-          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Lưu Kho
         </button>
 
         <!-- AI Studio -->
@@ -94,6 +160,10 @@
           <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           Export
         </button>
+
+        <!-- Hidden inputs -->
+        <input type="file" id="image-import-input" accept="image/png,image/jpeg,image/webp" style="display: none;" />
+        <input type="file" id="project-file-input" accept=".pxdraw,.json" style="display: none;" />
       </div>
     </header>
 
@@ -105,6 +175,11 @@
         <button class="tool-btn" data-tool="select" title="Chọn vùng hình chữ nhật (S) - Ctrl+C / Ctrl+V / Delete">
           <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/></svg>
           <span class="tool-shortcut">S</span>
+        </button>
+        <!-- Magic Wand -->
+        <button class="tool-btn" data-tool="magicwand" title="Cây đũa thần chọn mảng pixel cùng màu (W)">
+          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14.5 2.5l7 7-12 12-7-7 12-12zM12 8l4 4M2 2l3 3M19 19l3 3M8 2l-1 2M16 2l1 2M22 8l-2 1M22 16l-2-1"/></svg>
+          <span class="tool-shortcut">W</span>
         </button>
         <!-- Move -->
         <button class="tool-btn" data-tool="move" title="Di chuyển vùng chọn hoặc Layer (M)">
@@ -1012,55 +1087,257 @@
       </div>
     </div>
 
-    <!-- 6. Modal Xuat File Anh (Export Modal) -->
-    <div class="modal-backdrop" id="export-modal" style="display: none;">
-      <div class="modal-dialog" style="max-width: 440px;">
-        <div class="modal-header">
-          <h3>Xuất File Tác Phẩm (Export)</h3>
-          <button class="modal-close" id="btn-close-export-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tỷ lệ phóng to (Upscale Ratio):</label>
-          <div class="export-scale-group" style="display: flex; gap: 6px; margin-bottom: 12px;">
-            <button class="tag-btn export-scale-btn active" data-scale="1">1x (Gốc)</button>
-            <button class="tag-btn export-scale-btn" data-scale="2">2x</button>
-            <button class="tag-btn export-scale-btn" data-scale="4">4x</button>
-            <button class="tag-btn export-scale-btn" data-scale="8">8x</button>
-            <button class="tag-btn export-scale-btn" data-scale="16">16x</button>
+    <!-- 5.5. Modal Chinh Mau Phong Cach Photoshop (Color Adjustments - Floating Window) -->
+    <div class="modal-backdrop floating-tool-backdrop" id="color-adjustments-modal" style="display: none;">
+      <div class="modal-dialog floating-tool-dialog" id="color-adjustments-dialog" style="max-width: 440px;">
+        <div class="modal-header draggable-header" id="color-adjustments-drag-handle" title="Bấm giữ thanh tiêu đề và kéo chuột để di chuyển cửa sổ">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="drag-handle-hint">&#8942;&#8942;</span>
+            <h3>Chỉnh Màu Sắc (Color Adjustments)</h3>
+            <span class="brand-badge" id="color-adj-target-badge">Toàn bộ Layer</span>
           </div>
-
-          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Định dạng xuất:</label>
-          <select id="export-type-select" class="btn btn-small" style="width: 100%; padding: 6px; margin-bottom: 12px;">
-            <option value="current_frame">Frame hiện tại (PNG sắc nét)</option>
-            <option value="spritesheet">SpriteSheet toàn bộ Frames + JSON</option>
-          </select>
-
-          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; background: #13131a; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
-            Tranh pixel sẽ được giữ nguyên thuật toán Nearest Neighbor sắc cạnh, không bị mờ nhòe.
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button class="btn-tool-opacity" id="btn-toggle-dialog-opacity" title="Chuyển chế độ nhìn xuyên thấu qua cửa sổ">Nhìn xuyên</button>
+            <button class="modal-close" id="btn-close-color-adj-modal">&times;</button>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn" id="btn-export-server" title="Lưu trực tiếp vào thư mục dự án trên máy chủ">Lưu vào Dự án (Server)</button>
-          <button class="btn btn-primary" id="btn-download-png" title="Tải ảnh PNG trực tiếp về máy">Tải PNG về máy</button>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- Tabs chuyen doi giua cac che do chinh mau -->
+          <div class="modal-tabs" id="color-adj-tabs">
+            <button class="modal-tab-btn active" data-tab="tab-hsl">Sắc độ HSL</button>
+            <button class="modal-tab-btn" data-tab="tab-replace">Đổi màu Palette</button>
+            <button class="modal-tab-btn" data-tab="tab-contrast">Độ sáng & Tương phản</button>
+          </div>
+
+          <!-- Tab 1: Hue / Saturation / Lightness -->
+          <div class="modal-tab-content active" id="tab-hsl">
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Sắc độ (Hue)</span>
+                <span id="label-hue-val">0°</span>
+              </div>
+              <input type="range" id="slider-hue" min="-180" max="180" value="0" class="color-slider hue-slider" />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Độ bão hòa (Saturation)</span>
+                <span id="label-sat-val">0%</span>
+              </div>
+              <input type="range" id="slider-sat" min="-100" max="100" value="0" class="color-slider" />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Độ sáng (Lightness)</span>
+                <span id="label-light-val">0%</span>
+              </div>
+              <input type="range" id="slider-light" min="-100" max="100" value="0" class="color-slider" />
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+              <button class="btn btn-small" id="btn-reset-hsl">Đặt lại HSL</button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Thay the mau (Color Replace / Palette Swap) -->
+          <div class="modal-tab-content" id="tab-replace" style="display: none;">
+            <div style="display: flex; gap: 16px; align-items: center; justify-content: space-around; background: #161722; padding: 12px; border-radius: 6px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Màu nguồn (Cần đổi)</span>
+                <input type="color" id="replace-color-from" value="#ff0000" style="width: 44px; height: 36px; border: none; border-radius: 4px; cursor: pointer;" />
+                <span id="replace-color-from-hex" style="font-size: 11px; font-family: monospace;">#ff0000</span>
+              </div>
+
+              <div style="font-size: 18px; color: var(--text-muted);">&rarr;</div>
+
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Màu đích (Màu mới)</span>
+                <input type="color" id="replace-color-to" value="#00ff00" style="width: 44px; height: 36px; border: none; border-radius: 4px; cursor: pointer;" />
+                <span id="replace-color-to-hex" style="font-size: 11px; font-family: monospace;">#00ff00</span>
+              </div>
+            </div>
+
+            <div class="slider-group" style="margin-top: 10px;">
+              <div class="slider-header">
+                <span>Dung sai màu (Tolerance)</span>
+                <span id="label-replace-tol-val">0</span>
+              </div>
+              <input type="range" id="slider-replace-tol" min="0" max="50" value="0" class="color-slider" />
+            </div>
+          </div>
+
+          <!-- Tab 3: Do sang, Tuong phan va Dao mau -->
+          <div class="modal-tab-content" id="tab-contrast" style="display: none;">
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Độ sáng (Brightness)</span>
+                <span id="label-bright-val">0</span>
+              </div>
+              <input type="range" id="slider-bright" min="-100" max="100" value="0" class="color-slider" />
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Độ tương phản (Contrast)</span>
+                <span id="label-contrast-val">0</span>
+              </div>
+              <input type="range" id="slider-contrast" min="-100" max="100" value="0" class="color-slider" />
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+              <span style="font-size: 12px; color: var(--text-muted);">Đảo ngược toàn bộ màu sắc:</span>
+              <button class="btn btn-small" id="btn-quick-invert">Đảo màu (Invert)</button>
+            </div>
+          </div>
+
+          <!-- Tuy chon Live Preview -->
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #e2e8f0;">
+              <input type="checkbox" id="chk-color-adj-preview" checked />
+              <span>Xem trước trực tiếp trên Canvas (Live Preview)</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button class="btn" id="btn-cancel-color-adj">Hủy</button>
+          <button class="btn btn-primary" id="btn-apply-color-adj">Áp dụng</button>
         </div>
       </div>
     </div>
 
-    <!-- 7. Modal Kho Luu Tru Anh (Gallery) -->
+    <!-- 6. Modal Xuat File Anh & Sprite (Smart Export Modal) -->
+    <div class="modal-backdrop" id="export-modal" style="display: none;">
+      <div class="modal-dialog" style="max-width: 500px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3>Xuất File Tác Phẩm & Sprite (Export Studio)</h3>
+          </div>
+          <button class="modal-close" id="btn-close-export-modal">&times;</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- Tabs chuyen doi giua cac kieu xuat -->
+          <div class="modal-tabs" id="export-tabs">
+            <button class="modal-tab-btn active" data-tab="tab-export-single">Ảnh Đơn PNG</button>
+            <button class="modal-tab-btn" data-tab="tab-export-sheet">Sprite Sheet</button>
+            <button class="modal-tab-btn" data-tab="tab-export-project">Dự Án (.pxdraw)</button>
+          </div>
+
+          <!-- Tab 1: Xuat Anh Don Le PNG -->
+          <div class="modal-tab-content active" id="tab-export-single">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 6px;">Tỷ lệ phóng to (Upscale):</label>
+            <div class="export-scale-group" id="single-scale-group" style="display: flex; gap: 6px; margin-bottom: 12px;">
+              <button class="tag-btn export-scale-btn active" data-scale="1">1x</button>
+              <button class="tag-btn export-scale-btn" data-scale="2">2x</button>
+              <button class="tag-btn export-scale-btn" data-scale="4">4x</button>
+              <button class="tag-btn export-scale-btn" data-scale="8">8x</button>
+              <button class="tag-btn export-scale-btn" data-scale="16">16x</button>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+              <span style="font-size: 12px; color: var(--text-muted);">Khung hình xuất:</span>
+              <span id="export-single-frame-label" style="font-size: 12px; font-weight: 600; color: #38bdf8;">Frame hiện tại</span>
+            </div>
+
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; background: #13131a; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+              Tranh pixel được render bằng thuật toán Nearest Neighbor sắc nét 100%, bảo toàn các đường nét và độ trong suốt hoàn hảo.
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+              <button class="btn btn-primary" id="btn-download-png">Tải ảnh PNG</button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Xuat Sprite Sheet -->
+          <div class="modal-tab-content" id="tab-export-sheet" style="display: none;">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 6px;">Tỷ lệ phóng to (Upscale):</label>
+            <div class="export-scale-group" id="sheet-scale-group" style="display: flex; gap: 6px; margin-bottom: 12px;">
+              <button class="tag-btn export-scale-btn active" data-scale="1">1x</button>
+              <button class="tag-btn export-scale-btn" data-scale="2">2x</button>
+              <button class="tag-btn export-scale-btn" data-scale="4">4x</button>
+              <button class="tag-btn export-scale-btn" data-scale="8">8x</button>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+              <div style="flex: 1;">
+                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Bố cục khung hình:</label>
+                <select id="export-sheet-layout" class="btn btn-small" style="width: 100%; padding: 6px;">
+                  <option value="strip">Dải ngang (Horizontal Strip)</option>
+                  <option value="grid">Dạng lưới (Grid Matrix)</option>
+                </select>
+              </div>
+              <div style="width: 110px;" id="export-sheet-cols-wrapper">
+                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Số cột lưới:</label>
+                <input type="number" id="export-sheet-cols" min="1" max="32" value="4" class="btn btn-small" style="width: 100%; padding: 6px;" />
+              </div>
+            </div>
+
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; margin-bottom: 12px; cursor: pointer;">
+              <input type="checkbox" id="chk-export-json-meta" checked />
+              <span>Xuất kèm file JSON Atlas (Tọa độ và thời lượng từng Frame)</span>
+            </label>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+              <button class="btn" id="btn-export-server" title="Lưu trực tiếp vào thư mục dự án trên máy chủ">Lưu vào Server</button>
+              <button class="btn btn-primary" id="btn-download-spritesheet">Tải SpriteSheet</button>
+            </div>
+          </div>
+
+          <!-- Tab 3: Luu va Quan Ly Du An .pxdraw -->
+          <div class="modal-tab-content" id="tab-export-project" style="display: none;">
+            <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 6px; padding: 12px; line-height: 1.5; font-size: 12px; color: #e2e8f0; margin-bottom: 14px;">
+              <strong>Định dạng file .pxdraw</strong> lưu trữ 100% tất cả các Layer, độ mờ đục, các Frame hoạt cảnh, Animation Clips và kích thước canvas. Bạn có thể mở lại để chỉnh sửa bất cứ lúc nào!
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn btn-primary" id="btn-export-pxdraw" style="padding: 10px; justify-content: center;">
+                Tải File Dự Án (.pxdraw) về máy
+              </button>
+              <button class="btn btn-save" id="btn-export-save-gallery" style="padding: 10px; justify-content: center;">
+                Lưu Dự Án Vào Kho (Gallery)
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+          <button class="btn" id="btn-close-export-footer">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Modal Kho Luu Tru Anh (Gallery 2.0) -->
     <div class="modal-backdrop" id="gallery-modal" style="display: none;">
       <div class="modal-dialog modal-gallery">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <h3>Kho Lưu Trữ Tranh Ảnh (Gallery)</h3>
-            <span class="brand-badge" id="gallery-count-badge">0 ảnh</span>
+            <h3>Kho Lưu Trữ Tranh Ảnh (Gallery 2.0)</h3>
+            <span class="brand-badge" id="gallery-count-badge">0 mục</span>
           </div>
           <button class="modal-close" id="btn-close-gallery-modal">&times;</button>
         </div>
-        <div class="modal-body" style="max-height: 480px; overflow-y: auto;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <span style="font-size: 12px; color: var(--text-muted);">Danh sách toàn bộ các tác phẩm đã sinh bởi AI hoặc lưu từ Canvas:</span>
-            <button class="btn btn-small" id="btn-refresh-gallery">Làm mới</button>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; max-height: 540px; overflow-y: auto;">
+          <!-- Thanh cong cu loc va tim kiem -->
+          <div class="gallery-toolbar">
+            <div class="gallery-tabs" id="gallery-filter-tabs">
+              <button class="gallery-tab active" data-filter="all">Tất cả</button>
+              <button class="gallery-tab" data-filter="project">Dự án .pxdraw</button>
+              <button class="gallery-tab" data-filter="animation">Sprite Hoạt Cảnh</button>
+              <button class="gallery-tab" data-filter="ai">AI Pixel Art</button>
+            </div>
+            <div class="gallery-controls">
+              <input type="text" id="gallery-search-input" class="gallery-search-input" placeholder="Tìm kiếm theo tên tác phẩm hoặc prompt..." />
+              <select id="gallery-sort-select" class="gallery-sort-select">
+                <option value="newest">Mới nhất</option>
+                <option value="oldest">Cũ nhất</option>
+                <option value="name_asc">Tên (A-Z)</option>
+                <option value="name_desc">Tên (Z-A)</option>
+              </select>
+              <button class="btn btn-small" id="btn-refresh-gallery" title="Tải lại danh sách">Làm mới</button>
+              <button class="btn btn-primary btn-small" id="btn-save-gallery" title="Lưu tác phẩm đang vẽ trên Canvas vào kho">Lưu Canvas vào Kho</button>
+            </div>
           </div>
+
+          <!-- Luoi hien thi danh sach card anh -->
           <div class="gallery-grid" id="gallery-grid-container">
             <!-- Danh sach card anh do JS render -->
           </div>

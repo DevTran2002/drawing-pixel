@@ -33,6 +33,8 @@ import { PRESET_PALETTES } from './palette/palettes-data';
 import { SelectionManager } from './tools/selection-tool';
 import { flipHorizontal, flipVertical, rotate90Clockwise } from './tools/transform-tool';
 import { TAG_CATEGORIES } from './data/tags-dictionary';
+import { downloadProjectFile, importFromPxDraw, exportToPxDraw } from './core/project-file';
+import { applyColorAdjustment, ColorAdjustmentOptions, invertHexColor } from './tools/color-adjustments';
 
 // 1. Khoi tao trang thai toan cuc cua Studio
 const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
@@ -176,6 +178,29 @@ mainCanvas.addEventListener('pointerdown', (e) => {
 
   const isRightClick = e.button === 2;
 
+  // Cong cu Cay dua than (Magic Wand)
+  if (activeTool === 'magicwand') {
+    if (selectionManager.hasFloating()) {
+      const buffer = canvasEngine.getActiveLayerBuffer();
+      const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+      if (buffer && currentLayer) {
+        const ch = selectionManager.commitFloating(buffer, project.activeLayerId, project.activeFrameIndex, currentLayer.pixels);
+        if (ch.length > 0) history.pushStep(ch);
+        canvasEngine.setFloatingSelection(null);
+      }
+    }
+
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    if (currentLayer) {
+      selectionManager.selectByWand(pt.x, pt.y, true, 15, currentLayer.pixels as Record<string, string>, project.width, project.height);
+      canvasEngine.setSelection(selectionManager.getSelection());
+      canvasEngine.setSelectionMask(selectionManager.getCustomMask());
+      renderAll();
+    }
+    isPointerDown = false;
+    return;
+  }
+
   // Cong cu chon vung (Selection)
   if (activeTool === 'select') {
     // Neu truoc do dang co floating selection thi commit xuong layer truoc
@@ -190,6 +215,7 @@ mainCanvas.addEventListener('pointerdown', (e) => {
     }
     selectionManager.setSelection({ x: pt.x, y: pt.y, width: 1, height: 1 });
     canvasEngine.setSelection(selectionManager.getSelection());
+    canvasEngine.setSelectionMask(null);
     renderAll();
     return;
   }
@@ -652,6 +678,7 @@ window.addEventListener('keydown', (e) => {
   // 8. Chon nhanh cong cu ve qua ban phim
   const keyToTool: Record<string, ToolType> = {
     s: 'select',
+    w: 'magicwand',
     m: 'move',
     p: 'pencil',
     e: 'eraser',
@@ -4809,7 +4836,7 @@ function initAiPixelModal(): void {
   });
 }
 
-// 10. Khoi tao Modal va ket noi Kho Luu Tru Anh (Gallery)
+// 10. Khoi tao Modal va ket noi Kho Luu Tru Anh (Gallery 2.0)
 function initGalleryModal(): void {
   const modal = document.getElementById('gallery-modal');
   const btnOpen = document.getElementById('btn-open-gallery');
@@ -4819,157 +4846,294 @@ function initGalleryModal(): void {
   const btnSave = document.getElementById('btn-save-gallery');
   const gridContainer = document.getElementById('gallery-grid-container');
   const badgeCount = document.getElementById('gallery-count-badge');
+  const searchInput = document.getElementById('gallery-search-input') as HTMLInputElement | null;
+  const sortSelect = document.getElementById('gallery-sort-select') as HTMLSelectElement | null;
+  const filterTabsContainer = document.getElementById('gallery-filter-tabs');
 
   if (!modal) return;
 
-  // Tai va render danh sach anh trong kho
+  let allGalleryItems: any[] = [];
+  let currentFilter = 'all';
+  let currentSearch = '';
+  let currentSort = 'newest';
+
+  // Ham render danh sach item da duoc loc va sap xep
+  const renderFilteredGallery = () => {
+    if (!gridContainer) return;
+
+    let items = [...allGalleryItems];
+
+    // 1. Loc theo category tab
+    if (currentFilter === 'project') {
+      items = items.filter(it => it.hasProjectData || it.projectFile);
+    } else if (currentFilter === 'animation') {
+      items = items.filter(it => (it.frameCount && it.frameCount > 1));
+    } else if (currentFilter === 'ai') {
+      items = items.filter(it => it.sourceType === 'ai');
+    }
+
+    // 2. Loc theo tu khoa tim kiem
+    if (currentSearch.trim()) {
+      const q = currentSearch.toLowerCase().trim();
+      items = items.filter(it => 
+        (it.name && it.name.toLowerCase().includes(q)) ||
+        (it.prompt && it.prompt.toLowerCase().includes(q))
+      );
+    }
+
+    // 3. Sap xep
+    items.sort((a, b) => {
+      if (currentSort === 'newest') {
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      } else if (currentSort === 'oldest') {
+        return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+      } else if (currentSort === 'name_asc') {
+        return (a.name || '').localeCompare(b.name || '');
+      } else if (currentSort === 'name_desc') {
+        return (b.name || '').localeCompare(a.name || '');
+      }
+      return 0;
+    });
+
+    if (badgeCount) {
+      badgeCount.innerText = `${items.length} / ${allGalleryItems.length} mục`;
+    }
+
+    if (items.length === 0) {
+      gridContainer.innerHTML = '<div style="grid-column: 1 / -1; color: var(--text-muted); font-size: 12px; padding: 30px; text-align: center;">Không tìm thấy tác phẩm nào phù hợp với bộ lọc hiện tại.</div>';
+      return;
+    }
+
+    gridContainer.innerHTML = '';
+    items.forEach((item: any) => {
+      const card = document.createElement('div');
+      const isProject = !!(item.hasProjectData || item.projectFile);
+      const isAnimation = (item.frameCount || 1) > 1;
+      const isAi = item.sourceType === 'ai';
+
+      card.className = `gallery-card ${isProject ? 'is-project' : ''}`;
+
+      const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit'
+      }) : '';
+
+      let badgeClass = 'badge-custom';
+      let badgeText = 'Ảnh Vẽ';
+      if (isAi) {
+        badgeClass = 'badge-ai';
+        badgeText = 'AI LoRA';
+      } else if (isAnimation) {
+        badgeClass = 'badge-animation';
+        badgeText = `Sprite (${item.frameCount}F)`;
+      } else if (isProject) {
+        badgeClass = 'badge-project';
+        badgeText = `Dự Án (${item.layerCount || 1}L)`;
+      }
+
+      const frameInfo = (item.frameCount && item.frameCount > 1) ? `${item.frameCount} frames • ` : '';
+      const layerInfo = (item.layerCount && item.layerCount > 1) ? `${item.layerCount} layers • ` : '';
+
+      let actionButtonsHtml = '';
+      if (isProject) {
+        actionButtonsHtml = `
+          <button class="btn btn-primary btn-load-item" title="Khôi phục toàn bộ Frame và Layer lên Canvas">Mở Dự Án</button>
+          <button class="btn btn-download-project-item" title="Tải file dự án .pxdraw chuẩn về máy">Tải .pxdraw</button>
+          <button class="btn btn-export-item" title="Mở bảng Xuất Ảnh chất lượng cao">Xuất Ảnh</button>
+          <button class="btn btn-danger btn-del-item" title="Xóa tác phẩm này khỏi kho">Xóa</button>
+        `;
+      } else {
+        actionButtonsHtml = `
+          <button class="btn btn-primary btn-load-item" title="Nạp pixel lên Canvas Studio">Mở Canvas</button>
+          <button class="btn btn-download-item" title="Tải ảnh PNG">Tải PNG</button>
+          <button class="btn btn-danger btn-del-item" title="Xóa tác phẩm này khỏi kho">Xóa</button>
+        `;
+      }
+
+      card.innerHTML = `
+        <div class="gallery-thumb-container">
+          <span class="gallery-card-badge ${badgeClass}">${badgeText}</span>
+          <img class="gallery-thumb-img" src="${item.thumbnailBase64 || ''}" alt="${item.name}" />
+        </div>
+        <div class="gallery-card-info">
+          <div class="gallery-card-title" title="${item.name}">${item.name}</div>
+          <div class="gallery-card-meta">${item.width}x${item.height} px • ${frameInfo}${layerInfo}${dateStr}</div>
+          <div class="gallery-card-actions">
+            ${actionButtonsHtml}
+          </div>
+        </div>
+      `;
+
+      // 1. Nut Mo vao Canvas Studio (Khoi phuc day du frame va layer neu la project)
+      card.querySelector('.btn-load-item')?.addEventListener('click', async () => {
+        try {
+          const loadRes = await fetch('http://127.0.0.1:3055/api/gallery/load', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: item.filename, id: item.id })
+          });
+          const loadData = await loadRes.json();
+          if (loadData.success) {
+            modal.style.display = 'none';
+
+            if (loadData.project) {
+              const newProj = loadData.project;
+              project.id = newProj.id;
+              project.name = newProj.name;
+              project.width = newProj.width;
+              project.height = newProj.height;
+              project.frames = newProj.frames;
+              project.clips = newProj.clips || [];
+              project.activeFrameIndex = newProj.activeFrameIndex || 0;
+              project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
+
+              canvasEngine.rebuildBuffers();
+              onionSkinRenderer.resize(project.width, project.height);
+
+              const sizeBadge = document.getElementById('canvas-size-badge');
+              if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+              const resLabel = document.getElementById('canvas-resolution');
+              if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+              renderAll();
+            }
+          } else {
+            alert('Lỗi nạp tác phẩm: ' + (loadData.error || 'Thất bại'));
+          }
+        } catch (err: any) {
+          alert('Không thể kết nối máy chủ: ' + err.message);
+        }
+      });
+
+      // 2. Nut Tai .pxdraw truc tiep cho the Du An
+      card.querySelector('.btn-download-project-item')?.addEventListener('click', async () => {
+        try {
+          const loadRes = await fetch('http://127.0.0.1:3055/api/gallery/load', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: item.filename, id: item.id })
+          });
+          const loadData = await loadRes.json();
+          if (loadData.success && loadData.project) {
+            downloadProjectFile(loadData.project, item.name);
+          } else {
+            alert('Không thể lấy dữ liệu dự án để tải file .pxdraw');
+          }
+        } catch (err: any) {
+          alert('Lỗi kết nối khi tải file .pxdraw: ' + err.message);
+        }
+      });
+
+      // 3. Nut Xuat Anh (Nap vao canvas va mo Smart Export Modal)
+      card.querySelector('.btn-export-item')?.addEventListener('click', async () => {
+        try {
+          const loadRes = await fetch('http://127.0.0.1:3055/api/gallery/load', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: item.filename, id: item.id })
+          });
+          const loadData = await loadRes.json();
+          if (loadData.success && loadData.project) {
+            const newProj = loadData.project;
+            project.id = newProj.id;
+            project.name = newProj.name;
+            project.width = newProj.width;
+            project.height = newProj.height;
+            project.frames = newProj.frames;
+            project.clips = newProj.clips || [];
+            project.activeFrameIndex = newProj.activeFrameIndex || 0;
+            project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
+
+            canvasEngine.rebuildBuffers();
+            onionSkinRenderer.resize(project.width, project.height);
+            renderAll();
+
+            modal.style.display = 'none';
+            const exportModal = document.getElementById('export-modal');
+            if (exportModal) exportModal.style.display = 'flex';
+          }
+        } catch (err: any) {
+          alert('Lỗi khi mở xuất ảnh: ' + err.message);
+        }
+      });
+
+      // 4. Nut Tai PNG
+      card.querySelector('.btn-download-item')?.addEventListener('click', () => {
+        if (!item.thumbnailBase64) return;
+        const a = document.createElement('a');
+        a.href = item.thumbnailBase64;
+        a.download = item.filename;
+        a.click();
+      });
+
+      // 5. Nut Xoa khoi kho
+      card.querySelector('.btn-del-item')?.addEventListener('click', async () => {
+        if (!confirm(`Bạn có chắc muốn xóa "${item.name}" khỏi kho không?`)) return;
+        try {
+          const delRes = await fetch('http://127.0.0.1:3055/api/gallery/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: item.id })
+          });
+          const delData = await delRes.json();
+          if (delData.success) {
+            allGalleryItems = allGalleryItems.filter(it => it.id !== item.id);
+            renderFilteredGallery();
+          } else {
+            alert('Không thể xóa: ' + (delData.error || 'Lỗi'));
+          }
+        } catch (err: any) {
+          alert('Lỗi: ' + err.message);
+        }
+      });
+
+      gridContainer.appendChild(card);
+    });
+  };
+
+  // Tai toan bo danh sach anh tu may chu
   const loadGallery = async () => {
     if (!gridContainer) return;
-    gridContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 20px;">Đang tải danh sách tác phẩm...</div>';
+    gridContainer.innerHTML = '<div style="grid-column: 1 / -1; color: var(--text-muted); font-size: 12px; padding: 30px; text-align: center;">Đang tải danh sách tác phẩm từ kho...</div>';
 
     try {
       const res = await fetch('http://127.0.0.1:3055/api/gallery');
       const data = await res.json();
       if (!data.success || !Array.isArray(data.items)) {
-        gridContainer.innerHTML = '<div style="color: #ef4444; font-size: 12px;">Không thể tải dữ liệu kho ảnh.</div>';
+        gridContainer.innerHTML = '<div style="grid-column: 1 / -1; color: #ef4444; font-size: 12px; padding: 20px; text-align: center;">Không thể tải dữ liệu kho ảnh từ máy chủ.</div>';
         return;
       }
 
-      if (badgeCount) {
-        badgeCount.innerText = `${data.items.length} ảnh`;
-      }
-
-      if (data.items.length === 0) {
-        gridContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 20px;">Kho ảnh hiện đang trống. Hãy tạo ảnh bằng AI hoặc bấm nút Lưu Kho để lưu tác phẩm!</div>';
-        return;
-      }
-
-      gridContainer.innerHTML = '';
-      data.items.forEach((item: any) => {
-        const card = document.createElement('div');
-        card.className = 'gallery-card';
-
-        const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN', {
-          hour: '2-digit',
-          minute: '2-digit',
-          day: '2-digit',
-          month: '2-digit'
-        }) : '';
-
-        let badgeClass = 'badge-custom';
-        let badgeText = 'Vẽ tay';
-        if (item.sourceType === 'ai') {
-          badgeClass = 'badge-ai';
-          badgeText = 'AI LoRA';
-        } else if (item.hasProjectData || item.projectFile) {
-          if ((item.frameCount || 1) > 1) {
-            badgeClass = 'badge-custom';
-            badgeText = `Sprite (${item.frameCount}F)`;
-          } else if ((item.layerCount || 1) > 1) {
-            badgeClass = 'badge-custom';
-            badgeText = `Dự án (${item.layerCount} lớp)`;
-          } else {
-            badgeClass = 'badge-custom';
-            badgeText = 'Dự án Canvas';
-          }
-        }
-
-        const frameInfo = (item.frameCount && item.frameCount > 1) ? `${item.frameCount} frames • ` : '';
-        const layerInfo = (item.layerCount && item.layerCount > 1) ? `${item.layerCount} layers • ` : '';
-
-        card.innerHTML = `
-          <div class="gallery-thumb-container">
-            <span class="gallery-card-badge ${badgeClass}">${badgeText}</span>
-            <img class="gallery-thumb-img" src="${item.thumbnailBase64 || ''}" alt="${item.name}" />
-          </div>
-          <div class="gallery-card-info">
-            <div class="gallery-card-title" title="${item.name}">${item.name}</div>
-            <div class="gallery-card-meta">${item.width}x${item.height} px • ${frameInfo}${layerInfo}${dateStr}</div>
-            <div class="gallery-card-actions">
-              <button class="btn btn-primary btn-load-item" title="Nạp vào Canvas khôi phục toàn bộ Frame và Layer để tiếp tục chỉnh sửa">Mở</button>
-              <button class="btn btn-download-item" title="Tải ảnh PNG">Tải PNG</button>
-              <button class="btn btn-danger btn-del-item" title="Xóa tác phẩm này">Xóa</button>
-            </div>
-          </div>
-        `;
-
-        // Nut Mo vao Canvas (Khoi phuc 100% tat ca Frame va Layer)
-        card.querySelector('.btn-load-item')?.addEventListener('click', async () => {
-          try {
-            const loadRes = await fetch('http://127.0.0.1:3055/api/gallery/load', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filename: item.filename, id: item.id })
-            });
-            const loadData = await loadRes.json();
-            if (loadData.success) {
-              modal.style.display = 'none';
-
-              // Neu may chu tra ve du lieu du an day du, cap nhat ngay lap tuc vao Canvas Studio
-              if (loadData.project) {
-                const newProj = loadData.project;
-                project.id = newProj.id;
-                project.name = newProj.name;
-                project.width = newProj.width;
-                project.height = newProj.height;
-                project.frames = newProj.frames;
-                project.clips = newProj.clips || [];
-                project.activeFrameIndex = newProj.activeFrameIndex || 0;
-                project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
-
-                canvasEngine.rebuildBuffers();
-                onionSkinRenderer.resize(project.width, project.height);
-
-                const sizeBadge = document.getElementById('canvas-size-badge');
-                if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
-                const resLabel = document.getElementById('canvas-resolution');
-                if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
-
-                renderAll();
-              }
-            } else {
-              alert('Lỗi nạp tác phẩm: ' + (loadData.error || 'Thất bại'));
-            }
-          } catch (err: any) {
-            alert('Không thể kết nối máy chủ: ' + err.message);
-          }
-        });
-
-        // Nut Tai PNG
-        card.querySelector('.btn-download-item')?.addEventListener('click', () => {
-          if (!item.thumbnailBase64) return;
-          const a = document.createElement('a');
-          a.href = item.thumbnailBase64;
-          a.download = item.filename;
-          a.click();
-        });
-
-        // Nut Xoa
-        card.querySelector('.btn-del-item')?.addEventListener('click', async () => {
-          if (!confirm(`Bạn có chắc muốn xóa "${item.name}" khỏi kho không?`)) return;
-          try {
-            const delRes = await fetch('http://127.0.0.1:3055/api/gallery/delete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: item.id })
-            });
-            const delData = await delRes.json();
-            if (delData.success) {
-              loadGallery();
-            } else {
-              alert('Không thể xóa: ' + (delData.error || 'Lỗi'));
-            }
-          } catch (err: any) {
-            alert('Lỗi: ' + err.message);
-          }
-        });
-
-        gridContainer.appendChild(card);
-      });
+      allGalleryItems = data.items;
+      renderFilteredGallery();
     } catch (err: any) {
-      gridContainer.innerHTML = `<div style="color: #ef4444; font-size: 12px; padding: 20px;">Lỗi tải kho ảnh: ${err.message}</div>`;
+      gridContainer.innerHTML = `<div style="grid-column: 1 / -1; color: #ef4444; font-size: 12px; padding: 20px; text-align: center;">Lỗi tải kho ảnh: ${err.message}</div>`;
     }
   };
+
+  // Su kien click chuyen tab danh muc
+  filterTabsContainer?.querySelectorAll('.gallery-tab').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      filterTabsContainer.querySelectorAll('.gallery-tab').forEach(b => b.classList.remove('active'));
+      tabBtn.classList.add('active');
+      currentFilter = (tabBtn as HTMLElement).dataset.filter || 'all';
+      renderFilteredGallery();
+    });
+  });
+
+  // Su kien go tim kiem tuc thi
+  searchInput?.addEventListener('input', () => {
+    currentSearch = searchInput.value;
+    renderFilteredGallery();
+  });
+
+  // Su kien thay doi kieu sap xep
+  sortSelect?.addEventListener('change', () => {
+    currentSort = sortSelect.value;
+    renderFilteredGallery();
+  });
 
   btnOpen?.addEventListener('click', () => {
     modal.style.display = 'flex';
@@ -5770,11 +5934,20 @@ function initExportModal(): void {
   const modal = document.getElementById('export-modal');
   const btnOpen = document.getElementById('btn-export');
   const btnClose = document.getElementById('btn-close-export-modal');
-  const btnDownload = document.getElementById('btn-download-png');
+  const btnDownloadPng = document.getElementById('btn-download-png');
+  const btnDownloadSheet = document.getElementById('btn-download-spritesheet');
   const btnServer = document.getElementById('btn-export-server');
-  const typeSelect = document.getElementById('export-type-select') as HTMLSelectElement | null;
+  const btnCloseFooter = document.getElementById('btn-close-export-footer');
+  const exportTabsContainer = document.getElementById('export-tabs');
+  const layoutSelect = document.getElementById('export-sheet-layout') as HTMLSelectElement | null;
+  const colsInput = document.getElementById('export-sheet-cols') as HTMLInputElement | null;
+  const chkAtlas = document.getElementById('chk-export-json-meta') as HTMLInputElement | null;
 
-  let currentScale = 1;
+  const btnExportPxDraw = document.getElementById('btn-export-pxdraw');
+  const btnExportSaveGallery = document.getElementById('btn-export-save-gallery');
+
+  let singleScale = 1;
+  let sheetScale = 1;
 
   if (!modal || !btnOpen) return;
 
@@ -5786,36 +5959,131 @@ function initExportModal(): void {
     modal.style.display = 'none';
   });
 
-  // Chon ti le phong to
-  const scaleBtns = document.querySelectorAll('.export-scale-btn');
-  scaleBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      scaleBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentScale = parseInt(btn.getAttribute('data-scale') || '1', 10);
+  btnCloseFooter?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  // Chuyen tab trong Export Modal
+  exportTabsContainer?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.modal-tab-btn') as HTMLElement;
+    if (!btn || !btn.dataset.tab) return;
+    const targetTab = btn.dataset.tab;
+
+    exportTabsContainer.querySelectorAll('.modal-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    ['tab-export-single', 'tab-export-sheet', 'tab-export-project'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = id === targetTab ? 'block' : 'none';
+      }
     });
   });
 
-  // Tai truc tiep file PNG sac net ve may tinh
-  btnDownload?.addEventListener('click', () => {
-    const exportType = typeSelect ? typeSelect.value : 'current_frame';
+  // Chon ti le phong to anh don le
+  document.querySelectorAll('#single-scale-group .export-scale-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#single-scale-group .export-scale-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      singleScale = parseInt(btn.getAttribute('data-scale') || '1', 10);
+    });
+  });
 
-    if (exportType === 'current_frame') {
-      const activeFrame = canvasEngine.getCurrentFrame();
-      if (!activeFrame) return;
+  // Chon ti le phong to SpriteSheet
+  document.querySelectorAll('#sheet-scale-group .export-scale-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#sheet-scale-group .export-scale-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      sheetScale = parseInt(btn.getAttribute('data-scale') || '1', 10);
+    });
+  });
 
-      const outW = project.width * currentScale;
-      const outH = project.height * currentScale;
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = outW;
-      offCanvas.height = outH;
-      const ctx = offCanvas.getContext('2d');
-      if (!ctx) return;
+  // Tai truc tiep file PNG anh don ve may tinh
+  btnDownloadPng?.addEventListener('click', () => {
+    const activeFrame = canvasEngine.getCurrentFrame();
+    if (!activeFrame) return;
 
-      ctx.imageSmoothingEnabled = false;
+    const outW = project.width * singleScale;
+    const outH = project.height * singleScale;
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = outW;
+    offCanvas.height = outH;
+    const ctx = offCanvas.getContext('2d');
+    if (!ctx) return;
 
-      // Ve lan luot cac visible layers cua frame hien tai
-      for (const layer of activeFrame.layers) {
+    ctx.imageSmoothingEnabled = false;
+
+    // Ve lan luot cac visible layers cua frame hien tai
+    for (const layer of activeFrame.layers) {
+      if (!layer.visible) continue;
+      if (layer.groupId) {
+        const group = project.groups?.find(g => g.id === layer.groupId);
+        if (group && group.visible === false) continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = layer.opacity;
+      for (const [key, color] of Object.entries(layer.pixels)) {
+        if (!color) continue;
+        const [px, py] = key.split(',').map(Number);
+        ctx.fillStyle = color;
+        ctx.fillRect(px * singleScale, py * singleScale, singleScale, singleScale);
+      }
+      ctx.restore();
+    }
+
+    const link = document.createElement('a');
+    link.download = `${project.name || 'pixel_art'}_frame${project.activeFrameIndex + 1}_${outW}x${outH}.png`;
+    link.href = offCanvas.toDataURL('image/png');
+    link.click();
+    modal.style.display = 'none';
+  });
+
+  // Xuat SpriteSheet (Ho tro ca Dai ngang Strip va Luoi Grid)
+  const generateSpriteSheetCanvas = (scale: number, layout: 'strip' | 'grid', cols: number) => {
+    const frameCount = project.frames.length;
+    if (frameCount === 0) return null;
+
+    const fw = project.width * scale;
+    const fh = project.height * scale;
+
+    let columns = frameCount;
+    let rows = 1;
+
+    if (layout === 'grid') {
+      columns = Math.max(1, Math.min(cols, frameCount));
+      rows = Math.ceil(frameCount / columns);
+    }
+
+    const totalW = fw * columns;
+    const totalH = fh * rows;
+
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = totalW;
+    offCanvas.height = totalH;
+    const ctx = offCanvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.imageSmoothingEnabled = false;
+
+    const frameCoords: { index: number; durationMs: number; x: number; y: number; w: number; h: number }[] = [];
+
+    for (let f = 0; f < frameCount; f++) {
+      const colIndex = f % columns;
+      const rowIndex = Math.floor(f / columns);
+      const destX = colIndex * fw;
+      const destY = rowIndex * fh;
+
+      frameCoords.push({
+        index: f,
+        durationMs: project.frames[f].durationMs,
+        x: destX,
+        y: destY,
+        w: fw,
+        h: fh
+      });
+
+      const frame = project.frames[f];
+      for (const layer of frame.layers) {
         if (!layer.visible) continue;
         if (layer.groupId) {
           const group = project.groups?.find(g => g.id === layer.groupId);
@@ -5827,91 +6095,52 @@ function initExportModal(): void {
           if (!color) continue;
           const [px, py] = key.split(',').map(Number);
           ctx.fillStyle = color;
-          ctx.fillRect(px * currentScale, py * currentScale, currentScale, currentScale);
+          ctx.fillRect(destX + px * scale, destY + py * scale, scale, scale);
         }
         ctx.restore();
       }
+    }
 
-      const link = document.createElement('a');
-      link.download = `${project.name || 'pixel_art'}_frame${project.activeFrameIndex + 1}_${outW}x${outH}.png`;
-      link.href = offCanvas.toDataURL('image/png');
-      link.click();
-      modal.style.display = 'none';
+    return { canvas: offCanvas, totalW, totalH, fw, fh, columns, rows, frameCoords };
+  };
 
-    } else {
-      // Xuat dai anh SpriteSheet gom toan bo cac Frames
-      const frameCount = project.frames.length;
-      if (frameCount === 0) return;
+  btnDownloadSheet?.addEventListener('click', () => {
+    const layout = (layoutSelect?.value || 'strip') as 'strip' | 'grid';
+    const cols = parseInt(colsInput?.value || '4', 10) || 4;
 
-      const fw = project.width * currentScale;
-      const fh = project.height * currentScale;
-      const totalW = fw * frameCount;
-      const totalH = fh;
+    const result = generateSpriteSheetCanvas(sheetScale, layout, cols);
+    if (!result) return;
 
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = totalW;
-      offCanvas.height = totalH;
-      const ctx = offCanvas.getContext('2d');
-      if (!ctx) return;
+    // 1. Tai file PNG
+    const link = document.createElement('a');
+    link.download = `${project.name || 'SpriteSheet'}_${project.frames.length}frames_${result.totalW}x${result.totalH}.png`;
+    link.href = result.canvas.toDataURL('image/png');
+    link.click();
 
-      ctx.imageSmoothingEnabled = false;
-
-      // Ve lan luot tung frame len dai anh ngang
-      for (let f = 0; f < frameCount; f++) {
-        const frame = project.frames[f];
-        const destX = f * fw;
-
-        for (const layer of frame.layers) {
-          if (!layer.visible) continue;
-          if (layer.groupId) {
-            const group = project.groups?.find(g => g.id === layer.groupId);
-            if (group && group.visible === false) continue;
-          }
-          ctx.save();
-          ctx.globalAlpha = layer.opacity;
-          for (const [key, color] of Object.entries(layer.pixels)) {
-            if (!color) continue;
-            const [px, py] = key.split(',').map(Number);
-            ctx.fillStyle = color;
-            ctx.fillRect(destX + px * currentScale, py * currentScale, currentScale, currentScale);
-          }
-          ctx.restore();
-        }
-      }
-
-      // 1. Tai tep PNG SpriteSheet truc tiep ve may tinh
-      const link = document.createElement('a');
-      link.download = `${project.name || 'SpriteSheet'}_${frameCount}frames_${totalW}x${totalH}.png`;
-      link.href = offCanvas.toDataURL('image/png');
-      link.click();
-
-      // 2. Tao va tai tep JSON Metadata di kem
+    // 2. Tai kem Atlas JSON
+    if (chkAtlas?.checked) {
       const meta = {
         name: project.name || 'SpriteSheet',
-        framesCount: frameCount,
-        frameWidth: fw,
-        frameHeight: fh,
-        totalWidth: totalW,
-        totalHeight: totalH,
-        scale: currentScale,
+        framesCount: project.frames.length,
+        layout,
+        columns: result.columns,
+        rows: result.rows,
+        frameWidth: result.fw,
+        frameHeight: result.fh,
+        totalWidth: result.totalW,
+        totalHeight: result.totalH,
+        scale: sheetScale,
         clips: project.clips || [],
-        frames: project.frames.map((fr, idx) => ({
-          index: idx,
-          durationMs: fr.durationMs,
-          x: idx * fw,
-          y: 0,
-          w: fw,
-          h: fh
-        }))
+        frames: result.frameCoords
       };
       const jsonBlob = new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' });
       const jsonLink = document.createElement('a');
-      jsonLink.download = `${project.name || 'SpriteSheet'}_meta.json`;
+      jsonLink.download = `${project.name || 'SpriteSheet'}_atlas.json`;
       jsonLink.href = URL.createObjectURL(jsonBlob);
       jsonLink.click();
-
-      modal.style.display = 'none';
     }
+
+    modal.style.display = 'none';
   });
 
   // Luu vao thu muc du an server
@@ -5921,7 +6150,7 @@ function initExportModal(): void {
       const res = await fetch('http://127.0.0.1:3055/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outputPath, scale: currentScale, project })
+        body: JSON.stringify({ outputPath, scale: sheetScale, project })
       });
       const data = await res.json();
       if (data.success) {
@@ -5934,11 +6163,590 @@ function initExportModal(): void {
       alert('Lỗi kết nối máy chủ xuất file: ' + err.message);
     }
   });
+
+  // Tab 3 buttons: Luu du an .pxdraw
+  btnExportPxDraw?.addEventListener('click', () => {
+    downloadProjectFile(project);
+    modal.style.display = 'none';
+  });
+
+  btnExportSaveGallery?.addEventListener('click', () => {
+    modal.style.display = 'none';
+    document.getElementById('btn-save-gallery')?.click();
+  });
+
+  // 4. Ho tro keo tha file .pxdraw truc tiep vao man hinh de mo
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    if (file.name.endsWith('.pxdraw') || file.name.endsWith('.json')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const raw = event.target?.result as string;
+          const loaded = importFromPxDraw(raw);
+          project.id = loaded.id;
+          project.name = loaded.name;
+          project.width = loaded.width;
+          project.height = loaded.height;
+          project.frames = loaded.frames;
+          project.clips = loaded.clips || [];
+          project.activeFrameIndex = loaded.activeFrameIndex || 0;
+          project.activeLayerId = loaded.activeLayerId || loaded.frames[0]?.layers[0]?.id || 'layer_1';
+          canvasEngine.rebuildBuffers();
+          onionSkinRenderer.resize(project.width, project.height);
+          const sizeBadge = document.getElementById('canvas-size-badge');
+          if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+          renderAll();
+          alert(`Đã kéo thả và nạp thành công dự án "${project.name}"!`);
+        } catch (err: any) {
+          alert('Lỗi nạp file kéo thả: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+  });
 }
 
-// 14. Khoi dong ung dung
+// 14. Khoi tao Menu Bar phong cach Photoshop / Aseprite tren Headbar
+function initAppMenuBar(): void {
+  const menuBar = document.getElementById('app-menu-bar');
+  if (!menuBar) return;
+
+  const menuItems = menuBar.querySelectorAll<HTMLElement>('.nav-menu-item');
+  let isAnyMenuOpen = false;
+
+  const closeAllMenus = () => {
+    menuItems.forEach(item => item.classList.remove('active'));
+    isAnyMenuOpen = false;
+  };
+
+  menuItems.forEach(item => {
+    const trigger = item.querySelector<HTMLElement>('.nav-menu-btn');
+    trigger?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasActive = item.classList.contains('active');
+      closeAllMenus();
+      if (!wasActive) {
+        item.classList.add('active');
+        isAnyMenuOpen = true;
+      }
+    });
+
+    item.addEventListener('mouseenter', () => {
+      if (isAnyMenuOpen) {
+        menuItems.forEach(it => it.classList.remove('active'));
+        item.classList.add('active');
+      }
+    });
+  });
+
+  // Dong menu khi click ra ngoai hoac nhan Esc
+  document.addEventListener('click', (e) => {
+    if (!menuBar.contains(e.target as Node)) {
+      closeAllMenus();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeAllMenus();
+    }
+  });
+
+  // Dong menu khi click vao bat ky dropdown-item nao
+  document.querySelectorAll('.dropdown-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      closeAllMenus();
+    });
+  });
+
+  // 1. Gan su kien cho cac nut Menu Tep (File)
+  document.getElementById('menu-file-new')?.addEventListener('click', () => {
+    if (confirm('Tạo dự án mới? Các thay đổi chưa lưu có thể bị mất.')) {
+      const newProj = createDefaultProject(24, 24, 'NewSprite');
+      project.id = newProj.id;
+      project.name = newProj.name;
+      project.width = newProj.width;
+      project.height = newProj.height;
+      project.frames = newProj.frames;
+      project.clips = newProj.clips;
+      project.activeFrameIndex = 0;
+      project.activeLayerId = newProj.frames[0].layers[0].id;
+      canvasEngine.rebuildBuffers();
+      onionSkinRenderer.resize(project.width, project.height);
+      const sizeBadge = document.getElementById('canvas-size-badge');
+      if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+      renderAll();
+    }
+  });
+
+  // Mo file du an .pxdraw tu may tinh
+  const projFileInput = document.getElementById('project-file-input') as HTMLInputElement;
+  document.getElementById('menu-file-open')?.addEventListener('click', () => {
+    projFileInput?.click();
+  });
+
+  projFileInput?.addEventListener('change', () => {
+    const file = projFileInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const loadedProj = importFromPxDraw(content);
+        project.id = loadedProj.id;
+        project.name = loadedProj.name;
+        project.width = loadedProj.width;
+        project.height = loadedProj.height;
+        project.frames = loadedProj.frames;
+        project.clips = loadedProj.clips || [];
+        project.activeFrameIndex = loadedProj.activeFrameIndex || 0;
+        project.activeLayerId = loadedProj.activeLayerId || loadedProj.frames[0]?.layers[0]?.id || 'layer_1';
+        canvasEngine.rebuildBuffers();
+        onionSkinRenderer.resize(project.width, project.height);
+        const sizeBadge = document.getElementById('canvas-size-badge');
+        if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+        renderAll();
+        alert(`Đã nạp thành công dự án "${project.name}" với ${project.frames.length} frame(s)!`);
+      } catch (err: any) {
+        alert('Lỗi nạp file dự án: ' + err.message);
+      } finally {
+        projFileInput.value = '';
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // Luu file .pxdraw ve may
+  document.getElementById('menu-file-save-local')?.addEventListener('click', () => {
+    downloadProjectFile(project);
+  });
+
+  document.getElementById('menu-file-export')?.addEventListener('click', () => {
+    document.getElementById('btn-export')?.click();
+  });
+
+  // 2. Menu Chinh sua (Edit)
+  document.getElementById('menu-edit-resize')?.addEventListener('click', () => {
+    document.getElementById('canvas-size-badge')?.click();
+  });
+
+  // 3. Menu Hien thi (View)
+  document.getElementById('menu-view-reset-zoom')?.addEventListener('click', () => {
+    document.getElementById('canvas-zoom-badge')?.click();
+  });
+
+  // Quick Undo/Redo
+  document.getElementById('quick-undo')?.addEventListener('click', () => {
+    document.getElementById('btn-undo')?.click();
+  });
+  document.getElementById('quick-redo')?.addEventListener('click', () => {
+    document.getElementById('btn-redo')?.click();
+  });
+}
+
+// 15. Khoi tao Modal Chinh Mau Sac (Color Adjustments)
+function initColorAdjustmentsModal(): void {
+  const modal = document.getElementById('color-adjustments-modal');
+  const btnClose = document.getElementById('btn-close-color-adj-modal');
+  const btnCancel = document.getElementById('btn-cancel-color-adj');
+  const btnApply = document.getElementById('btn-apply-color-adj');
+  const badgeTarget = document.getElementById('color-adj-target-badge');
+
+  const sliderHue = document.getElementById('slider-hue') as HTMLInputElement;
+  const sliderSat = document.getElementById('slider-sat') as HTMLInputElement;
+  const sliderLight = document.getElementById('slider-light') as HTMLInputElement;
+  const labelHue = document.getElementById('label-hue-val');
+  const labelSat = document.getElementById('label-sat-val');
+  const labelLight = document.getElementById('label-light-val');
+  const btnResetHsl = document.getElementById('btn-reset-hsl');
+
+  const colorFromInput = document.getElementById('replace-color-from') as HTMLInputElement;
+  const colorToInput = document.getElementById('replace-color-to') as HTMLInputElement;
+  const colorFromHex = document.getElementById('replace-color-from-hex');
+  const colorToHex = document.getElementById('replace-color-to-hex');
+  const sliderReplaceTol = document.getElementById('slider-replace-tol') as HTMLInputElement;
+  const labelReplaceTol = document.getElementById('label-replace-tol-val');
+
+  const sliderBright = document.getElementById('slider-bright') as HTMLInputElement;
+  const sliderContrast = document.getElementById('slider-contrast') as HTMLInputElement;
+  const labelBright = document.getElementById('label-bright-val');
+  const labelContrast = document.getElementById('label-contrast-val');
+  const btnQuickInvert = document.getElementById('btn-quick-invert');
+
+  const chkPreview = document.getElementById('chk-color-adj-preview') as HTMLInputElement;
+  const tabsContainer = document.getElementById('color-adj-tabs');
+  const dialog = document.getElementById('color-adjustments-dialog') as HTMLElement | null;
+  const dragHandle = document.getElementById('color-adjustments-drag-handle');
+  const btnToggleOpacity = document.getElementById('btn-toggle-dialog-opacity');
+
+  if (!modal) return;
+
+  // Luu tru ban sao pixel goc truoc khi keo slider de xem truoc va hoan tac
+  let initialPixelsSnapshot: Record<string, PixelColor> = {};
+  let currentActiveTab = 'tab-hsl';
+  let isSeeThrough = false;
+
+  // Xu ly che do nhin xuyen thau qua cua so
+  btnToggleOpacity?.addEventListener('click', () => {
+    isSeeThrough = !isSeeThrough;
+    dialog?.classList.toggle('is-see-through', isSeeThrough);
+    btnToggleOpacity.classList.toggle('active', isSeeThrough);
+  });
+
+  // Xu ly keo tha di chuyen cua so (Draggable Floating Window)
+  let isDragging = false;
+  let startPointerX = 0;
+  let startPointerY = 0;
+  let startDialogLeft = 0;
+  let startDialogTop = 0;
+
+  dragHandle?.addEventListener('pointerdown', (e) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    if (!dialog) return;
+
+    isDragging = true;
+    dragHandle.setPointerCapture(e.pointerId);
+
+    const rect = dialog.getBoundingClientRect();
+    startPointerX = e.clientX;
+    startPointerY = e.clientY;
+    startDialogLeft = rect.left;
+    startDialogTop = rect.top;
+
+    dialog.style.right = 'auto';
+    dialog.style.left = `${startDialogLeft}px`;
+    dialog.style.top = `${startDialogTop}px`;
+    dialog.dataset.hasMoved = 'true';
+  });
+
+  dragHandle?.addEventListener('pointermove', (e) => {
+    if (!isDragging || !dialog) return;
+    const dx = e.clientX - startPointerX;
+    const dy = e.clientY - startPointerY;
+
+    let newLeft = startDialogLeft + dx;
+    let newTop = startDialogTop + dy;
+
+    const dialogWidth = dialog.offsetWidth;
+    const dialogHeight = dialog.offsetHeight;
+    const maxLeft = window.innerWidth - dialogWidth - 10;
+    const maxTop = window.innerHeight - dialogHeight - 10;
+
+    newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+    newTop = Math.max(10, Math.min(newTop, maxTop));
+
+    dialog.style.left = `${newLeft}px`;
+    dialog.style.top = `${newTop}px`;
+  });
+
+  const stopDragging = (e: PointerEvent) => {
+    if (isDragging) {
+      isDragging = false;
+      try {
+        dragHandle?.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    }
+  };
+
+  dragHandle?.addEventListener('pointerup', stopDragging);
+  dragHandle?.addEventListener('pointercancel', stopDragging);
+
+  const resetControls = () => {
+    if (sliderHue) sliderHue.value = '0';
+    if (sliderSat) sliderSat.value = '0';
+    if (sliderLight) sliderLight.value = '0';
+    if (labelHue) labelHue.innerText = '0°';
+    if (labelSat) labelSat.innerText = '0%';
+    if (labelLight) labelLight.innerText = '0%';
+
+    if (sliderBright) sliderBright.value = '0';
+    if (sliderContrast) sliderContrast.value = '0';
+    if (labelBright) labelBright.innerText = '0';
+    if (labelContrast) labelContrast.innerText = '0';
+
+    if (colorFromInput) {
+      colorFromInput.value = primaryColor || '#ff0000';
+      if (colorFromHex) colorFromHex.innerText = colorFromInput.value;
+    }
+    if (colorToInput) {
+      colorToInput.value = secondaryColor || '#00ff00';
+      if (colorToHex) colorToHex.innerText = colorToInput.value;
+    }
+    if (sliderReplaceTol) sliderReplaceTol.value = '0';
+    if (labelReplaceTol) labelReplaceTol.innerText = '0';
+  };
+
+  const switchTab = (targetTabId: string) => {
+    currentActiveTab = targetTabId;
+    tabsContainer?.querySelectorAll('.modal-tab-btn').forEach(btn => {
+      const b = btn as HTMLElement;
+      b.classList.toggle('active', b.dataset.tab === targetTabId);
+    });
+
+    ['tab-hsl', 'tab-replace', 'tab-contrast'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = id === targetTabId ? 'block' : 'none';
+      }
+    });
+  };
+
+  const openModal = (tabId = 'tab-hsl') => {
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    if (!currentLayer) {
+      alert('Vui lòng chọn một Layer để chỉnh màu!');
+      return;
+    }
+
+    initialPixelsSnapshot = { ...currentLayer.pixels };
+
+    const hasMask = selectionManager.getCustomMask() && selectionManager.getCustomMask()!.size > 0;
+    const hasRect = selectionManager.getSelection() !== null;
+    if (badgeTarget) {
+      if (hasMask) {
+        badgeTarget.innerText = `Vùng chọn (${selectionManager.getCustomMask()!.size} px)`;
+      } else if (hasRect) {
+        badgeTarget.innerText = 'Vùng chọn chữ nhật';
+      } else {
+        badgeTarget.innerText = `Toàn bộ Layer (${currentLayer.name})`;
+      }
+    }
+
+    resetControls();
+    switchTab(tabId);
+    if (dialog && !dialog.dataset.hasMoved) {
+      dialog.style.top = '75px';
+      dialog.style.right = '28px';
+      dialog.style.left = 'auto';
+    }
+    modal.style.display = 'block';
+  };
+
+  tabsContainer?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.modal-tab-btn') as HTMLElement;
+    if (!btn || !btn.dataset.tab) return;
+    switchTab(btn.dataset.tab);
+    triggerLivePreview();
+  });
+
+  const triggerLivePreview = () => {
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    if (!currentLayer || !buffer) return;
+
+    if (!chkPreview?.checked) {
+      currentLayer.pixels = { ...initialPixelsSnapshot };
+      buffer.clear();
+      for (const [key, color] of Object.entries(currentLayer.pixels)) {
+        if (color) {
+          const [x, y] = key.split(',').map(Number);
+          buffer.setPixel(x, y, color);
+        }
+      }
+      renderAll();
+      return;
+    }
+
+    let options: ColorAdjustmentOptions | null = null;
+    if (currentActiveTab === 'tab-hsl') {
+      const h = parseInt(sliderHue.value, 10) || 0;
+      const s = parseInt(sliderSat.value, 10) || 0;
+      const l = parseInt(sliderLight.value, 10) || 0;
+      options = { type: 'hsl', hue: h, saturation: s, lightness: l };
+    } else if (currentActiveTab === 'tab-replace') {
+      options = {
+        type: 'replace',
+        fromColor: colorFromInput.value,
+        toColor: colorToInput.value,
+        tolerance: parseInt(sliderReplaceTol.value, 10) || 0
+      };
+    } else if (currentActiveTab === 'tab-contrast') {
+      options = {
+        type: 'brightness-contrast',
+        brightness: parseInt(sliderBright.value, 10) || 0,
+        contrast: parseInt(sliderContrast.value, 10) || 0
+      };
+    }
+
+    if (!options) return;
+
+    let mask = selectionManager.getCustomMask() || undefined;
+    if (!mask && selectionManager.getSelection()) {
+      const rect = selectionManager.getSelection()!;
+      mask = new Set<string>();
+      for (let r = 0; r < rect.height; r++) {
+        for (let c = 0; c < rect.width; c++) {
+          mask.add(coordToKey(rect.x + c, rect.y + r));
+        }
+      }
+    }
+
+    const adjusted = applyColorAdjustment(
+      initialPixelsSnapshot as Record<string, string>,
+      options,
+      mask
+    );
+
+    currentLayer.pixels = adjusted;
+    buffer.clear();
+    for (const [key, color] of Object.entries(adjusted)) {
+      if (color) {
+        const [x, y] = key.split(',').map(Number);
+        buffer.setPixel(x, y, color);
+      }
+    }
+    renderAll();
+  };
+
+  sliderHue?.addEventListener('input', () => {
+    if (labelHue) labelHue.innerText = `${sliderHue.value}°`;
+    triggerLivePreview();
+  });
+  sliderSat?.addEventListener('input', () => {
+    if (labelSat) labelSat.innerText = `${sliderSat.value}%`;
+    triggerLivePreview();
+  });
+  sliderLight?.addEventListener('input', () => {
+    if (labelLight) labelLight.innerText = `${sliderLight.value}%`;
+    triggerLivePreview();
+  });
+  btnResetHsl?.addEventListener('click', () => {
+    if (sliderHue) sliderHue.value = '0';
+    if (sliderSat) sliderSat.value = '0';
+    if (sliderLight) sliderLight.value = '0';
+    if (labelHue) labelHue.innerText = '0°';
+    if (labelSat) labelSat.innerText = '0%';
+    if (labelLight) labelLight.innerText = '0%';
+    triggerLivePreview();
+  });
+
+  colorFromInput?.addEventListener('input', () => {
+    if (colorFromHex) colorFromHex.innerText = colorFromInput.value;
+    triggerLivePreview();
+  });
+  colorToInput?.addEventListener('input', () => {
+    if (colorToHex) colorToHex.innerText = colorToInput.value;
+    triggerLivePreview();
+  });
+  sliderReplaceTol?.addEventListener('input', () => {
+    if (labelReplaceTol) labelReplaceTol.innerText = sliderReplaceTol.value;
+    triggerLivePreview();
+  });
+
+  sliderBright?.addEventListener('input', () => {
+    if (labelBright) labelBright.innerText = sliderBright.value;
+    triggerLivePreview();
+  });
+  sliderContrast?.addEventListener('input', () => {
+    if (labelContrast) labelContrast.innerText = sliderContrast.value;
+    triggerLivePreview();
+  });
+
+  btnQuickInvert?.addEventListener('click', () => {
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    if (!currentLayer || !buffer) return;
+
+    let mask = selectionManager.getCustomMask() || undefined;
+    const adjusted = applyColorAdjustment(
+      currentLayer.pixels as Record<string, string>,
+      { type: 'invert' },
+      mask
+    );
+
+    currentLayer.pixels = adjusted;
+    buffer.clear();
+    for (const [key, color] of Object.entries(adjusted)) {
+      if (color) {
+        const [x, y] = key.split(',').map(Number);
+        buffer.setPixel(x, y, color);
+      }
+    }
+    renderAll();
+  });
+
+  chkPreview?.addEventListener('change', triggerLivePreview);
+
+  const handleCancel = () => {
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    const buffer = canvasEngine.getActiveLayerBuffer();
+    if (currentLayer && buffer) {
+      currentLayer.pixels = { ...initialPixelsSnapshot };
+      buffer.clear();
+      for (const [key, color] of Object.entries(currentLayer.pixels)) {
+        if (color) {
+          const [x, y] = key.split(',').map(Number);
+          buffer.setPixel(x, y, color);
+        }
+      }
+      renderAll();
+    }
+    modal.style.display = 'none';
+  };
+
+  btnClose?.addEventListener('click', handleCancel);
+  btnCancel?.addEventListener('click', handleCancel);
+
+  btnApply?.addEventListener('click', () => {
+    const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
+    if (!currentLayer) return;
+
+    const changes: PixelChange[] = [];
+    const allKeys = new Set([...Object.keys(initialPixelsSnapshot), ...Object.keys(currentLayer.pixels)]);
+
+    for (const key of allKeys) {
+      const oldCol = initialPixelsSnapshot[key] || null;
+      const newCol = currentLayer.pixels[key] || null;
+      if (oldCol !== newCol) {
+        const [x, y] = key.split(',').map(Number);
+        changes.push({
+          x,
+          y,
+          oldColor: oldCol,
+          newColor: newCol,
+          layerId: project.activeLayerId,
+          frameIndex: project.activeFrameIndex
+        });
+      }
+    }
+
+    if (changes.length > 0) {
+      history.pushStep(changes);
+    }
+
+    modal.style.display = 'none';
+    renderAll();
+  });
+
+  document.getElementById('menu-adj-hsl')?.addEventListener('click', () => openModal('tab-hsl'));
+  document.getElementById('menu-adj-replace')?.addEventListener('click', () => openModal('tab-replace'));
+  document.getElementById('menu-adj-brightness')?.addEventListener('click', () => openModal('tab-contrast'));
+  document.getElementById('menu-adj-invert')?.addEventListener('click', () => {
+    openModal('tab-contrast');
+    btnQuickInvert?.click();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U')) {
+      e.preventDefault();
+      openModal('tab-hsl');
+    }
+  });
+}
+
+// 16. Khoi dong ung dung
 loadPalette('endesga-32');
 renderAll();
+initAppMenuBar();
+initColorAdjustmentsModal();
 initWebSocketBridge();
 initAiPixelModal();
 initGalleryModal();

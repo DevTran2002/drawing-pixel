@@ -25,8 +25,47 @@ export interface FloatingSelection {
   cutOriginalChanges: PixelChange[];
 }
 
+// Ham ho tro chuyen ma mau HEX sang RGB de tinh sai bien mau
+function parseHexToRgb(hex: string | null): [number, number, number] | null {
+  if (!hex) return null;
+  const clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    return [
+      parseInt(clean[0] + clean[0], 16),
+      parseInt(clean[1] + clean[1], 16),
+      parseInt(clean[2] + clean[2], 16)
+    ];
+  }
+  if (clean.length >= 6) {
+    return [
+      parseInt(clean.slice(0, 2), 16),
+      parseInt(clean.slice(2, 4), 16),
+      parseInt(clean.slice(4, 6), 16)
+    ];
+  }
+  return null;
+}
+
+// So khop mau sac theo dung sai Euclidean trong khong gian mau RGB
+function isColorMatch(hexA: string | null, hexB: string | null, tolerance: number): boolean {
+  if (hexA === hexB) return true;
+  if (!hexA || !hexB) return false;
+  if (tolerance <= 0) return hexA.toLowerCase() === hexB.toLowerCase();
+
+  const rgbA = parseHexToRgb(hexA);
+  const rgbB = parseHexToRgb(hexB);
+  if (!rgbA || !rgbB) return false;
+
+  const dr = rgbA[0] - rgbB[0];
+  const dg = rgbA[1] - rgbB[1];
+  const db = rgbA[2] - rgbB[2];
+  const dist = (Math.sqrt(dr * dr + dg * dg + db * db) / Math.sqrt(255 * 255 * 3)) * 100;
+  return dist <= tolerance;
+}
+
 export class SelectionManager {
   private currentSelection: SelectionRect | null = null;
+  private customMask: Set<string> | null = null;
   private floating: FloatingSelection | null = null;
   private clipboard: {
     pixels: CopiedPixel[];
@@ -38,9 +77,113 @@ export class SelectionManager {
     return this.currentSelection;
   }
 
+  getCustomMask(): Set<string> | null {
+    return this.customMask;
+  }
+
+  setCustomMask(mask: Set<string> | null): void {
+    if (!mask || mask.size === 0) {
+      this.customMask = null;
+      this.currentSelection = null;
+      return;
+    }
+    this.customMask = new Set(mask);
+    this.currentSelection = this.getMaskBoundingBox();
+  }
+
+  getMaskBoundingBox(): SelectionRect | null {
+    if (!this.customMask || this.customMask.size === 0) {
+      return this.currentSelection;
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const key of this.customMask) {
+      const { x, y } = keyToCoord(key);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+
+    if (minX === Infinity) return null;
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1
+    };
+  }
+
+  // Chon vung bang Cay dua than (Magic Wand)
+  selectByWand(
+    startX: number,
+    startY: number,
+    contiguous: boolean,
+    tolerance: number,
+    pixels: Record<string, string>,
+    width: number,
+    height: number
+  ): Set<string> {
+    const mask = new Set<string>();
+    const startKey = coordToKey(startX, startY);
+    const targetColor = pixels[startKey] || null;
+
+    if (contiguous) {
+      // Thuat toan BFS loang 4 huong cho che do lien ke
+      const queue: Point2D[] = [{ x: startX, y: startY }];
+      const visited = new Set<string>();
+      visited.add(startKey);
+
+      while (queue.length > 0) {
+        const { x, y } = queue.shift()!;
+        const key = coordToKey(x, y);
+        const curColor = pixels[key] || null;
+
+        if (isColorMatch(curColor, targetColor, tolerance)) {
+          mask.add(key);
+
+          const neighbors: Point2D[] = [
+            { x: x + 1, y },
+            { x: x - 1, y },
+            { x, y: y + 1 },
+            { x, y: y - 1 }
+          ];
+
+          for (const n of neighbors) {
+            if (n.x >= 0 && n.x < width && n.y >= 0 && n.y < height) {
+              const nKey = coordToKey(n.x, n.y);
+              if (!visited.has(nKey)) {
+                visited.add(nKey);
+                queue.push(n);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Quet toan bo pixel tren canvas
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const key = coordToKey(x, y);
+          const curColor = pixels[key] || null;
+          if (isColorMatch(curColor, targetColor, tolerance)) {
+            mask.add(key);
+          }
+        }
+      }
+    }
+
+    this.setCustomMask(mask);
+    return mask;
+  }
+
   setSelection(rect: SelectionRect | null): void {
     if (!rect) {
       this.currentSelection = null;
+      this.customMask = null;
       return;
     }
     // Chuan hoa de x, y luon la goc tren ben trai va width, height duong
@@ -51,17 +194,30 @@ export class SelectionManager {
 
     if (width === 0 || height === 0) {
       this.currentSelection = null;
+      this.customMask = null;
     } else {
       this.currentSelection = { x, y, width, height };
+      this.customMask = null; // Chuyen sang che do vung chon hinh chu nhat
     }
   }
 
   clearSelection(): void {
     this.currentSelection = null;
+    this.customMask = null;
     this.floating = null;
   }
 
+  isPixelSelected(x: number, y: number): boolean {
+    if (this.customMask) {
+      return this.customMask.has(coordToKey(x, y));
+    }
+    return this.isPointInsideSelection(x, y);
+  }
+
   isPointInsideSelection(px: number, py: number): boolean {
+    if (this.customMask) {
+      return this.customMask.has(coordToKey(px, py));
+    }
     if (!this.currentSelection) return false;
     const { x, y, width, height } = this.currentSelection;
     return px >= x && px < x + width && py >= y && py < y + height;
