@@ -7486,6 +7486,7 @@ function initTimelineContextMenu(): void {
 // 17. UI & Logic: Bang Quan Ly Tai Nguyen Du An Phong Cach Unity (Project & Asset Browser Dock)
 function initProjectDock(): void {
   const bottomDock = document.getElementById('bottom-dock');
+  const resizeHandle = document.getElementById('dock-resize-handle');
   const tabTimeline = document.getElementById('tab-mode-timeline');
   const tabProject = document.getElementById('tab-mode-project');
   const panelTimeline = document.getElementById('dock-panel-timeline');
@@ -7501,8 +7502,34 @@ function initProjectDock(): void {
   const btnLoadTimeline = document.getElementById('btn-project-load-timeline');
   const zoomSlider = document.getElementById('project-zoom-slider') as HTMLInputElement | null;
 
+  // Quan ly chieu cao doc lap va luu tru trong LocalStorage
+  let currentDockMode: 'timeline' | 'project' = 'timeline';
+  let savedTimelineHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_timeline') || '140', 10);
+  let savedProjectHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_project') || '320', 10);
+
+  // Dam bao gia tri chieu cao hop le
+  savedTimelineHeight = Math.max(110, Math.min(650, isNaN(savedTimelineHeight) ? 140 : savedTimelineHeight));
+  savedProjectHeight = Math.max(180, Math.min(650, isNaN(savedProjectHeight) ? 320 : savedProjectHeight));
+
+  const applyDockHeight = (animate = false) => {
+    if (!bottomDock) return;
+    if (!animate) {
+      bottomDock.classList.add('no-transition');
+    } else {
+      bottomDock.classList.remove('no-transition');
+    }
+    const h = currentDockMode === 'project' ? savedProjectHeight : savedTimelineHeight;
+    bottomDock.style.height = `${h}px`;
+  };
+
+  // Khoi tao chieu cao ban dau cho Dock
+  applyDockHeight(false);
+
   // Chuyen doi che do Dock giua Timeline va Project
   const switchDockMode = (mode: 'timeline' | 'project') => {
+    currentDockMode = mode;
+    applyDockHeight(true);
+
     if (mode === 'project') {
       bottomDock?.classList.add('dock-project-active');
       tabProject?.classList.add('active');
@@ -7524,6 +7551,71 @@ function initProjectDock(): void {
 
   tabTimeline?.addEventListener('click', () => switchDockMode('timeline'));
   tabProject?.addEventListener('click', () => switchDockMode('project'));
+
+  // Co che keo chuot de tuy chinh chieu cao (Mouse Drag Resizer)
+  let isDraggingResize = false;
+  let startY = 0;
+  let startHeight = 0;
+
+  const handleResizeDown = (e: MouseEvent) => {
+    e.preventDefault();
+    isDraggingResize = true;
+    startY = e.clientY;
+    startHeight = bottomDock?.getBoundingClientRect().height || (currentDockMode === 'project' ? savedProjectHeight : savedTimelineHeight);
+
+    document.body.classList.add('dock-resizing');
+    bottomDock?.classList.add('no-transition');
+
+    window.addEventListener('mousemove', handleResizeMove);
+    window.addEventListener('mouseup', handleResizeUp);
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isDraggingResize || !bottomDock) return;
+    const deltaY = startY - e.clientY;
+    const newHeight = startHeight + deltaY;
+
+    const minH = currentDockMode === 'project' ? 180 : 110;
+    const maxH = Math.min(window.innerHeight - 100, 700);
+    const clampedHeight = Math.max(minH, Math.min(maxH, newHeight));
+
+    bottomDock.style.height = `${clampedHeight}px`;
+
+    if (currentDockMode === 'project') {
+      savedProjectHeight = clampedHeight;
+    } else {
+      savedTimelineHeight = clampedHeight;
+    }
+  };
+
+  const handleResizeUp = () => {
+    if (!isDraggingResize) return;
+    isDraggingResize = false;
+    document.body.classList.remove('dock-resizing');
+    bottomDock?.classList.remove('no-transition');
+
+    window.removeEventListener('mousemove', handleResizeMove);
+    window.removeEventListener('mouseup', handleResizeUp);
+
+    try {
+      localStorage.setItem('pixel_draw_dock_height_timeline', savedTimelineHeight.toString());
+      localStorage.setItem('pixel_draw_dock_height_project', savedProjectHeight.toString());
+    } catch (err) {}
+  };
+
+  resizeHandle?.addEventListener('mousedown', handleResizeDown);
+
+  // Nhap dup vao thanh keo de chuyen nhanh giua cac muc chieu cao
+  resizeHandle?.addEventListener('dblclick', () => {
+    if (currentDockMode === 'timeline') {
+      savedTimelineHeight = savedTimelineHeight > 180 ? 140 : 250;
+      localStorage.setItem('pixel_draw_dock_height_timeline', savedTimelineHeight.toString());
+    } else {
+      savedProjectHeight = savedProjectHeight > 380 ? 300 : 500;
+      localStorage.setItem('pixel_draw_dock_height_project', savedProjectHeight.toString());
+    }
+    applyDockHeight(true);
+  });
 
   // Render toan bo giao dien Project (Tree, Breadcrumbs, Grid)
   const renderProjectView = () => {

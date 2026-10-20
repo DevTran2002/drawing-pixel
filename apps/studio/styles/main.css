@@ -2112,13 +2112,62 @@ body {
 }
 
 .bottom-dock {
-  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  transition: height 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 110px;
+  max-height: calc(100vh - 80px);
+  padding-top: 10px;
 }
 
-.bottom-dock.dock-project-active {
-  height: 290px;
-  min-height: 260px;
-  max-height: 340px;
+.bottom-dock.no-transition,
+body.dock-resizing .bottom-dock {
+  transition: none !important;
+}
+
+/* Thanh keo tuy chinh chieu cao phong cach Splitter */
+.dock-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 9px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.dock-resize-bar {
+  width: 44px;
+  height: 3px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.dock-resize-handle:hover {
+  background-color: rgba(56, 189, 248, 0.08);
+}
+
+.dock-resize-handle:hover .dock-resize-bar,
+body.dock-resizing .dock-resize-bar {
+  width: 76px;
+  height: 3.5px;
+  background-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+}
+
+body.dock-resizing {
+  cursor: ns-resize !important;
+  user-select: none !important;
+}
+
+body.dock-resizing * {
+  cursor: ns-resize !important;
+  user-select: none !important;
 }
 
 /* Thanh chuyen tab che do cua Footer Dock */
