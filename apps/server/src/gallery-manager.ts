@@ -20,6 +20,10 @@ export interface GalleryItem {
   sourceType: 'ai' | 'custom';
   prompt?: string;
   thumbnailBase64?: string;
+  projectFile?: string; // Ten file JSON luu toan bo frames, layers, clips
+  frameCount?: number; // So luong frame hoat anh
+  layerCount?: number; // So luong layer
+  hasProjectData?: boolean; // Co luu du lieu du an nguyen ban hay khong
 }
 
 // Tim thu muc goc cua du an (d:\pixel_draw)
@@ -96,20 +100,23 @@ export class GalleryManager {
       width: size,
       height: size,
       sourceType: 'ai',
-      prompt
+      prompt,
+      frameCount: 1,
+      layerCount: 1,
+      hasProjectData: false
     };
 
     this.appendMetadata(newItem);
     return newItem;
   }
 
-  // Luu tac pham nguoi dung dang ve tren Canvas vao kho
+  // Luu tac pham nguoi dung dang ve tren Canvas vao kho (bao gom toan bo frames, layers va project structure)
   async saveCanvasItem(project: CanvasProject, customName?: string): Promise<GalleryItem> {
     const timestamp = Date.now();
     const filename = `artwork_${timestamp}.png`;
     const targetPath = path.join(this.galleryDir, filename);
 
-    // Gop cac layer cua frame hien tai thanh mot ban pixel
+    // 1. Gop cac layer cua frame hien tai de xuat anh PNG thumbnail xem truoc
     const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
     const mergedPixels: Record<string, PixelColor> = {};
 
@@ -125,18 +132,52 @@ export class GalleryManager {
     const buffer = await exportPngBuffer(project.width, project.height, mergedPixels, 1);
     await saveToFile(targetPath, buffer);
 
+    // 2. Luu toan bo du lieu cau truc du an CanvasProject vao file JSON de sau nay co the mo lai va chinh sua day du layer, frame
+    const projectFilename = `project_${timestamp}.json`;
+    const projectPath = path.join(this.galleryDir, projectFilename);
+    fs.writeFileSync(projectPath, JSON.stringify(project, null, 2), 'utf-8');
+
+    // Tinh toan so luong frame va so luong layer lon nhat de hien thi thong tin
+    const frameCount = project.frames?.length || 1;
+    let maxLayerCount = 1;
+    if (project.frames) {
+      for (const f of project.frames) {
+        if (f.layers && f.layers.length > maxLayerCount) {
+          maxLayerCount = f.layers.length;
+        }
+      }
+    }
+
     const newItem: GalleryItem = {
       id: `item_${timestamp}`,
       filename,
+      projectFile: projectFilename,
       name: customName || project.name || `Artwork #${timestamp.toString().slice(-4)}`,
       createdAt: new Date().toISOString(),
       width: project.width,
       height: project.height,
-      sourceType: 'custom'
+      sourceType: 'custom',
+      frameCount,
+      layerCount: maxLayerCount,
+      hasProjectData: true
     };
 
     this.appendMetadata(newItem);
     return newItem;
+  }
+
+  // Doc du lieu du an nguyen ban (tat ca cac frame, layer, animation clips)
+  getProjectData(item: GalleryItem): CanvasProject | null {
+    try {
+      if (!item.projectFile) return null;
+      const projectPath = path.join(this.galleryDir, item.projectFile);
+      if (!fs.existsSync(projectPath)) return null;
+      const raw = fs.readFileSync(projectPath, 'utf-8');
+      return JSON.parse(raw) as CanvasProject;
+    } catch (err) {
+      console.error('[Gallery] Loi khi doc du lieu du an:', err);
+      return null;
+    }
   }
 
   // Xoa mot anh khoi kho
@@ -150,6 +191,14 @@ export class GalleryManager {
       const filePath = path.join(this.galleryDir, removed.filename);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
+      }
+
+      // Xoa kem file project JSON neu co
+      if (removed.projectFile) {
+        const projPath = path.join(this.galleryDir, removed.projectFile);
+        if (fs.existsSync(projPath)) {
+          fs.unlinkSync(projPath);
+        }
       }
 
       fs.writeFileSync(this.metadataPath, JSON.stringify(items, null, 2), 'utf-8');

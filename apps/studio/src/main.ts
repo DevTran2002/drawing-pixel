@@ -4856,8 +4856,26 @@ function initGalleryModal(): void {
           month: '2-digit'
         }) : '';
 
-        const badgeClass = item.sourceType === 'ai' ? 'badge-ai' : 'badge-custom';
-        const badgeText = item.sourceType === 'ai' ? 'AI LoRA' : 'Vẽ tay';
+        let badgeClass = 'badge-custom';
+        let badgeText = 'Vẽ tay';
+        if (item.sourceType === 'ai') {
+          badgeClass = 'badge-ai';
+          badgeText = 'AI LoRA';
+        } else if (item.hasProjectData || item.projectFile) {
+          if ((item.frameCount || 1) > 1) {
+            badgeClass = 'badge-custom';
+            badgeText = `Sprite (${item.frameCount}F)`;
+          } else if ((item.layerCount || 1) > 1) {
+            badgeClass = 'badge-custom';
+            badgeText = `Dự án (${item.layerCount} lớp)`;
+          } else {
+            badgeClass = 'badge-custom';
+            badgeText = 'Dự án Canvas';
+          }
+        }
+
+        const frameInfo = (item.frameCount && item.frameCount > 1) ? `${item.frameCount} frames • ` : '';
+        const layerInfo = (item.layerCount && item.layerCount > 1) ? `${item.layerCount} layers • ` : '';
 
         card.innerHTML = `
           <div class="gallery-thumb-container">
@@ -4866,28 +4884,51 @@ function initGalleryModal(): void {
           </div>
           <div class="gallery-card-info">
             <div class="gallery-card-title" title="${item.name}">${item.name}</div>
-            <div class="gallery-card-meta">${item.width}x${item.height} px • ${dateStr}</div>
+            <div class="gallery-card-meta">${item.width}x${item.height} px • ${frameInfo}${layerInfo}${dateStr}</div>
             <div class="gallery-card-actions">
-              <button class="btn btn-primary btn-load-item" title="Nạp vào Canvas để chỉnh sửa">Mở</button>
-              <button class="btn btn-download-item" title="Tải ảnh PNG">Tải</button>
-              <button class="btn btn-danger btn-del-item" title="Xóa bức ảnh này">Xóa</button>
+              <button class="btn btn-primary btn-load-item" title="Nạp vào Canvas khôi phục toàn bộ Frame và Layer để tiếp tục chỉnh sửa">Mở</button>
+              <button class="btn btn-download-item" title="Tải ảnh PNG">Tải PNG</button>
+              <button class="btn btn-danger btn-del-item" title="Xóa tác phẩm này">Xóa</button>
             </div>
           </div>
         `;
 
-        // Nut Mo vao Canvas
+        // Nut Mo vao Canvas (Khoi phuc 100% tat ca Frame va Layer)
         card.querySelector('.btn-load-item')?.addEventListener('click', async () => {
           try {
             const loadRes = await fetch('http://127.0.0.1:3055/api/gallery/load', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filename: item.filename })
+              body: JSON.stringify({ filename: item.filename, id: item.id })
             });
             const loadData = await loadRes.json();
             if (loadData.success) {
               modal.style.display = 'none';
+
+              // Neu may chu tra ve du lieu du an day du, cap nhat ngay lap tuc vao Canvas Studio
+              if (loadData.project) {
+                const newProj = loadData.project;
+                project.id = newProj.id;
+                project.name = newProj.name;
+                project.width = newProj.width;
+                project.height = newProj.height;
+                project.frames = newProj.frames;
+                project.clips = newProj.clips || [];
+                project.activeFrameIndex = newProj.activeFrameIndex || 0;
+                project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
+
+                canvasEngine.rebuildBuffers();
+                onionSkinRenderer.resize(project.width, project.height);
+
+                const sizeBadge = document.getElementById('canvas-size-badge');
+                if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+                const resLabel = document.getElementById('canvas-resolution');
+                if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+                renderAll();
+              }
             } else {
-              alert('Lỗi nạp ảnh: ' + (loadData.error || 'Thất bại'));
+              alert('Lỗi nạp tác phẩm: ' + (loadData.error || 'Thất bại'));
             }
           } catch (err: any) {
             alert('Không thể kết nối máy chủ: ' + err.message);
@@ -4947,7 +4988,8 @@ function initGalleryModal(): void {
 
   // Nut Luu Kho (Save to Gallery)
   btnSave?.addEventListener('click', async () => {
-    const artName = prompt('Nhập tên cho tác phẩm cần lưu vào kho:', project.name || 'Tác phẩm mới');
+    const defaultName = project.name || 'Sprite Project';
+    const artName = prompt('Nhập tên cho tác phẩm cần lưu vào kho (lưu trọn vẹn tất cả Frame và Layer):', defaultName);
     if (artName === null) return;
 
     try {
@@ -4958,7 +5000,10 @@ function initGalleryModal(): void {
       });
       const data = await res.json();
       if (data.success) {
-        alert('Đã lưu tác phẩm thành công vào Kho Ảnh!');
+        const totalFrames = project.frames?.length || 1;
+        const totalLayers = project.frames?.[0]?.layers?.length || 1;
+        alert(`Đã lưu tác phẩm thành công vào Kho! Đã bảo toàn trọn vẹn ${totalFrames} frame hoạt cảnh và ${totalLayers} layer để chỉnh sửa tiếp.`);
+        loadGallery();
       } else {
         alert('Lỗi lưu tác phẩm: ' + (data.error || 'Thất bại'));
       }

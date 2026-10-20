@@ -5,7 +5,7 @@ import http from 'http';
 import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
-import { McpDrawPayload } from '@pixel-draw/shared-types';
+import { McpDrawPayload, CanvasProject } from '@pixel-draw/shared-types';
 import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, refineAnimationWithAi, getProjectRoot } from './ai-helper';
 import { generateTemplateAnimation } from './template-animator';
 import { expandPromptWithGemini } from './gemini-helper';
@@ -615,34 +615,53 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API Nap mot anh tu kho len Canvas
+  // API Nap mot anh hoac du an nguyen ven tu kho len Canvas
   if (url.pathname === '/api/gallery/load' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { filename } = JSON.parse(body);
-        if (!filename) throw new Error('Vui long cung cap ten anh can nap');
+        const { filename, id } = JSON.parse(body);
+        if (!filename && !id) throw new Error('Vui long cung cap ten hoac id can nap');
 
-        const filePath = galleryManager.getItemFilePath(filename);
-        const { width, height, pixels } = loadPngToPixels(filePath);
+        // Tim thong tin tac pham trong kho
+        const items = galleryManager.getAllItems();
+        const item = items.find(it => (id && it.id === id) || (filename && it.filename === filename));
 
-        stateStore.createCanvas(width, height, path.parse(filename).name);
-        stateStore.applyPixels(pixels);
+        let loadedProject: CanvasProject | null = null;
+        if (item) {
+          loadedProject = galleryManager.getProjectData(item);
+        }
 
+        if (loadedProject) {
+          // Truong hop tac pham co luu du lieu du an: Khoi phuc 100% toan bo frames, layers va clips
+          stateStore.setProject(loadedProject);
+        } else {
+          // Truong hop la anh AI hoac anh cu chi co dinh dang PNG
+          const targetFilename = item ? item.filename : filename;
+          const filePath = galleryManager.getItemFilePath(targetFilename);
+          const { width, height, pixels } = loadPngToPixels(filePath);
+
+          stateStore.createCanvas(width, height, path.parse(targetFilename).name);
+          stateStore.applyPixels(pixels);
+        }
+
+        const currentProject = stateStore.getProject();
         const syncPayload = {
           type: 'PROJECT_SYNC',
-          project: stateStore.getProject()
+          project: currentProject
         };
         broadcastToStudio(syncPayload as any);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
-          width,
-          height,
-          pixelCount: pixels.length,
-          project: stateStore.getProject()
+          isFullProject: !!loadedProject,
+          frameCount: currentProject.frames?.length || 1,
+          layerCount: currentProject.frames?.[0]?.layers?.length || 1,
+          width: currentProject.width,
+          height: currentProject.height,
+          project: currentProject
         }));
       } catch (err: any) {
         res.writeHead(400, { 'Content-Type': 'application/json' });

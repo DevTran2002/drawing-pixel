@@ -1,12 +1,16 @@
 [
   {
-    "id": "item_1792458510503",
-    "filename": "artwork_1792458510503.png",
-    "name": "artwork_1792400539068",
-    "createdAt": "2026-10-20T01:08:30.513Z",
-    "width": 44,
-    "height": 64,
-    "sourceType": "custom"
+    "id": "item_1792459118988",
+    "filename": "artwork_1792459118988.png",
+    "projectFile": "project_1792459118988.json",
+    "name": "artwork_1792458510503",
+    "createdAt": "2026-10-20T01:18:39.002Z",
+    "width": 64,
+    "height": 96,
+    "sourceType": "custom",
+    "frameCount": 6,
+    "layerCount": 2,
+    "hasProjectData": true
   },
   {
     "id": "item_1792140867697",
