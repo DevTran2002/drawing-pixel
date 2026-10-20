@@ -1,20 +1,11 @@
 [
   {
-    "id": "item_1792400539068",
-    "filename": "artwork_1792400539068.png",
-    "name": "HeroSprite",
-    "createdAt": "2026-10-19T09:02:19.072Z",
-    "width": 24,
-    "height": 24,
-    "sourceType": "custom"
-  },
-  {
-    "id": "item_1792141253344",
-    "filename": "artwork_1792141253344.png",
-    "name": "AI Pixel (128x128)",
-    "createdAt": "2026-10-16T09:00:53.361Z",
-    "width": 128,
-    "height": 128,
+    "id": "item_1792458510503",
+    "filename": "artwork_1792458510503.png",
+    "name": "artwork_1792400539068",
+    "createdAt": "2026-10-20T01:08:30.513Z",
+    "width": 44,
+    "height": 64,
     "sourceType": "custom"
   },
   {
@@ -26,16 +17,6 @@
     "height": 128,
     "sourceType": "ai",
     "prompt": "pixel art, character portrait, simple background, 1boy, farmer, holding hoe, straw hat, bust shot, looking at viewer"
-  },
-  {
-    "id": "item_1792140514440",
-    "filename": "ai_portrait_1792140514440.png",
-    "name": "AI Portrait #4440",
-    "createdAt": "2026-10-16T08:48:34.441Z",
-    "width": 64,
-    "height": 64,
-    "sourceType": "ai",
-    "prompt": "pixel art, character portrait, simple background, 1boy, farmer, tunic, apron, bust shot, looking at viewer"
   },
   {
     "id": "item_1792139821494",
@@ -76,46 +57,6 @@
     "height": 128,
     "sourceType": "ai",
     "prompt": "pixel art, magical fantasy treehouse, floating island, lush green, retro game asset, vibrant colors"
-  },
-  {
-    "id": "item_1792074057477",
-    "filename": "ai_portrait_1792074057477.png",
-    "name": "AI Portrait #7477",
-    "createdAt": "2026-10-15T14:20:57.478Z",
-    "width": 64,
-    "height": 64,
-    "sourceType": "ai",
-    "prompt": "pixel art, character portrait, old man, gray beard, glasses, brown vest, smiling, simple white background"
-  },
-  {
-    "id": "item_1792073811722",
-    "filename": "ai_portrait_1792073811722.png",
-    "name": "AI Portrait #1722",
-    "createdAt": "2026-10-15T14:16:51.725Z",
-    "width": 64,
-    "height": 64,
-    "sourceType": "ai",
-    "prompt": "pixel art, character portrait, 1girl, red hair, flower in hair, smile, simple white background"
-  },
-  {
-    "id": "item_1792073578884",
-    "filename": "ai_portrait_1792073578884.png",
-    "name": "AI Portrait #8884",
-    "createdAt": "2026-10-15T14:12:58.886Z",
-    "width": 64,
-    "height": 64,
-    "sourceType": "ai",
-    "prompt": "pixel art, character portrait, 1girl, purple hair, long hair, green eyes, smiling, looking at viewer, simple white background"
-  },
-  {
-    "id": "item_1792073338749",
-    "filename": "ai_portrait_1792073338749.png",
-    "name": "AI Portrait #8749",
-    "createdAt": "2026-10-15T14:08:58.753Z",
-    "width": 64,
-    "height": 64,
-    "sourceType": "ai",
-    "prompt": "pixel art, character portrait, 1boy, brown hair, white shirt, smiling, looking at viewer, simple white background"
   },
   {
     "id": "item_pixel_sample",

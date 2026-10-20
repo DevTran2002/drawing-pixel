@@ -492,6 +492,83 @@
                 <button class="btn btn-small" id="btn-step2-use-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Nạp ngay ảnh mẫu này vào Canvas chính">Nạp Bức Này Vào Canvas (Ảnh Tĩnh)</button>
                 <button class="btn btn-small btn-primary" id="btn-step2-lock" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Chốt Mẫu Này & Sang Bước 3</button>
               </div>
+
+              <!-- Nut bat tat bo chia luoi Sprite Sheet & Xem chuyen dong -->
+              <div style="margin-top: 4px;">
+                <button type="button" class="btn btn-small" id="btn-step2-toggle-slicer" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); border: 1px solid #a78bfa; color: #ffffff; font-weight: 600; padding: 6px 14px; box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);">
+                  Cắt Lưới Sprite Sheet &amp; Xem Thử Chuyển Động
+                </button>
+              </div>
+
+              <!-- BANG DIEU KHIEN CAT LUOI SPRITE SHEET & LIVE VIEWER -->
+              <div id="step2-slicer-panel" style="display: none; width: 100%; max-width: 620px; background: #13141f; border: 1px solid rgba(139, 92, 246, 0.35); border-radius: 8px; padding: 14px; margin-top: 8px; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+                  <span style="font-size: 12px; font-weight: 700; color: #c084fc; text-transform: uppercase;">Bộ Chia Lưới &amp; Trình Phát Chuyển Động</span>
+                  <span style="font-size: 10.5px; color: var(--text-muted);">Tự động cắt các ô nhân vật để tạo chuỗi animation</span>
+                </div>
+
+                <!-- Chon cau hinh luoi (Grid Mode) -->
+                <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 11px; color: #cbd5e1; font-weight: 500;">Chọn kiểu lưới:</span>
+                    <button type="button" class="btn btn-tiny slicer-grid-preset-btn active" data-cols="3" data-rows="3" style="font-size: 10px; padding: 3px 8px;">Lưới 3x3 (RPG 9 Ô)</button>
+                    <button type="button" class="btn btn-tiny slicer-grid-preset-btn" data-cols="4" data-rows="1" style="font-size: 10px; padding: 3px 8px;">Lưới 1x4 (Ngang)</button>
+                    <button type="button" class="btn btn-tiny slicer-grid-preset-btn" data-cols="2" data-rows="2" style="font-size: 10px; padding: 3px 8px;">Lưới 2x2 (4 Ô)</button>
+                    <button type="button" class="btn btn-tiny slicer-grid-preset-btn" data-cols="4" data-rows="4" style="font-size: 10px; padding: 3px 8px;">Lưới 4x4 (16 Ô)</button>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 10px; color: var(--text-muted);">Tùy chỉnh:</span>
+                    <input type="number" id="slicer-cols-input" min="1" max="16" value="3" style="width: 42px; font-size: 11px; padding: 2px 4px; background: #0c0d14; border: 1px solid var(--border-color); color: #ffffff; border-radius: 4px; text-align: center;" title="Số cột">
+                    <span style="color: var(--text-muted); font-size: 11px;">x</span>
+                    <input type="number" id="slicer-rows-input" min="1" max="16" value="3" style="width: 42px; font-size: 11px; padding: 2px 4px; background: #0c0d14; border: 1px solid var(--border-color); color: #ffffff; border-radius: 4px; text-align: center;" title="Số hàng">
+                  </div>
+                </div>
+
+                <!-- KHU VUC 2 COT: LƯỚI TƯƠNG TÁC & TRÌNH PHÁT CHUYỂN ĐỘNG -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: #0a0b10; border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 12px;">
+                  <!-- COT TRAI: LƯỚI FRAME TƯƠNG TÁC -->
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <span style="font-size: 10.5px; font-weight: 600; color: #94a3b8;">Nhấp chọn các ô frame để phát hoạt ảnh:</span>
+                    <div style="position: relative; width: 160px; height: 160px; background: #13141f; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                      <canvas id="slicer-interactive-canvas" width="160" height="160" style="image-rendering: pixelated; cursor: pointer;"></canvas>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">
+                      <button type="button" class="btn btn-tiny" id="btn-slicer-select-row1" style="font-size: 9.5px; padding: 2px 6px;">Hàng 1</button>
+                      <button type="button" class="btn btn-tiny" id="btn-slicer-select-row2" style="font-size: 9.5px; padding: 2px 6px;">Hàng 2</button>
+                      <button type="button" class="btn btn-tiny" id="btn-slicer-select-row3" style="font-size: 9.5px; padding: 2px 6px;">Hàng 3</button>
+                      <button type="button" class="btn btn-tiny" id="btn-slicer-select-all" style="font-size: 9.5px; padding: 2px 6px;">Tất cả</button>
+                    </div>
+                  </div>
+
+                  <!-- COT PHAI: TRINH PHAT CHUYEN DONG (LIVE PLAYER) -->
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 8px;">
+                    <span style="font-size: 10.5px; font-weight: 600; color: #4ade80;">Xem Thử Hoạt Ảnh Chuyển Động:</span>
+                    <div style="width: 130px; height: 130px; background: #13141f; border: 1px solid rgba(74, 222, 128, 0.3); border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative;">
+                      <canvas id="slicer-player-canvas" width="112" height="112" style="image-rendering: pixelated;"></canvas>
+                      <span id="slicer-frame-indicator" style="position: absolute; bottom: 4px; right: 6px; font-size: 9px; color: #4ade80; font-family: monospace; background: rgba(0,0,0,0.6); padding: 1px 4px; border-radius: 3px;">Frame: 1/3</span>
+                    </div>
+
+                    <!-- Thanh dieu khien toc do FPS & Play/Pause -->
+                    <div style="width: 100%; display: flex; flex-direction: column; gap: 4px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
+                        <button type="button" class="btn btn-tiny" id="btn-slicer-toggle-play" style="font-size: 10px; padding: 2px 8px; color: #38bdf8;">Tạm dừng</button>
+                        <span style="color: var(--text-muted);">Tốc độ: <strong id="slicer-fps-label" style="color: #ffffff;">6 FPS</strong></span>
+                      </div>
+                      <input type="range" id="slicer-fps-slider" min="1" max="20" value="6" style="width: 100%; cursor: pointer;">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- CAC NUT XUAT HANH DONG TU LUOI DA CAT -->
+                <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+                  <button type="button" class="btn btn-small" id="btn-slicer-pick-single-as-base" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;" title="Cắt riêng 1 ô đang chọn làm nhân vật mẫu chuẩn để sang Bước 3">
+                    Đặt Ô Đang Chọn Làm Mẫu (Sang Bước 3)
+                  </button>
+                  <button type="button" class="btn btn-small" id="btn-slicer-apply-timeline" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399; color: #ffffff; font-weight: 600;" title="Nạp toàn bộ chuỗi các frame đã cắt trực tiếp vào Timeline của Studio">
+                    Nạp Chuỗi Hoạt Ảnh Vào Timeline Studio
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -609,6 +686,21 @@
                         <span class="anim-action-title">Nhảy (Jump)</span>
                         <span class="anim-action-meta">3 frames • Lên đỉnh và tiếp đất</span>
                       </button>
+                    </div>
+                  </div>
+
+                  <!-- TUY CHON VET CHEM QUANG (SLASH VFX) CHO HANH DONG TAN CONG -->
+                  <div id="anim-slash-vfx-container" style="display: none; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px; padding: 8px 12px; margin-top: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                      <label style="font-size: 11px; font-weight: 600; color: #38bdf8;">Hiệu ứng vệt chém (Slash VFX Arc):</label>
+                      <span style="font-size: 10px; color: var(--text-muted);">Tùy chỉnh màu sắc hoặc tắt vệt kiếm</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                      <button type="button" class="btn btn-tiny slash-vfx-btn active" data-vfx="cyan" style="font-size: 10px; padding: 3px 8px; border-color: #38bdf8; color: #38bdf8;">Xanh Băng / Năng Lượng</button>
+                      <button type="button" class="btn btn-tiny slash-vfx-btn" data-vfx="silver" style="font-size: 10px; padding: 3px 8px;">Bạc / Kiếm Thép Vật Lý</button>
+                      <button type="button" class="btn btn-tiny slash-vfx-btn" data-vfx="fire" style="font-size: 10px; padding: 3px 8px;">Lửa Đỏ / Cuồng Nộ</button>
+                      <button type="button" class="btn btn-tiny slash-vfx-btn" data-vfx="purple" style="font-size: 10px; padding: 3px 8px;">Tím Hư Không / Ma Thuật</button>
+                      <button type="button" class="btn btn-tiny slash-vfx-btn" data-vfx="none" style="font-size: 10px; padding: 3px 8px; color: #94a3b8;">Tắt (Chém Thuần Túy)</button>
                     </div>
                   </div>
 

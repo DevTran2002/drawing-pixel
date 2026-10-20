@@ -376,7 +376,8 @@ const server = http.createServer(async (req, res) => {
           removeBg,
           basePixels,
           skeletonRig,
-          strength = 0.38
+          strength = 0.38,
+          slashVfxType = 'cyan'
         } = payload;
 
         // 1. Che do 1: Khung xuong bien doi diem anh (Template Engine - Nhanh tuc thi <10ms va on dinh 100%)
@@ -392,7 +393,8 @@ const server = http.createServer(async (req, res) => {
             width: parseInt(size, 10) || 64,
             height: parseInt(size, 10) || 64,
             outputPrefix,
-            skeletonRig
+            skeletonRig,
+            slashVfxType
           });
 
           // Thong bao hoan tat qua WebSocket
@@ -444,7 +446,8 @@ const server = http.createServer(async (req, res) => {
             width: parseInt(size, 10) || 64,
             height: parseInt(size, 10) || 64,
             outputPrefix: `${outputPrefix}_rough`,
-            skeletonRig
+            skeletonRig,
+            slashVfxType
           });
 
           // Buoc B: Model AI thuc hien khau lien va ve bu cac diem rach

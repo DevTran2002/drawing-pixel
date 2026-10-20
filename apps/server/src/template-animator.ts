@@ -15,6 +15,7 @@ export interface TemplateAnimationOptions {
   height?: number;
   outputPrefix: string;
   skeletonRig?: SkeletonRig;
+  slashVfxType?: 'none' | 'cyan' | 'fire' | 'silver' | 'purple';
 }
 
 export interface AnimationFrameItem {
@@ -634,21 +635,47 @@ export function generateTemplateAnimation(opts: TemplateAnimationOptions): Templ
       }
     }
 
-    // 4. Ve vet chem quang (Slash VFX Arc) chuan game 2D truoc nguc va tay
-    if (drawSlashVfx) {
+    // 4. Ve vet chem quang (Slash VFX Arc) tuy bien theo nguyen to hoac tat
+    const vfxType = opts.slashVfxType ?? 'cyan';
+    if (drawSlashVfx && vfxType !== 'none') {
       const vfxCenterX = centerX + 6 + bodyDx;
       const vfxCenterY = neckY + 4 + bodyDy;
       const radius = Math.min(22, Math.max(16, Math.round(charW * 0.42)));
+
+      let coreColor = '#ffffff';
+      let mainColor = '#67e8f9';
+      let edgeColor = '#38bdf8';
+      let lightColor = '#a5f3fc';
+
+      if (vfxType === 'silver') {
+        // Vet chem vat ly thep/bac truyen thong
+        coreColor = '#ffffff';
+        mainColor = '#e2e8f0';
+        edgeColor = '#94a3b8';
+        lightColor = '#f8fafc';
+      } else if (vfxType === 'fire') {
+        // Vet chem lua / cuong no
+        coreColor = '#fef08a';
+        mainColor = '#f97316';
+        edgeColor = '#ef4444';
+        lightColor = '#fde047';
+      } else if (vfxType === 'purple') {
+        // Vet chem bong toi / hu khong
+        coreColor = '#f5d0fe';
+        mainColor = '#c084fc';
+        edgeColor = '#9333ea';
+        lightColor = '#f0abfc';
+      }
 
       for (let aDeg = -30; aDeg <= 55; aDeg += 2) {
         const aRad = (aDeg * Math.PI) / 180;
         const vx = Math.round(vfxCenterX + Math.cos(aRad) * radius);
         const vy = Math.round(vfxCenterY + Math.sin(aRad) * radius);
 
-        setPixel(vx, vy, '#ffffff');
-        setPixel(vx - 1, vy, '#67e8f9');
-        setPixel(vx, vy - 1, '#38bdf8');
-        setPixel(vx + 1, vy, '#a5f3fc');
+        setPixel(vx, vy, coreColor);
+        setPixel(vx - 1, vy, mainColor);
+        setPixel(vx, vy - 1, edgeColor);
+        setPixel(vx + 1, vy, lightColor);
       }
     }
 

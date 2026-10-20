@@ -2287,6 +2287,7 @@ function initAiPixelModal(): void {
     removeBg: true,
     engine: 'template' as 'hybrid' | 'template' | 'ai',
     refineStrength: 0.62,
+    slashVfxType: 'cyan' as 'none' | 'cyan' | 'fire' | 'silver' | 'purple',
     frames: [] as {
       frameIndex: number;
       width: number;
@@ -2592,6 +2593,13 @@ function initAiPixelModal(): void {
       if (btnStep2Lock) {
         btnStep2Lock.disabled = !baseCharState.seed;
         btnStep2Lock.innerText = baseCharState.locked ? 'Đã Chốt Mẫu (Tiếp tục)' : 'Chốt Mẫu Này & Sang Bước 3';
+      }
+
+      // Tu dong kiem tra va goi y mo bo cat luoi neu prompt hoac anh co dang sprite sheet
+      const isSpritePrompt = /sprite|sheet|grid|cycle|frame/i.test(baseCharState.prompt || promptInput?.value || '');
+      if (isSpritePrompt && step2SlicerPanel && step2SlicerPanel.style.display !== 'flex') {
+        step2SlicerPanel.style.display = 'flex';
+        setTimeout(() => sliceBaseCharGrid(), 100);
       }
     } else if (validStep === 3) {
       if (step3ThumbImg && baseCharState.dataUrl) {
@@ -3052,6 +3060,430 @@ function initAiPixelModal(): void {
     goToStep(2);
   };
 
+  // ========================================================
+  // BỘ CẮT LƯỚI SPRITE SHEET & XEM TRƯỚC CHUYỂN ĐỘNG (BƯỚC 2)
+  // ========================================================
+  const btnStep2ToggleSlicer = document.getElementById('btn-step2-toggle-slicer');
+  const step2SlicerPanel = document.getElementById('step2-slicer-panel');
+  const slicerInteractiveCanvas = document.getElementById('slicer-interactive-canvas') as HTMLCanvasElement | null;
+  const slicerPlayerCanvas = document.getElementById('slicer-player-canvas') as HTMLCanvasElement | null;
+  const slicerFrameIndicator = document.getElementById('slicer-frame-indicator');
+  const slicerColsInput = document.getElementById('slicer-cols-input') as HTMLInputElement | null;
+  const slicerRowsInput = document.getElementById('slicer-rows-input') as HTMLInputElement | null;
+  const slicerFpsSlider = document.getElementById('slicer-fps-slider') as HTMLInputElement | null;
+  const slicerFpsLabel = document.getElementById('slicer-fps-label');
+  const btnSlicerTogglePlay = document.getElementById('btn-slicer-toggle-play');
+  const btnSlicerSelectRow1 = document.getElementById('btn-slicer-select-row1');
+  const btnSlicerSelectRow2 = document.getElementById('btn-slicer-select-row2');
+  const btnSlicerSelectRow3 = document.getElementById('btn-slicer-select-row3');
+  const btnSlicerSelectAll = document.getElementById('btn-slicer-select-all');
+  const btnSlicerPickSingle = document.getElementById('btn-slicer-pick-single-as-base');
+  const btnSlicerApplyTimeline = document.getElementById('btn-slicer-apply-timeline');
+  const slicerGridPresetBtns = document.querySelectorAll('.slicer-grid-preset-btn');
+
+  let slicerCols = 3;
+  let slicerRows = 3;
+  let slicerSelectedIndices: number[] = [0, 1, 2]; // Mac dinh chon Hang 1 (3 frames)
+  let slicerSingleSelectedIdx = 0; // O don dang chon
+  let slicerFps = 6;
+  let slicerPlaying = true;
+  let slicerPlayTimer: any = null;
+  let slicerPlayIndex = 0;
+  let slicerExtractedCells: {
+    index: number;
+    col: number;
+    row: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    pixels: PixelPoint[];
+    dataUrl: string;
+  }[] = [];
+
+  // Ham cat luoi cac o tu anh mau baseCharState
+  const sliceBaseCharGrid = () => {
+    if (!baseCharState.pixels || baseCharState.pixels.length === 0) return;
+    const totalW = baseCharState.width || 64;
+    const totalH = baseCharState.height || 64;
+    const cellW = Math.max(1, Math.floor(totalW / slicerCols));
+    const cellH = Math.max(1, Math.floor(totalH / slicerRows));
+
+    slicerExtractedCells = [];
+
+    for (let r = 0; r < slicerRows; r++) {
+      for (let c = 0; c < slicerCols; c++) {
+        const cellIdx = r * slicerCols + c;
+        const startX = c * cellW;
+        const startY = r * cellH;
+        const endX = (c === slicerCols - 1) ? totalW : (c + 1) * cellW;
+        const endY = (r === slicerRows - 1) ? totalH : (r + 1) * cellH;
+        const w = endX - startX;
+        const h = endY - startY;
+
+        const cellPixels: PixelPoint[] = [];
+        for (const p of baseCharState.pixels) {
+          if (p.x >= startX && p.x < endX && p.y >= startY && p.y < endY) {
+            cellPixels.push({
+              x: p.x - startX,
+              y: p.y - startY,
+              color: p.color
+            });
+          }
+        }
+
+        const dataUrl = renderPixelsToDataUrl(cellPixels, w, h);
+        slicerExtractedCells.push({
+          index: cellIdx,
+          col: c,
+          row: r,
+          x: startX,
+          y: startY,
+          w,
+          h,
+          pixels: cellPixels,
+          dataUrl
+        });
+      }
+    }
+
+    const maxIdx = slicerCols * slicerRows - 1;
+    slicerSelectedIndices = slicerSelectedIndices.filter(i => i <= maxIdx);
+    if (slicerSelectedIndices.length === 0) {
+      slicerSelectedIndices = Array.from({ length: Math.min(slicerCols, 4) }, (_, i) => i);
+    }
+    if (slicerSingleSelectedIdx > maxIdx) {
+      slicerSingleSelectedIdx = 0;
+    }
+
+    renderSlicerInteractiveGrid();
+    startSlicerPlayer();
+  };
+
+  // Ve luoi tuong tac va cac o duoc chon
+  const renderSlicerInteractiveGrid = () => {
+    if (!slicerInteractiveCanvas || !baseCharState.pixels) return;
+    const ctx = slicerInteractiveCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const canvasW = slicerInteractiveCanvas.width;
+    const canvasH = slicerInteractiveCanvas.height;
+    ctx.clearRect(0, 0, canvasW, canvasH);
+
+    const totalW = baseCharState.width || 64;
+    const totalH = baseCharState.height || 64;
+    const scale = canvasW / totalW;
+
+    for (const p of baseCharState.pixels) {
+      if (!p.color) continue;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x * scale, p.y * scale, scale, scale);
+    }
+
+    // Ve cac duong chia luoi
+    ctx.strokeStyle = 'rgba(192, 132, 252, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+
+    const cellW = (totalW / slicerCols) * scale;
+    const cellH = (totalH / slicerRows) * scale;
+
+    for (let c = 1; c < slicerCols; c++) {
+      ctx.beginPath();
+      ctx.moveTo(c * cellW, 0);
+      ctx.lineTo(c * cellW, canvasH);
+      ctx.stroke();
+    }
+    for (let r = 1; r < slicerRows; r++) {
+      ctx.beginPath();
+      ctx.moveTo(0, r * cellH);
+      ctx.lineTo(canvasW, r * cellH);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Highlight cac o duoc chon
+    for (let r = 0; r < slicerRows; r++) {
+      for (let c = 0; c < slicerCols; c++) {
+        const cellIdx = r * slicerCols + c;
+        const isSelected = slicerSelectedIndices.includes(cellIdx);
+        const isSingleSelected = cellIdx === slicerSingleSelectedIdx;
+
+        const x = c * cellW;
+        const y = r * cellH;
+
+        if (isSelected) {
+          ctx.fillStyle = 'rgba(74, 222, 128, 0.22)';
+          ctx.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+          ctx.strokeStyle = '#4ade80';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+
+          const seqOrder = slicerSelectedIndices.indexOf(cellIdx) + 1;
+          ctx.fillStyle = '#4ade80';
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText(`${seqOrder}`, x + 4, y + 12);
+        }
+
+        if (isSingleSelected) {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
+        }
+      }
+    }
+  };
+
+  // Trinh phat hoat anh chuyen dong tu cac o da chon
+  const startSlicerPlayer = () => {
+    if (slicerPlayTimer) clearInterval(slicerPlayTimer);
+    if (!slicerPlayerCanvas || slicerSelectedIndices.length === 0 || slicerExtractedCells.length === 0) return;
+
+    const ctx = slicerPlayerCanvas.getContext('2d');
+    if (!ctx) return;
+
+    slicerPlayTimer = setInterval(() => {
+      if (!slicerPlaying) return;
+      if (slicerSelectedIndices.length === 0) return;
+
+      const activeCellIdx = slicerSelectedIndices[slicerPlayIndex % slicerSelectedIndices.length];
+      const cell = slicerExtractedCells.find(c => c.index === activeCellIdx);
+
+      if (cell && slicerPlayerCanvas) {
+        ctx.clearRect(0, 0, slicerPlayerCanvas.width, slicerPlayerCanvas.height);
+        const scale = slicerPlayerCanvas.width / cell.w;
+        for (const p of cell.pixels) {
+          if (!p.color) continue;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x * scale, p.y * scale, scale, scale);
+        }
+      }
+
+      if (slicerFrameIndicator) {
+        const curr = (slicerPlayIndex % slicerSelectedIndices.length) + 1;
+        slicerFrameIndicator.innerText = `Frame: ${curr}/${slicerSelectedIndices.length} (Ô #${activeCellIdx + 1})`;
+      }
+
+      slicerPlayIndex++;
+    }, Math.max(30, Math.floor(1000 / slicerFps)));
+  };
+
+  // Click chuot len luoi de chon hoac bo chon o
+  slicerInteractiveCanvas?.addEventListener('click', (e) => {
+    if (!slicerInteractiveCanvas || !baseCharState.pixels) return;
+    const rect = slicerInteractiveCanvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const cellW = slicerInteractiveCanvas.width / slicerCols;
+    const cellH = slicerInteractiveCanvas.height / slicerRows;
+
+    const c = Math.max(0, Math.min(slicerCols - 1, Math.floor(clickX / cellW)));
+    const r = Math.max(0, Math.min(slicerRows - 1, Math.floor(clickY / cellH)));
+    const cellIdx = r * slicerCols + c;
+
+    slicerSingleSelectedIdx = cellIdx;
+
+    const pos = slicerSelectedIndices.indexOf(cellIdx);
+    if (pos >= 0) {
+      if (slicerSelectedIndices.length > 1) {
+        slicerSelectedIndices.splice(pos, 1);
+      }
+    } else {
+      slicerSelectedIndices.push(cellIdx);
+      slicerSelectedIndices.sort((a, b) => a - b);
+    }
+
+    renderSlicerInteractiveGrid();
+    slicerPlayIndex = 0;
+    startSlicerPlayer();
+  });
+
+  // Bat tat bang dieu khien chia luoi
+  btnStep2ToggleSlicer?.addEventListener('click', () => {
+    if (!step2SlicerPanel) return;
+    const isShowing = step2SlicerPanel.style.display === 'flex';
+    step2SlicerPanel.style.display = isShowing ? 'none' : 'flex';
+    if (!isShowing) {
+      sliceBaseCharGrid();
+    }
+  });
+
+  // Chon nhanh preset luoi
+  slicerGridPresetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      slicerGridPresetBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const cols = parseInt(btn.getAttribute('data-cols') || '3', 10);
+      const rows = parseInt(btn.getAttribute('data-rows') || '3', 10);
+      slicerCols = cols;
+      slicerRows = rows;
+      if (slicerColsInput) slicerColsInput.value = `${cols}`;
+      if (slicerRowsInput) slicerRowsInput.value = `${rows}`;
+
+      slicerSelectedIndices = Array.from({ length: cols }, (_, i) => i);
+      slicerSingleSelectedIdx = 0;
+
+      sliceBaseCharGrid();
+    });
+  });
+
+  slicerColsInput?.addEventListener('change', () => {
+    slicerCols = Math.max(1, Math.min(16, parseInt(slicerColsInput.value, 10) || 3));
+    sliceBaseCharGrid();
+  });
+
+  slicerRowsInput?.addEventListener('change', () => {
+    slicerRows = Math.max(1, Math.min(16, parseInt(slicerRowsInput.value, 10) || 3));
+    sliceBaseCharGrid();
+  });
+
+  // Chon nhanh cac hang
+  btnSlicerSelectRow1?.addEventListener('click', () => {
+    slicerSelectedIndices = Array.from({ length: slicerCols }, (_, i) => i);
+    renderSlicerInteractiveGrid();
+    slicerPlayIndex = 0;
+    startSlicerPlayer();
+  });
+
+  btnSlicerSelectRow2?.addEventListener('click', () => {
+    if (slicerRows >= 2) {
+      slicerSelectedIndices = Array.from({ length: slicerCols }, (_, i) => slicerCols + i);
+    }
+    renderSlicerInteractiveGrid();
+    slicerPlayIndex = 0;
+    startSlicerPlayer();
+  });
+
+  btnSlicerSelectRow3?.addEventListener('click', () => {
+    if (slicerRows >= 3) {
+      slicerSelectedIndices = Array.from({ length: slicerCols }, (_, i) => slicerCols * 2 + i);
+    }
+    renderSlicerInteractiveGrid();
+    slicerPlayIndex = 0;
+    startSlicerPlayer();
+  });
+
+  btnSlicerSelectAll?.addEventListener('click', () => {
+    slicerSelectedIndices = Array.from({ length: slicerCols * slicerRows }, (_, i) => i);
+    renderSlicerInteractiveGrid();
+    slicerPlayIndex = 0;
+    startSlicerPlayer();
+  });
+
+  // Toc do FPS
+  slicerFpsSlider?.addEventListener('input', () => {
+    slicerFps = parseInt(slicerFpsSlider.value, 10) || 6;
+    if (slicerFpsLabel) slicerFpsLabel.innerText = `${slicerFps} FPS`;
+    startSlicerPlayer();
+  });
+
+  btnSlicerTogglePlay?.addEventListener('click', () => {
+    slicerPlaying = !slicerPlaying;
+    if (btnSlicerTogglePlay) {
+      btnSlicerTogglePlay.innerText = slicerPlaying ? 'Tạm dừng' : 'Phát tiếp';
+    }
+  });
+
+  // Dat 1 o dang chon lam nhan vat mau chuan de sang Buoc 3 Rigging
+  btnSlicerPickSingle?.addEventListener('click', () => {
+    const cell = slicerExtractedCells.find(c => c.index === slicerSingleSelectedIdx);
+    if (!cell) {
+      alert('Vui lòng nhấp chọn 1 ô trên lưới để làm mẫu chuẩn!');
+      return;
+    }
+
+    baseCharState.pixels = cell.pixels;
+    baseCharState.width = cell.w;
+    baseCharState.height = cell.h;
+    baseCharState.dataUrl = cell.dataUrl;
+    baseCharState.locked = true;
+
+    if (animBaseImg) {
+      animBaseImg.src = cell.dataUrl;
+    }
+    if (animBaseBadge) {
+      animBaseBadge.innerText = `Đã chốt ô #${cell.index + 1} (${cell.w}x${cell.h}px)`;
+      animBaseBadge.style.color = '#4ade80';
+      animBaseBadge.style.borderColor = '#22c55e';
+    }
+
+    goToStep(3);
+  });
+
+  // Nap toan bo chuoi cac frame da cat vao Timeline Studio
+  btnSlicerApplyTimeline?.addEventListener('click', () => {
+    if (slicerSelectedIndices.length === 0 || slicerExtractedCells.length === 0) {
+      alert('Chưa có frame nào được chọn để nạp vào Timeline!');
+      return;
+    }
+
+    const selectedCells = slicerSelectedIndices
+      .map(idx => slicerExtractedCells.find(c => c.index === idx))
+      .filter((c): c is typeof slicerExtractedCells[0] => !!c);
+
+    if (selectedCells.length === 0) return;
+
+    const frameW = selectedCells[0].w;
+    const frameH = selectedCells[0].h;
+
+    project.width = frameW;
+    project.height = frameH;
+
+    const newFrames = selectedCells.map((cell, idx) => {
+      const pixelsRecord: Record<string, PixelColor> = {};
+      for (const p of cell.pixels) {
+        if (p.color) {
+          pixelsRecord[coordToKey(p.x, p.y)] = p.color;
+        }
+      }
+      return {
+        id: `frame_${idx + 1}_${Date.now()}`,
+        durationMs: Math.round(1000 / slicerFps),
+        layers: [
+          {
+            id: `layer_1_${Date.now()}_${idx}`,
+            name: `Frame ${idx + 1} (Ô #${cell.index + 1})`,
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            pixels: pixelsRecord
+          }
+        ]
+      };
+    });
+
+    project.frames = newFrames;
+    project.activeFrameIndex = 0;
+    project.activeLayerId = newFrames[0].layers[0].id;
+    project.clips = [
+      {
+        id: `clip_spritesheet_${Date.now()}`,
+        name: 'SPRITE_CYCLE',
+        startFrame: 0,
+        endFrame: newFrames.length - 1,
+        fps: slicerFps,
+        loop: true
+      }
+    ];
+    animController.setActiveClip(project.clips[0].id);
+
+    const sizeBadge = document.getElementById('canvas-size-badge');
+    if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
+    const resLabel = document.getElementById('canvas-resolution');
+    if (resLabel) resLabel.innerText = `${project.width} x ${project.height}`;
+
+    canvasEngine.rebuildBuffers();
+    canvasEngine.centerViewport();
+    onionSkinRenderer.resize(project.width, project.height);
+    renderAll();
+
+    syncProjectToServer();
+
+    modal.style.display = 'none';
+  });
+
   // ==========================================
   // XỬ LÝ BƯỚC 3: CẤU HÌNH HOẠT CẢNH
   // ==========================================
@@ -3110,11 +3542,20 @@ function initAiPixelModal(): void {
     saveWizardCheckpoint();
   });
 
+  const animSlashVfxContainer = document.getElementById('anim-slash-vfx-container');
+  const slashVfxBtns = document.querySelectorAll('.slash-vfx-btn');
+
   actionCards.forEach(card => {
     card.addEventListener('click', () => {
       actionCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      animSetupState.action = card.getAttribute('data-action') || 'walk';
+      const act = card.getAttribute('data-action') || 'walk';
+      animSetupState.action = act;
+
+      // Hien thi tuy chon vet chem chi khi chon hanh dong Attack / Slash
+      if (animSlashVfxContainer) {
+        animSlashVfxContainer.style.display = (act === 'attack' || act === 'slash') ? 'block' : 'none';
+      }
 
       const suggestedFrames = parseInt(card.getAttribute('data-frames') || '4', 10);
       animSetupState.frameCount = suggestedFrames;
@@ -3123,6 +3564,40 @@ function initAiPixelModal(): void {
         const f = parseInt(btn.getAttribute('data-frames') || '4', 10);
         btn.classList.toggle('active', f === suggestedFrames);
       });
+      if (isTestingCycle) {
+        startTestCycle();
+      }
+      saveWizardCheckpoint();
+    });
+  });
+
+  slashVfxBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      slashVfxBtns.forEach(b => {
+        b.classList.remove('active');
+        (b as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)';
+        (b as HTMLElement).style.color = '#cbd5e1';
+      });
+      btn.classList.add('active');
+      const vfx = (btn.getAttribute('data-vfx') || 'cyan') as 'none' | 'cyan' | 'fire' | 'silver' | 'purple';
+      animSetupState.slashVfxType = vfx;
+      if (vfx === 'cyan') {
+        (btn as HTMLElement).style.borderColor = '#38bdf8';
+        (btn as HTMLElement).style.color = '#38bdf8';
+      } else if (vfx === 'fire') {
+        (btn as HTMLElement).style.borderColor = '#f97316';
+        (btn as HTMLElement).style.color = '#f97316';
+      } else if (vfx === 'purple') {
+        (btn as HTMLElement).style.borderColor = '#c084fc';
+        (btn as HTMLElement).style.color = '#c084fc';
+      } else if (vfx === 'silver') {
+        (btn as HTMLElement).style.borderColor = '#e2e8f0';
+        (btn as HTMLElement).style.color = '#ffffff';
+      } else if (vfx === 'none') {
+        (btn as HTMLElement).style.borderColor = '#64748b';
+        (btn as HTMLElement).style.color = '#94a3b8';
+      }
+
       if (isTestingCycle) {
         startTestCycle();
       }
@@ -3841,14 +4316,26 @@ function initAiPixelModal(): void {
         }
 
         // Vet chem quang (Slash VFX) tai Frame 1
-        if (fIdx === 1) {
+        if (fIdx === 1 && animSetupState.slashVfxType !== 'none') {
           const arcX = (weaponJoint.x + swordDx - 2) * scale;
           const arcY = (weaponJoint.y + swordDy - 2) * scale;
           const r = Math.max(10, Math.floor(charW * 0.65)) * scale;
           ctx.save();
-          ctx.strokeStyle = '#ffffff';
+          let glowColor = '#38bdf8';
+          let strokeColor = '#ffffff';
+          if (animSetupState.slashVfxType === 'silver') {
+            glowColor = '#94a3b8';
+            strokeColor = '#ffffff';
+          } else if (animSetupState.slashVfxType === 'fire') {
+            glowColor = '#f97316';
+            strokeColor = '#fef08a';
+          } else if (animSetupState.slashVfxType === 'purple') {
+            glowColor = '#c084fc';
+            strokeColor = '#f5d0fe';
+          }
+          ctx.strokeStyle = strokeColor;
           ctx.lineWidth = 4;
-          ctx.shadowColor = '#38bdf8';
+          ctx.shadowColor = glowColor;
           ctx.shadowBlur = 12;
           ctx.beginPath();
           ctx.arc(arcX, arcY, r, -1.4, 1.1);
@@ -4074,7 +4561,8 @@ function initAiPixelModal(): void {
           removeBg: animSetupState.removeBg,
           basePixels: baseCharState.pixels,
           skeletonRig: activeSkeletonRig,
-          strength: animSetupState.refineStrength
+          strength: animSetupState.refineStrength,
+          slashVfxType: animSetupState.slashVfxType
         })
       });
 
