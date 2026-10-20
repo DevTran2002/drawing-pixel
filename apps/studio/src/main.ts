@@ -549,6 +549,49 @@ function mergeActiveLayerDown(): void {
   syncProjectToServer();
 }
 
+// Chuyển đến một frame bất kỳ và đồng bộ toàn bộ giao diện
+function goToFrame(index: number): void {
+  if (index < 0 || index >= project.frames.length) return;
+  project.activeFrameIndex = index;
+  const targetFrame = project.frames[index];
+  if (targetFrame && targetFrame.layers.length > 0) {
+    const hasLayer = targetFrame.layers.some(l => l.id === project.activeLayerId);
+    if (!hasLayer) {
+      project.activeLayerId = targetFrame.layers[0].id;
+    }
+  }
+
+  // Cuộn thanh timeline để frame được chọn luôn hiển thị trong tầm nhìn
+  const container = document.getElementById('timeline-frames-container');
+  const activeCard = container?.querySelector(`.frame-card[data-index="${index}"]`) as HTMLElement;
+  if (activeCard) {
+    activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+
+  canvasEngine.rebuildBuffers();
+  renderAll();
+}
+
+// Chuyển sang frame tiếp theo (Mũi tên Phải / Phím ])
+function goToNextFrame(loop = true): void {
+  if (project.frames.length <= 1) return;
+  let nextIdx = project.activeFrameIndex + 1;
+  if (nextIdx >= project.frames.length) {
+    nextIdx = loop ? 0 : project.frames.length - 1;
+  }
+  goToFrame(nextIdx);
+}
+
+// Chuyển về frame trước đó (Mũi tên Trái / Phím [)
+function goToPreviousFrame(loop = true): void {
+  if (project.frames.length <= 1) return;
+  let prevIdx = project.activeFrameIndex - 1;
+  if (prevIdx < 0) {
+    prevIdx = loop ? project.frames.length - 1 : 0;
+  }
+  goToFrame(prevIdx);
+}
+
 // Lang nghe phim tat toan cuc va giu phim Spacebar de bat Hand/Pan tool
 window.addEventListener('keydown', (e) => {
   const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName);
@@ -673,6 +716,23 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     mergeActiveLayerDown();
     return;
+  }
+
+  // 10. Phím tắt Mũi tên Phải / Mũi tên Trái: Chuyển qua lại giữa các frame
+  if (e.key === 'ArrowRight' || e.key === ']' || e.code === 'BracketRight') {
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      goToNextFrame(true);
+      return;
+    }
+  }
+
+  if (e.key === 'ArrowLeft' || e.key === '[' || e.code === 'BracketLeft') {
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      goToPreviousFrame(true);
+      return;
+    }
   }
 
   // 8. Chon nhanh cong cu ve qua ban phim
@@ -1235,27 +1295,105 @@ document.getElementById('btn-add-layer')?.addEventListener('click', () => {
   syncProjectToServer();
 });
 
-// 7. UI: Dòng thời gian Timeline & Animation
+// 7. UI: Dòng thời gian Timeline & Animation (Hỗ trợ kéo thả đổi vị trí Frame)
+let draggedFrameIndex: number | null = null;
+
+// Tạo canvas thu nhỏ hiển thị hình ảnh pixel thực tế của từng frame
+function createFrameThumbnail(frame: FrameData): HTMLCanvasElement {
+  const thumb = document.createElement('canvas');
+  thumb.width = project.width;
+  thumb.height = project.height;
+  thumb.className = 'frame-thumb-canvas';
+  const ctx = thumb.getContext('2d');
+  if (ctx) {
+    ctx.imageSmoothingEnabled = false;
+    for (const layer of frame.layers) {
+      if (!layer.visible) continue;
+      for (const [key, color] of Object.entries(layer.pixels)) {
+        if (color) {
+          const [x, y] = key.split(',').map(Number);
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+  return thumb;
+}
+
 function renderTimeline(): void {
   const container = document.getElementById('timeline-frames-container');
   if (!container) return;
   container.innerHTML = '';
 
+  // Khởi tạo sự kiện container một lần duy nhất để hỗ trợ thả vào khoảng trống cuối dòng
+  if (!container.dataset.dragInitialized) {
+    container.dataset.dragInitialized = 'true';
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (draggedFrameIndex !== null && e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+      }
+    });
+
+    container.addEventListener('drop', (e) => {
+      if (e.target === container && draggedFrameIndex !== null) {
+        e.preventDefault();
+        const lastIndex = project.frames.length - 1;
+        if (draggedFrameIndex !== lastIndex) {
+          animController.reorderFrame(draggedFrameIndex, lastIndex);
+          canvasEngine.rebuildBuffers();
+          renderAll();
+          syncProjectToServer();
+        }
+        draggedFrameIndex = null;
+      }
+    });
+  }
+
   project.frames.forEach((frame, idx) => {
     const card = document.createElement('div');
-    card.className = `frame-card ${idx === project.activeFrameIndex ? 'active' : ''}`;
-    card.innerHTML = `
+    const isHidden = !!frame.hidden;
+    card.className = `frame-card ${idx === project.activeFrameIndex ? 'active' : ''} ${isHidden ? 'is-hidden' : ''}`;
+    card.draggable = true;
+    card.dataset.index = idx.toString();
+    card.title = `Frame #${idx + 1} (${frame.durationMs}ms) - Kéo thả đổi vị trí / Chuột phải mở tùy chọn`;
+
+    // 1. Thêm hình thu nhỏ (Thumbnail Preview)
+    const thumbCanvas = createFrameThumbnail(frame);
+    card.appendChild(thumbCanvas);
+
+    // 2. Thêm số thứ tự và thời lượng duration
+    const infoDiv = document.createElement('div');
+    infoDiv.style.display = 'flex';
+    infoDiv.style.alignItems = 'center';
+    infoDiv.style.justifyContent = 'space-between';
+    infoDiv.style.width = '100%';
+    infoDiv.style.padding = '0 2px';
+    infoDiv.style.fontSize = '9px';
+    infoDiv.innerHTML = `
       <span class="frame-num">#${idx + 1}</span>
       <span class="frame-ms">${frame.durationMs}ms</span>
-      ${project.frames.length > 1 ? '<button class="frame-del-btn" title="Xóa frame này">&times;</button>' : ''}
     `;
+    card.appendChild(infoDiv);
 
+    // 3. Nút xóa frame nếu có từ 2 frame trở lên
+    if (project.frames.length > 1) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'frame-del-btn';
+      delBtn.title = 'Xóa frame này';
+      delBtn.innerHTML = '&times;';
+      card.appendChild(delBtn);
+    }
+
+    // Sự kiện click chọn frame hoặc xóa
     card.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).classList.contains('frame-del-btn')) {
         e.stopPropagation();
         animController.deleteFrame(idx);
         canvasEngine.rebuildBuffers();
         renderAll();
+        syncProjectToServer();
         return;
       }
       project.activeFrameIndex = idx;
@@ -1268,6 +1406,115 @@ function renderTimeline(): void {
       }
       canvasEngine.rebuildBuffers();
       renderAll();
+    });
+
+    // Sự kiện nhấp chuột phải mở Menu ngữ cảnh Frame
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      contextMenuTargetFrameIndex = idx;
+      const menu = document.getElementById('timeline-frame-context-menu');
+      if (!menu) return;
+
+      const titleEl = document.getElementById('ctx-frame-title');
+      if (titleEl) {
+        titleEl.innerText = `Frame #${idx + 1} (${frame.durationMs}ms)`;
+      }
+
+      const hideTextEl = document.getElementById('ctx-text-hide');
+      if (hideTextEl) {
+        hideTextEl.innerText = frame.hidden ? 'Hiện Frame (Bỏ Skip)' : 'Ẩn Frame khi phát (Skip)';
+      }
+
+      const durationMsEl = document.getElementById('ctx-current-ms');
+      if (durationMsEl) {
+        durationMsEl.innerText = `${frame.durationMs}ms`;
+      }
+
+      const menuWidth = 210;
+      const menuHeight = 220;
+      let posX = e.clientX;
+      let posY = e.clientY - menuHeight;
+      if (posX + menuWidth > window.innerWidth) {
+        posX = window.innerWidth - menuWidth - 10;
+      }
+      if (posY < 10) {
+        posY = e.clientY + 5;
+      }
+
+      menu.style.left = `${posX}px`;
+      menu.style.top = `${posY}px`;
+      menu.style.display = 'block';
+    });
+
+    // 4. Các sự kiện kéo thả (Drag and Drop Events)
+    card.addEventListener('dragstart', (e) => {
+      draggedFrameIndex = idx;
+      card.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', idx.toString());
+      }
+    });
+
+    card.addEventListener('dragend', () => {
+      draggedFrameIndex = null;
+      container.querySelectorAll('.frame-card').forEach(c => {
+        c.classList.remove('dragging', 'drag-over-left', 'drag-over-right');
+      });
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (draggedFrameIndex === null || draggedFrameIndex === idx) return;
+
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+      }
+
+      // Xác định con trỏ đang ở nửa bên trái hay bên phải của thẻ mục tiêu
+      const rect = card.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const isRightHalf = mouseX > rect.width / 2;
+
+      card.classList.toggle('drag-over-right', isRightHalf);
+      card.classList.toggle('drag-over-left', !isRightHalf);
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drag-over-left', 'drag-over-right');
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      card.classList.remove('drag-over-left', 'drag-over-right');
+
+      if (draggedFrameIndex === null || draggedFrameIndex === idx) return;
+
+      const rect = card.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const isRightHalf = mouseX > rect.width / 2;
+
+      let targetIndex = idx;
+      if (isRightHalf) {
+        targetIndex = draggedFrameIndex < idx ? idx : idx + 1;
+      } else {
+        targetIndex = draggedFrameIndex < idx ? idx - 1 : idx;
+      }
+
+      targetIndex = Math.max(0, Math.min(targetIndex, project.frames.length - 1));
+
+      if (draggedFrameIndex !== targetIndex) {
+        animController.reorderFrame(draggedFrameIndex, targetIndex);
+        canvasEngine.rebuildBuffers();
+        renderAll();
+        syncProjectToServer();
+      }
+
+      draggedFrameIndex = null;
     });
 
     container.appendChild(card);
@@ -1332,6 +1579,10 @@ previewPlayer.onFrameChange = (frameIndex: number) => {
 
 btnPlayPause?.addEventListener('click', togglePlayback);
 btnTogglePlay?.addEventListener('click', togglePlayback);
+
+// Nút chuyển frame trước / sau trên Timeline
+document.getElementById('btn-prev-frame')?.addEventListener('click', () => goToPreviousFrame(true));
+document.getElementById('btn-next-frame')?.addEventListener('click', () => goToNextFrame(true));
 
 // Onion Skin Toggle
 const btnOnion = document.getElementById('btn-onion-skin');
@@ -6742,6 +6993,189 @@ function initColorAdjustmentsModal(): void {
   });
 }
 
+// 17. Khoi tao Menu Ngu Canh va Dialog Thoi Luong cho Frame Timeline
+let copiedFrameData: FrameData | null = null;
+let contextMenuTargetFrameIndex: number | null = null;
+
+function initTimelineContextMenu(): void {
+  const menu = document.getElementById('timeline-frame-context-menu');
+  const durationModal = document.getElementById('frame-duration-modal');
+  const inputDuration = document.getElementById('input-frame-duration') as HTMLInputElement | null;
+  const btnCloseDuration = document.getElementById('btn-close-duration-modal');
+  const btnCancelDuration = document.getElementById('btn-cancel-duration');
+  const btnApplyDuration = document.getElementById('btn-apply-duration');
+
+  const closeMenu = () => {
+    if (menu) menu.style.display = 'none';
+  };
+
+  // Dong menu khi click ngoai hoac nhan phim Escape
+  window.addEventListener('click', (e) => {
+    if (!menu?.contains(e.target as Node)) {
+      closeMenu();
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeMenu();
+    }
+  });
+
+  // 1. Sao chep Frame
+  document.getElementById('ctx-action-copy')?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex === null) return;
+    const src = project.frames[contextMenuTargetFrameIndex];
+    if (!src) return;
+
+    copiedFrameData = {
+      id: `frame_${Date.now()}`,
+      durationMs: src.durationMs,
+      hidden: src.hidden,
+      layers: src.layers.map(layer => ({
+        id: `layer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: layer.name,
+        visible: layer.visible,
+        locked: layer.locked,
+        opacity: layer.opacity,
+        pixels: { ...layer.pixels },
+        groupId: layer.groupId || null
+      }))
+    };
+    closeMenu();
+  });
+
+  // 2. Dan Frame vao sau
+  document.getElementById('ctx-action-paste')?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex === null || !copiedFrameData) {
+      alert('Vui lòng sao chép một frame trước khi dán!');
+      closeMenu();
+      return;
+    }
+
+    const newFrame: FrameData = {
+      id: `frame_${Date.now()}`,
+      durationMs: copiedFrameData.durationMs,
+      hidden: copiedFrameData.hidden,
+      layers: copiedFrameData.layers.map(layer => ({
+        id: `layer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: layer.name,
+        visible: layer.visible,
+        locked: layer.locked,
+        opacity: layer.opacity,
+        pixels: { ...layer.pixels },
+        groupId: layer.groupId || null
+      }))
+    };
+
+    const insertIdx = contextMenuTargetFrameIndex + 1;
+    project.frames.splice(insertIdx, 0, newFrame);
+    project.activeFrameIndex = insertIdx;
+
+    const clip = animController.getActiveClip();
+    if (clip) clip.endFrame = project.frames.length - 1;
+
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+    closeMenu();
+  });
+
+  // 3. Nhan ban Frame (Duplicate)
+  document.getElementById('ctx-action-duplicate')?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex === null) return;
+    const src = project.frames[contextMenuTargetFrameIndex];
+    if (!src) return;
+
+    const dupFrame: FrameData = {
+      id: `frame_${Date.now()}`,
+      durationMs: src.durationMs,
+      hidden: src.hidden,
+      layers: src.layers.map(layer => ({
+        id: `layer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: layer.name,
+        visible: layer.visible,
+        locked: layer.locked,
+        opacity: layer.opacity,
+        pixels: { ...layer.pixels },
+        groupId: layer.groupId || null
+      }))
+    };
+
+    const insertIdx = contextMenuTargetFrameIndex + 1;
+    project.frames.splice(insertIdx, 0, dupFrame);
+    project.activeFrameIndex = insertIdx;
+
+    const clip = animController.getActiveClip();
+    if (clip) clip.endFrame = project.frames.length - 1;
+
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+    closeMenu();
+  });
+
+  // 4. An / Hien Frame khi phat hoat canh
+  document.getElementById('ctx-action-toggle-hide')?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex === null) return;
+    animController.toggleFrameHidden(contextMenuTargetFrameIndex);
+    renderTimeline();
+    syncProjectToServer();
+    closeMenu();
+  });
+
+  // 5. Cai dat thoi luong Frame (Set Duration)
+  document.getElementById('ctx-action-set-duration')?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex === null) return;
+    const f = project.frames[contextMenuTargetFrameIndex];
+    if (!f || !durationModal) return;
+
+    closeMenu();
+    if (inputDuration) {
+      inputDuration.value = (f.durationMs || 100).toString();
+    }
+    durationModal.style.display = 'block';
+  });
+
+  // Chon cac preset duration nhanh
+  durationModal?.querySelectorAll('.btn-duration-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const ms = (btn as HTMLElement).dataset.ms;
+      if (ms && inputDuration) {
+        inputDuration.value = ms;
+      }
+    });
+  });
+
+  // Ap dung duration moi
+  btnApplyDuration?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex !== null && inputDuration) {
+      const ms = parseInt(inputDuration.value, 10) || 100;
+      animController.setFrameDuration(contextMenuTargetFrameIndex, ms);
+      renderTimeline();
+      syncProjectToServer();
+    }
+    if (durationModal) durationModal.style.display = 'none';
+  });
+
+  btnCloseDuration?.addEventListener('click', () => {
+    if (durationModal) durationModal.style.display = 'none';
+  });
+  btnCancelDuration?.addEventListener('click', () => {
+    if (durationModal) durationModal.style.display = 'none';
+  });
+
+  // 6. Xoa Frame
+  document.getElementById('ctx-action-delete')?.addEventListener('click', () => {
+    if (contextMenuTargetFrameIndex === null) return;
+    animController.deleteFrame(contextMenuTargetFrameIndex);
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+    closeMenu();
+  });
+}
+
 // 16. Khoi dong ung dung
 loadPalette('endesga-32');
 renderAll();
@@ -6753,3 +7187,4 @@ initGalleryModal();
 initResizeModal();
 initImageImport();
 initExportModal();
+initTimelineContextMenu();

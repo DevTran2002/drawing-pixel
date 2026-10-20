@@ -31,6 +31,7 @@ export interface FrameData {
   id: string;
   durationMs: number; // Thoi gian hien thi tinh bang mili-giay, mac dinh 100ms
   layers: LayerData[];
+  hidden?: boolean; // Bo qua frame khi phat hoat canh
 }
 
 export interface AnimationClip {

@@ -13,26 +13,6 @@
     "hasProjectData": true
   },
   {
-    "id": "item_1792140867697",
-    "filename": "ai_portrait_1792140867697.png",
-    "name": "AI Portrait #7697",
-    "createdAt": "2026-10-16T08:54:27.697Z",
-    "width": 128,
-    "height": 128,
-    "sourceType": "ai",
-    "prompt": "pixel art, character portrait, simple background, 1boy, farmer, holding hoe, straw hat, bust shot, looking at viewer"
-  },
-  {
-    "id": "item_1792139821494",
-    "filename": "ai_portrait_1792139821494.png",
-    "name": "AI Portrait #1494",
-    "createdAt": "2026-10-16T08:37:01.498Z",
-    "width": 128,
-    "height": 128,
-    "sourceType": "ai",
-    "prompt": "magical fantasy treehouse, floating island, lush green, vibrant colors, pixel art, 1girl, long hair, pink hair, blue eyes, sad, crown, armor, simple background, full body"
-  },
-  {
     "id": "item_1792139134712",
     "filename": "ai_portrait_1792139134712.png",
     "name": "AI Portrait #4712",

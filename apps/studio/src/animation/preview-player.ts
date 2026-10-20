@@ -71,9 +71,12 @@ export class PreviewPlayer {
     if (!this.isPlaying) return;
 
     const now = performance.now();
+    const currentFrameData = this.project.frames[this.previewFrameIndex];
     const clip = this.controller.getActiveClip();
     const fps = clip ? clip.fps : 10;
-    const frameInterval = 1000 / fps;
+    const frameInterval = (currentFrameData && currentFrameData.durationMs)
+      ? currentFrameData.durationMs
+      : (1000 / fps);
 
     if (now - this.lastFrameTime >= frameInterval) {
       this.lastFrameTime = now;

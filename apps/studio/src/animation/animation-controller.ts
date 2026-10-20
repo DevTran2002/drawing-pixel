@@ -173,6 +173,42 @@ export class AnimationController {
     return true;
   }
 
+  // Thay doi thu tu sap xep cua frame trong du an (phuc vu keo tha timeline)
+  reorderFrame(fromIndex: number, toIndex: number): boolean {
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      fromIndex >= this.project.frames.length ||
+      toIndex < 0 ||
+      toIndex >= this.project.frames.length
+    ) {
+      return false;
+    }
+
+    const activeFrame = this.project.frames[this.project.activeFrameIndex];
+
+    // Rut frame ra khoi vi tri cu
+    const [movedFrame] = this.project.frames.splice(fromIndex, 1);
+    // Chen vao vi tri moi
+    this.project.frames.splice(toIndex, 0, movedFrame);
+
+    // Cap nhat lai activeFrameIndex de van theo doi dung frame dang lam viec
+    const newActiveIndex = this.project.frames.indexOf(activeFrame);
+    this.project.activeFrameIndex = newActiveIndex !== -1 ? newActiveIndex : 0;
+
+    // Cap nhat lai pham vi frame cho clip idle mac dinh
+    if (this.project.clips) {
+      for (const clip of this.project.clips) {
+        if (clip.name === 'idle') {
+          clip.startFrame = 0;
+          clip.endFrame = Math.max(0, this.project.frames.length - 1);
+        }
+      }
+    }
+
+    return true;
+  }
+
   // Nhan ban frame va ap dung do lech toa do (phuc vu tao hoat anh nhan vat)
   duplicateFrameWithOffset(sourceIndex: number, offsetX: number, offsetY: number): FrameData {
     const sourceFrame = this.project.frames[sourceIndex];
@@ -222,17 +258,50 @@ export class AnimationController {
     return newFrame;
   }
 
-  // Tinh frame tiep theo theo vong lap cua clip
+  // Bat / tat che do an frame khi phat hoat canh
+  toggleFrameHidden(index: number): boolean {
+    const frame = this.project.frames[index];
+    if (!frame) return false;
+    frame.hidden = !frame.hidden;
+    return true;
+  }
+
+  // Cai dat thoi gian hien thi cho frame (mili-giay)
+  setFrameDuration(index: number, durationMs: number): boolean {
+    const frame = this.project.frames[index];
+    if (!frame) return false;
+    frame.durationMs = Math.max(10, Math.min(10000, durationMs));
+    return true;
+  }
+
+  // Tinh frame tiep theo theo vong lap cua clip (bo qua cac frame bi an hidden)
   getNextFrameIndex(currentFrame: number): number {
     const clip = this.getActiveClip();
     if (!clip || clip.startFrame === clip.endFrame) {
       return clip ? clip.startFrame : 0;
     }
 
-    if (currentFrame < clip.startFrame || currentFrame >= clip.endFrame) {
-      return clip.startFrame;
+    const clipLength = clip.endFrame - clip.startFrame + 1;
+    let next = currentFrame + 1;
+    if (next < clip.startFrame || next > clip.endFrame) {
+      next = clip.startFrame;
     }
 
-    return currentFrame + 1;
+    // Neu frame tiep theo bi an, bo qua va tim frame tiep theo chua bi an
+    let attempts = 0;
+    while (this.project.frames[next]?.hidden && attempts < clipLength) {
+      next++;
+      if (next > clip.endFrame) {
+        next = clip.startFrame;
+      }
+      attempts++;
+    }
+
+    // Neu toan bo frame trong clip deu bi an, giu nguyen frame
+    if (attempts >= clipLength) {
+      return currentFrame;
+    }
+
+    return next;
   }
 }

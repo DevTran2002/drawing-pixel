@@ -319,9 +319,15 @@
     <!-- 3. Thanh dong thoi gian ben duoi -->
     <footer class="bottom-timeline">
       <div class="timeline-controls">
+        <button class="btn btn-small" id="btn-prev-frame" title="Frame trước (Mũi tên Trái hoặc phím [ )">
+          <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="15 18 9 12 15 6"/></svg>
+        </button>
         <button class="btn btn-primary btn-small" id="btn-play-pause">
           <svg class="btn-icon" id="play-pause-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           <span id="play-pause-text">Play</span>
+        </button>
+        <button class="btn btn-small" id="btn-next-frame" title="Frame tiếp theo (Mũi tên Phải hoặc phím ] )">
+          <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="9 18 15 12 9 6"/></svg>
         </button>
         <button class="btn btn-small" id="btn-onion-skin">
           <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>
@@ -1472,6 +1478,63 @@
         <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
           <button class="btn" id="btn-cancel-import-smart">Hủy Bỏ</button>
           <button class="btn btn-primary" id="btn-apply-import-smart" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399;">Xác Nhận Nhập Vào Studio</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. Menu ngu canh cho Frame tren Timeline (Context Menu) -->
+    <div class="timeline-context-menu" id="timeline-frame-context-menu" style="display: none;">
+      <div class="context-menu-header" id="ctx-frame-title">Frame #1</div>
+      <div class="context-menu-item" id="ctx-action-copy">
+        <span>Sao chép Frame</span>
+        <span class="context-menu-shortcut">Ctrl+C</span>
+      </div>
+      <div class="context-menu-item" id="ctx-action-paste">
+        <span>Dán Frame vào sau</span>
+        <span class="context-menu-shortcut">Ctrl+V</span>
+      </div>
+      <div class="context-menu-item" id="ctx-action-duplicate">
+        <span>Nhân bản Frame</span>
+        <span class="context-menu-shortcut">Duplicate</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" id="ctx-action-toggle-hide">
+        <span id="ctx-text-hide">Ẩn Frame khi phát (Skip)</span>
+      </div>
+      <div class="context-menu-item" id="ctx-action-set-duration">
+        <span>Cài đặt thời lượng (Duration)</span>
+        <span class="context-menu-shortcut" id="ctx-current-ms">100ms</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item text-danger" id="ctx-action-delete">
+        <span>Xóa Frame</span>
+        <span class="context-menu-shortcut">Del</span>
+      </div>
+    </div>
+
+    <!-- 10. Modal cai dat thoi luong Frame (Frame Duration Dialog) -->
+    <div class="modal-backdrop floating-tool-backdrop" id="frame-duration-modal" style="display: none;">
+      <div class="modal-dialog floating-tool-dialog" id="frame-duration-dialog" style="max-width: 320px;">
+        <div class="modal-header draggable-header" id="frame-duration-drag-handle">
+          <h3>Thời Lượng Frame (Duration)</h3>
+          <button class="modal-close" id="btn-close-duration-modal">&times;</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px; padding: 14px;">
+          <div style="font-size: 11px; color: var(--text-muted);">Chọn mốc thời gian hoặc nhập mili-giây (ms):</div>
+          <div class="duration-preset-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+            <button class="btn btn-small btn-duration-preset" data-ms="50">50ms</button>
+            <button class="btn btn-small btn-duration-preset" data-ms="100">100ms</button>
+            <button class="btn btn-small btn-duration-preset" data-ms="200">200ms</button>
+            <button class="btn btn-small btn-duration-preset" data-ms="500">500ms</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+            <input type="number" id="input-frame-duration" min="10" max="10000" step="10" value="100" class="gallery-search-input" style="flex: 1;" />
+            <span style="font-size: 12px; color: var(--text-muted);">ms</span>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 6px; padding: 10px 14px;">
+          <button class="btn btn-small" id="btn-cancel-duration">Hủy</button>
+          <button class="btn btn-primary btn-small" id="btn-apply-duration">Áp dụng</button>
         </div>
       </div>
     </div>

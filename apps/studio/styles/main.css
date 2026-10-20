@@ -641,26 +641,30 @@ body {
 }
 
 .frame-card {
-  width: 60px;
-  height: 60px;
+  width: 66px;
+  height: 74px;
   background-color: var(--bg-card);
   border: 2px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 11px;
+  justify-content: space-between;
+  padding: 4px;
+  cursor: grab;
+  font-size: 10px;
   color: var(--text-muted);
   position: relative;
   flex-shrink: 0;
+  transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
 }
 
 .frame-card.active {
   border-color: var(--primary-color);
   color: #ffffff;
   background-color: #2a202d;
+  box-shadow: 0 0 8px rgba(236, 72, 153, 0.3);
 }
 
 .frame-num {
@@ -1283,9 +1287,46 @@ body {
   background-color: #dc2626;
 }
 
-/* Timeline Frame Enhancements */
+/* Timeline Frame Enhancements & Drag-Drop */
 .frame-card {
   position: relative;
+  cursor: grab;
+  transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.frame-card:active {
+  cursor: grabbing;
+}
+
+.frame-card.dragging {
+  opacity: 0.35;
+  transform: scale(0.92);
+  border: 2px dashed #ec4899 !important;
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.5);
+}
+
+.frame-card.drag-over-left {
+  border-left: 3px solid #38bdf8 !important;
+  box-shadow: -4px 0 10px rgba(56, 189, 248, 0.6);
+  transform: translateX(3px);
+}
+
+.frame-card.drag-over-right {
+  border-right: 3px solid #38bdf8 !important;
+  box-shadow: 4px 0 10px rgba(56, 189, 248, 0.6);
+  transform: translateX(-3px);
+}
+
+.frame-thumb-canvas {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 2px;
+  background-color: #12131a;
+  margin-bottom: 2px;
+  pointer-events: none;
 }
 
 .frame-card .frame-del-btn {
@@ -1303,10 +1344,94 @@ body {
   justify-content: center;
   cursor: pointer;
   border: none;
+  z-index: 5;
 }
 
 .frame-card:hover .frame-del-btn {
   display: flex;
+}
+
+/* Trang thai frame bi an / bo qua (hidden) */
+.frame-card.is-hidden {
+  opacity: 0.45;
+  filter: grayscale(80%);
+  border-style: dashed;
+}
+
+.frame-card.is-hidden::after {
+  content: 'SKIP';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #ef4444;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+/* Timeline Frame Context Menu */
+.timeline-context-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 200px;
+  background-color: #1a1b26;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 4px 0;
+  user-select: none;
+  font-size: 12px;
+}
+
+.context-menu-header {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 2px;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.context-menu-item:hover {
+  background-color: var(--accent-color);
+  color: #ffffff;
+}
+
+.context-menu-item.text-danger {
+  color: #f87171;
+}
+
+.context-menu-item.text-danger:hover {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.context-menu-shortcut {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.context-menu-item:hover .context-menu-shortcut {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.08);
+  margin: 4px 0;
 }
 
 /* Nav Group va Brand Button */
