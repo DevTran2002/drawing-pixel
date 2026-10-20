@@ -808,6 +808,125 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // API Luu nhan vat cot loi (Character Core Package)
+  if (url.pathname === '/api/characters/save-core' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { coreData, base64Png } = JSON.parse(body || '{}');
+        if (!coreData || !coreData.name) {
+          throw new Error('Dữ liệu nhân vật không hợp lệ hoặc thiếu tên');
+        }
+        const result = projectAssetManager.saveCharacterCore(coreData, base64Png);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          data: result,
+          tree: projectAssetManager.getAssetTree()
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Lay danh sach toan bo nhan vat da luu
+  if (url.pathname === '/api/characters/list' && req.method === 'GET') {
+    try {
+      const characters = projectAssetManager.listCharacterCores();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, characters }));
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // API Lay chi tiet 1 nhan vat theo id hoac slug (qua query param hoac URL path)
+  if ((url.pathname === '/api/characters/detail' && req.method === 'GET') ||
+      (url.pathname.startsWith('/api/characters/') && req.method === 'GET' && !url.pathname.includes('/list'))) {
+    try {
+      const idOrSlug = url.searchParams.get('id') || url.searchParams.get('slug') || url.pathname.replace('/api/characters/', '').trim();
+      if (!idOrSlug) {
+        throw new Error('Vui lòng chỉ định ID hoặc slug nhân vật');
+      }
+      const character = projectAssetManager.getCharacterCore(idOrSlug);
+      if (!character) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Không tìm thấy nhân vật' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, character }));
+    } catch (err: any) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // API Luu chuoi frames dong tac moi vao thu muc con cua nhan vat
+  if ((url.pathname === '/api/characters/save-action' || url.pathname.match(/^\/api\/characters\/[^/]+\/save-action$/)) && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const match = url.pathname.match(/^\/api\/characters\/([^/]+)\/save-action$/);
+        const targetId = match ? match[1] : (parsed.id || parsed.slug);
+        const { action, frames } = parsed;
+
+        if (!targetId || !action || !Array.isArray(frames)) {
+          throw new Error('Dữ liệu lưu động tác không đầy đủ (cần ID, tên động tác và danh sách frames)');
+        }
+
+        const result = projectAssetManager.saveCharacterAction(targetId, action, frames);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ...result,
+          tree: projectAssetManager.getAssetTree()
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Cap nhat pixel goc cua nhan vat khi nguoi dung ve lai tren Canvas
+  if ((url.pathname === '/api/characters/update-core-pixels' || url.pathname.match(/^\/api\/characters\/[^/]+\/update-core-pixels$/)) && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const match = url.pathname.match(/^\/api\/characters\/([^/]+)\/update-core-pixels$/);
+        const targetId = match ? match[1] : (parsed.id || parsed.slug);
+        const { pixels, width, height, base64Png } = parsed;
+
+        if (!targetId || !Array.isArray(pixels)) {
+          throw new Error('Dữ liệu cập nhật điểm ảnh không đầy đủ');
+        }
+
+        const success = projectAssetManager.updateCharacterCorePixels(targetId, pixels, width || 64, height || 64, base64Png);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success,
+          tree: projectAssetManager.getAssetTree()
+        }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404);
   res.end('Not Found');
 });

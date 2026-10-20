@@ -15,7 +15,10 @@ import {
   PixelPoint,
   SkeletonRig,
   JointId,
-  JointPin
+  JointPin,
+  CharacterCoreData,
+  CharacterSummary,
+  CharacterActionFolder
 } from '@pixel-draw/shared-types';
 import { CanvasEngine } from './core/canvas-engine';
 import { HistoryManager, PixelChange } from './core/history-manager';
@@ -44,6 +47,15 @@ const animController = new AnimationController(project);
 const selectionManager = new SelectionManager();
 const assetBrowser = new AssetBrowserController('http://127.0.0.1:3055');
 let globalOpenAiWizardWithBaseChar: ((pixels: PixelPoint[], w: number, h: number, name: string) => void) | null = null;
+let globalSelectAndLoadCharacter: ((idOrSlug: string) => Promise<void>) | null = null;
+let currentEditingCoreCharacter: { id: string; slug: string; name: string } | null = null;
+let globalRenderProjectView: (() => void) | null = null;
+
+export const refreshProjectAssetView = () => {
+  assetBrowser.fetchTree().then(() => {
+    if (globalRenderProjectView) globalRenderProjectView();
+  }).catch(() => {});
+};
 
 // Lay cac phan tu DOM
 const mainCanvas = document.getElementById('main-canvas') as HTMLCanvasElement;
@@ -2663,6 +2675,9 @@ function initAiPixelModal(): void {
   let currentWizardStep: 1 | 2 | 3 | 4 = 1;
 
   const baseCharState = {
+    characterId: null as string | null,
+    characterName: null as string | null,
+    characterSlug: null as string | null,
     prompt: '',
     seed: null as number | null,
     locked: false,
@@ -2836,13 +2851,16 @@ function initAiPixelModal(): void {
         size: sizeSelect ? parseInt(sizeSelect.value, 10) : 64,
         removeBg: removeBgCheckbox ? removeBgCheckbox.checked : true,
         baseCharacter: {
+          id: baseCharState.characterId,
+          name: baseCharState.characterName,
+          slug: baseCharState.characterSlug,
           seed: baseCharState.seed,
           locked: baseCharState.locked,
           pixels: baseCharState.pixels,
           width: baseCharState.width,
           height: baseCharState.height,
           dataUrl: baseCharState.dataUrl
-        },
+        } as any,
         animation: {
           action: animSetupState.action,
           frameCount: animSetupState.frameCount,
@@ -2883,6 +2901,9 @@ function initAiPixelModal(): void {
       localStorage.removeItem(WIZARD_STORAGE_KEY);
     } catch (e) {}
     currentWizardStep = 1;
+    baseCharState.characterId = null;
+    baseCharState.characterName = null;
+    baseCharState.characterSlug = null;
     baseCharState.prompt = '';
     baseCharState.seed = null;
     baseCharState.locked = false;
@@ -3521,18 +3542,148 @@ function initAiPixelModal(): void {
   btnStep2UseStatic?.addEventListener('click', handleApplyBaseCharToCanvas);
   btnWizardStep2UseStatic?.addEventListener('click', handleApplyBaseCharToCanvas);
 
-  btnStep2Lock?.addEventListener('click', () => {
-    if (!baseCharState.seed) return;
-    baseCharState.locked = true;
+  // Quan ly Modal Xac Nhan & Dat Ten Nhan Vat Cot Loi (Character Core Package)
+  const charLockModal = document.getElementById('character-lock-modal');
+  const charLockPreviewImg = document.getElementById('char-lock-preview-img') as HTMLImageElement | null;
+  const charLockMetaSeed = document.getElementById('char-lock-meta-seed');
+  const charLockMetaSize = document.getElementById('char-lock-meta-size');
+  const charLockNameInput = document.getElementById('char-lock-name-input') as HTMLInputElement | null;
+  const btnConfirmCharLock = document.getElementById('btn-confirm-char-lock');
+  const btnCancelCharLock = document.getElementById('btn-cancel-char-lock');
+  const btnCloseCharLock = document.getElementById('btn-close-char-lock');
 
-    if (animBaseBadge) {
-      animBaseBadge.innerText = `Đã chốt mẫu #${baseCharState.seed}`;
-      animBaseBadge.style.color = '#4ade80';
-      animBaseBadge.style.borderColor = '#22c55e';
+  const closeCharLockModal = () => {
+    if (charLockModal) charLockModal.style.display = 'none';
+  };
+
+  btnCancelCharLock?.addEventListener('click', closeCharLockModal);
+  btnCloseCharLock?.addEventListener('click', closeCharLockModal);
+
+  const confirmLockAndSaveCharacter = async () => {
+    if (!baseCharState.seed) return;
+    const charName = charLockNameInput?.value.trim() || `Character_${Date.now()}`;
+
+    // Dam bao co activeSkeletonRig
+    if (!activeSkeletonRig && baseCharState.pixels) {
+      activeSkeletonRig = autoEstimateSkeletonRig(baseCharState.pixels, baseCharState.width, baseCharState.height);
     }
 
-    // Chuyển ngay sang Bước 3
-    goToStep(3);
+    // Trich xuat bang mau tu cac diem anh
+    const paletteSet = new Set<string>();
+    if (Array.isArray(baseCharState.pixels)) {
+      for (const p of baseCharState.pixels) {
+        if (p.color) paletteSet.add(p.color);
+      }
+    }
+
+    const coreData: CharacterCoreData = {
+      id: `char_${Date.now()}`,
+      name: charName,
+      slug: '', // May chu se tu dong tao slug an toan
+      prompt: baseCharState.prompt || promptInput?.value.trim() || '',
+      seed: baseCharState.seed,
+      width: baseCharState.width,
+      height: baseCharState.height,
+      pixels: baseCharState.pixels || [],
+      colorPalette: Array.from(paletteSet),
+      skeletonRig: activeSkeletonRig || undefined,
+      actions: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/characters/save-core', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coreData,
+          base64Png: baseCharState.dataUrl
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Lỗi lưu nhân vật cốt lõi');
+      }
+
+      baseCharState.characterId = data.data.id;
+      baseCharState.characterSlug = data.data.slug;
+      baseCharState.characterName = data.data.name;
+      baseCharState.locked = true;
+
+      if (animBaseBadge) {
+        animBaseBadge.innerText = `Đã chốt: ${baseCharState.characterName} (#${baseCharState.seed})`;
+        animBaseBadge.style.color = '#4ade80';
+        animBaseBadge.style.borderColor = '#22c55e';
+      }
+
+      if (step3ThumbImg && baseCharState.dataUrl) {
+        step3ThumbImg.src = baseCharState.dataUrl;
+      }
+      if (step3SeedLabel) {
+        step3SeedLabel.innerText = `Seed: #${baseCharState.seed || '0'}`;
+      }
+
+      // Dong bo lai Cay thu muc du an (Project Tree)
+      refreshProjectAssetView();
+
+      closeCharLockModal();
+      saveWizardCheckpoint();
+
+      // Chuyen ngay sang Buoc 3
+      goToStep(3);
+    } catch (err: any) {
+      alert('Không thể lưu nhân vật cốt lõi: ' + err.message);
+    }
+  };
+
+  btnConfirmCharLock?.addEventListener('click', confirmLockAndSaveCharacter);
+  charLockNameInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      confirmLockAndSaveCharacter();
+    }
+  });
+
+  btnStep2Lock?.addEventListener('click', () => {
+    if (!baseCharState.seed) return;
+
+    // Neu nhan vat da co slug (da dong goi truoc do) thi sang thang Buoc 3
+    if (baseCharState.characterSlug) {
+      baseCharState.locked = true;
+      goToStep(3);
+      return;
+    }
+
+    // Neu chua dong goi: Mo Modal xac nhan dat ten cho goi nhan vat
+    if (charLockModal) {
+      charLockModal.style.display = 'flex';
+      if (charLockPreviewImg && baseCharState.dataUrl) {
+        charLockPreviewImg.src = baseCharState.dataUrl;
+      }
+      if (charLockMetaSeed) {
+        charLockMetaSeed.innerText = `Seed: #${baseCharState.seed || 0}`;
+      }
+      if (charLockMetaSize) {
+        charLockMetaSize.innerText = `Kích thước: ${baseCharState.width}x${baseCharState.height} px`;
+      }
+      if (charLockNameInput) {
+        let defaultName = 'Chiến Binh Mới';
+        const p = (baseCharState.prompt || promptInput?.value || '').trim();
+        if (p) {
+          const firstPart = p.split(',')[0].trim();
+          if (firstPart.length > 0 && firstPart.length < 32) {
+            defaultName = firstPart;
+          }
+        }
+        charLockNameInput.value = defaultName;
+        charLockNameInput.focus();
+        charLockNameInput.select();
+      }
+    } else {
+      baseCharState.locked = true;
+      goToStep(3);
+    }
   });
 
   // Tải ảnh mẫu từ máy tính tại Bước 1 và Bước 2 của AI Wizard
@@ -3604,6 +3755,168 @@ function initAiPixelModal(): void {
   wizardBaseUploadInput?.addEventListener('change', () => {
     const file = wizardBaseUploadInput.files?.[0];
     if (file) handleUploadBaseChar(file);
+  });
+
+  // ==============================================================
+  // QUAN LY MODAL CHON NHAN VAT CO SAN TU DU AN (CHARACTER PICKER)
+  // ==============================================================
+  const btnWizardPickChar = document.getElementById('btn-wizard-pick-character');
+  const charPickerModal = document.getElementById('character-picker-modal');
+  const charPickerGrid = document.getElementById('char-picker-grid');
+  const charPickerSearchInput = document.getElementById('char-picker-search-input') as HTMLInputElement | null;
+  const charPickerEmpty = document.getElementById('char-picker-empty');
+  const charPickerTotalBadge = document.getElementById('char-picker-total-badge');
+  const btnCloseCharPicker = document.getElementById('btn-close-char-picker');
+  const btnCancelCharPicker = document.getElementById('btn-cancel-char-picker');
+
+  let loadedCharactersList: CharacterSummary[] = [];
+
+  const selectAndLoadCharacter = async (idOrSlug: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3055/api/characters/detail?id=${encodeURIComponent(idOrSlug)}`);
+      const data = await res.json();
+      if (!data.success || !data.character) {
+        alert('Không thể tải thông tin nhân vật từ dự án');
+        return;
+      }
+      const char: CharacterCoreData = data.character;
+
+      // Nap vao baseCharState
+      baseCharState.characterId = char.id;
+      baseCharState.characterSlug = char.slug;
+      baseCharState.characterName = char.name;
+      baseCharState.prompt = char.prompt || '';
+      baseCharState.seed = char.seed || null;
+      baseCharState.locked = true;
+      baseCharState.width = char.width || 64;
+      baseCharState.height = char.height || 64;
+      baseCharState.pixels = char.pixels || [];
+      baseCharState.dataUrl = char.thumbnailUrl || null;
+
+      // Nap hoac uoc tinh lai skeletonRig
+      if (char.skeletonRig) {
+        activeSkeletonRig = JSON.parse(JSON.stringify(char.skeletonRig));
+      } else if (char.pixels && char.pixels.length > 0) {
+        activeSkeletonRig = autoEstimateSkeletonRig(char.pixels, char.width, char.height);
+      }
+
+      // Dong modal Character Picker neu dang mo
+      if (charPickerModal) charPickerModal.style.display = 'none';
+
+      // Mo modal AI Studio neu dang an
+      if (modal) modal.style.display = 'flex';
+
+      // Cap nhat cac huy hieu va anh thu nho o Buoc 2 & Buoc 3
+      if (animBaseBadge) {
+        animBaseBadge.innerText = `Đã chọn: ${char.name} (#${char.seed || 0})`;
+        animBaseBadge.style.color = '#4ade80';
+        animBaseBadge.style.borderColor = '#22c55e';
+      }
+      if (step3ThumbImg && char.thumbnailUrl) {
+        step3ThumbImg.src = char.thumbnailUrl;
+      }
+      if (step3SeedLabel) {
+        step3SeedLabel.innerText = `Seed: #${char.seed || '0'}`;
+      }
+
+      // Luu trang thai vao checkpoint
+      saveWizardCheckpoint();
+
+      // Chuyen thang sang Buoc 3 de tao dong tac moi
+      goToStep(3);
+    } catch (err: any) {
+      alert('Lỗi khi nạp nhân vật: ' + err.message);
+    }
+  };
+
+  // Gan vao bien toan cuc de phuc vu Context Menu o Project Asset Browser
+  globalSelectAndLoadCharacter = selectAndLoadCharacter;
+
+  const renderCharacterPickerCards = (filter = '') => {
+    if (!charPickerGrid) return;
+    charPickerGrid.innerHTML = '';
+    const q = filter.trim().toLowerCase();
+    const filtered = loadedCharactersList.filter(c => !q || c.name.toLowerCase().includes(q) || (c.slug && c.slug.toLowerCase().includes(q)));
+
+    if (charPickerTotalBadge) {
+      charPickerTotalBadge.innerText = `${filtered.length} Nhân vật`;
+    }
+
+    if (filtered.length === 0) {
+      if (charPickerEmpty) charPickerEmpty.style.display = 'block';
+      return;
+    }
+    if (charPickerEmpty) charPickerEmpty.style.display = 'none';
+
+    filtered.forEach(c => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; transition: border-color 0.2s;';
+      card.addEventListener('mouseenter', () => card.style.borderColor = '#a855f7');
+      card.addEventListener('mouseleave', () => card.style.borderColor = 'rgba(255,255,255,0.1)');
+
+      const thumbWrapper = document.createElement('div');
+      thumbWrapper.style.cssText = 'width: 100%; height: 110px; background: #000; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden;';
+      const img = document.createElement('img');
+      img.src = c.thumbnailUrl || '';
+      img.alt = c.name;
+      img.style.cssText = 'max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated;';
+      thumbWrapper.appendChild(img);
+
+      const title = document.createElement('div');
+      title.innerText = c.name;
+      title.style.cssText = 'font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+
+      const meta = document.createElement('div');
+      meta.style.cssText = 'font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;';
+      meta.innerHTML = `<span>Seed: #${c.seed || 0}</span><span>${c.width}x${c.height}</span>`;
+
+      const actionsLabel = document.createElement('div');
+      actionsLabel.style.cssText = 'font-size: 11px; color: #38bdf8;';
+      actionsLabel.innerText = c.actionsCount > 0 ? `${c.actionsCount} động tác: ${c.actionsList?.join(', ') || ''}` : 'Chưa có động tác';
+
+      const btnSelect = document.createElement('button');
+      btnSelect.className = 'btn btn-small btn-primary';
+      btnSelect.style.cssText = 'margin-top: auto; background: linear-gradient(135deg, #a855f7, #7e22ce); border-color: #c084fc; font-weight: 500;';
+      btnSelect.innerText = 'Chọn Nhân Vật Này';
+
+      btnSelect.addEventListener('click', () => {
+        selectAndLoadCharacter(c.id || c.slug);
+      });
+
+      card.appendChild(thumbWrapper);
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.appendChild(actionsLabel);
+      card.appendChild(btnSelect);
+      charPickerGrid.appendChild(card);
+    });
+  };
+
+  const openCharacterPicker = async () => {
+    if (charPickerModal) charPickerModal.style.display = 'flex';
+    if (charPickerSearchInput) charPickerSearchInput.value = '';
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/characters/list');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.characters)) {
+        loadedCharactersList = data.characters;
+        renderCharacterPickerCards();
+      }
+    } catch (err) {
+      console.warn('Lỗi khi tải danh sách nhân vật:', err);
+    }
+  };
+
+  charPickerSearchInput?.addEventListener('input', () => {
+    renderCharacterPickerCards(charPickerSearchInput.value);
+  });
+
+  btnWizardPickChar?.addEventListener('click', openCharacterPicker);
+  btnCloseCharPicker?.addEventListener('click', () => {
+    if (charPickerModal) charPickerModal.style.display = 'none';
+  });
+  btnCancelCharPicker?.addEventListener('click', () => {
+    if (charPickerModal) charPickerModal.style.display = 'none';
   });
 
   globalOpenAiWizardWithBaseChar = (pixels, w, h, name) => {
@@ -5154,6 +5467,27 @@ function initAiPixelModal(): void {
       livePlayerIndex = 0;
       startLivePlayer();
 
+      // Tu dong luu chuoi frames cua hanh dong vao thu muc nhan vat (neu nhan vat da duoc dong goi)
+      const autoSaveCharacterActionFrames = (framesToSave: any[]) => {
+        const targetCharId = baseCharState.characterSlug || baseCharState.characterId;
+        if (targetCharId && animSetupState.action && Array.isArray(framesToSave)) {
+          fetch(`http://127.0.0.1:3055/api/characters/${encodeURIComponent(targetCharId)}/save-action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: animSetupState.action,
+              frames: framesToSave
+            })
+          }).then(res => res.json()).then(saveRes => {
+            if (saveRes.success) {
+              refreshProjectAssetView();
+            }
+          }).catch(e => console.warn('Lỗi khi tự động lưu hành động vào nhân vật:', e));
+        }
+      };
+
+      autoSaveCharacterActionFrames(data.frames);
+
       // Kích hoạt các nút hoàn tất ở Bước 4
       if (btnWizardFinish) btnWizardFinish.style.display = 'inline-flex';
       if (btnWizardChangeAction) btnWizardChangeAction.style.display = 'inline-flex';
@@ -5168,6 +5502,22 @@ function initAiPixelModal(): void {
           animSetupState.frames = recovered.frames;
           livePlayerIndex = 0;
           startLivePlayer();
+
+          const targetCharId = baseCharState.characterSlug || baseCharState.characterId;
+          if (targetCharId && animSetupState.action) {
+            fetch(`http://127.0.0.1:3055/api/characters/${encodeURIComponent(targetCharId)}/save-action`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: animSetupState.action,
+                frames: recovered.frames
+              })
+            }).then(res => res.json()).then(saveRes => {
+              if (saveRes.success) {
+                refreshProjectAssetView();
+              }
+            }).catch(e => console.warn('Lỗi khi tự động lưu hành động khôi phục:', e));
+          }
 
           if (btnWizardFinish) btnWizardFinish.style.display = 'inline-flex';
           if (btnWizardChangeAction) btnWizardChangeAction.style.display = 'inline-flex';
@@ -5335,6 +5685,9 @@ function initAiPixelModal(): void {
     }
 
     if (cp.baseCharacter) {
+      baseCharState.characterId = (cp.baseCharacter as any).id || null;
+      baseCharState.characterName = (cp.baseCharacter as any).name || null;
+      baseCharState.characterSlug = (cp.baseCharacter as any).slug || null;
       baseCharState.seed = cp.baseCharacter.seed;
       baseCharState.locked = cp.baseCharacter.locked;
       baseCharState.pixels = cp.baseCharacter.pixels;
@@ -7973,6 +8326,7 @@ function initProjectDock(): void {
     renderProjectGrid();
     updateNavButtons();
   };
+  globalRenderProjectView = renderProjectView;
 
   // Cap nhat trang thai nut Back / Forward
   const updateNavButtons = () => {
@@ -8480,8 +8834,22 @@ function initProjectDock(): void {
     const itemLoadTimeline = document.getElementById('ctx-asset-load-timeline');
     const itemFolderOpen = document.getElementById('ctx-folder-open');
     const itemFolderLoadAll = document.getElementById('ctx-folder-load-all-timeline');
+    const itemCharStudio = document.getElementById('ctx-char-open-studio');
+    const itemCharCanvas = document.getElementById('ctx-char-load-canvas');
 
     if (titleEl) titleEl.innerText = `${item.type === 'folder' ? 'Thư mục' : 'Sprite'}: ${item.name}`;
+
+    // Kiem tra xem co phai la muc Nhan vat cot loi khong
+    const isCharFolder = item.type === 'folder' && item.path.startsWith('Assets/Characters/') && item.path.split('/').length === 3;
+    const isCharBasePose = item.type === 'sprite' && item.path.startsWith('Assets/Characters/') && item.path.endsWith('/Base Pose');
+
+    if (isCharFolder || isCharBasePose) {
+      if (itemCharStudio) itemCharStudio.style.display = 'flex';
+      if (itemCharCanvas) itemCharCanvas.style.display = 'flex';
+    } else {
+      if (itemCharStudio) itemCharStudio.style.display = 'none';
+      if (itemCharCanvas) itemCharCanvas.style.display = 'none';
+    }
 
     if (item.type === 'folder') {
       if (itemLoadCanvas) itemLoadCanvas.style.display = 'none';
@@ -8511,6 +8879,140 @@ function initProjectDock(): void {
   };
 
   // Gan hanh dong cho Custom Context Menu
+  document.getElementById('ctx-char-open-studio')?.addEventListener('click', () => {
+    if (contextTargetItem) {
+      const parts = contextTargetItem.path.split('/');
+      // Path co dang: Assets/Characters/<slug> hoac Assets/Characters/<slug>/Base Pose
+      const slug = parts[2];
+      if (slug && globalSelectAndLoadCharacter) {
+        globalSelectAndLoadCharacter(slug);
+      }
+    }
+    closeProjectContextMenu();
+  });
+
+  document.getElementById('ctx-char-load-canvas')?.addEventListener('click', async () => {
+    if (contextTargetItem) {
+      const parts = contextTargetItem.path.split('/');
+      const slug = parts[2];
+      if (slug) {
+        try {
+          const res = await fetch(`http://127.0.0.1:3055/api/characters/detail?id=${encodeURIComponent(slug)}`);
+          const data = await res.json();
+          if (data.success && data.character) {
+            const char: CharacterCoreData = data.character;
+            project.width = char.width || 64;
+            project.height = char.height || 64;
+            project.pivot = { x: Math.floor(project.width / 2), y: project.height - 1 };
+
+            const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+            if (currentFrame) {
+              const activeLayer = currentFrame.layers.find(l => l.id === project.activeLayerId) || currentFrame.layers[0];
+              if (activeLayer) {
+                const pixelMap: Record<string, PixelColor> = {};
+                for (const p of char.pixels) {
+                  if (p.color) pixelMap[`${p.x},${p.y}`] = p.color;
+                }
+                activeLayer.pixels = pixelMap;
+              }
+            }
+
+            canvasEngine.rebuildBuffers();
+            canvasEngine.centerViewport();
+            renderAll();
+            syncProjectToServer();
+
+            // Bat banner thong bao dang sua nhan vat goc
+            currentEditingCoreCharacter = { id: char.id, slug: char.slug, name: char.name };
+            const banner = document.getElementById('editing-char-banner');
+            const label = document.getElementById('editing-char-name-label');
+            if (banner) banner.style.display = 'flex';
+            if (label) label.innerText = `Đang sửa: ${char.name}`;
+          }
+        } catch (err: any) {
+          alert('Không thể nạp nhân vật lên canvas: ' + err.message);
+        }
+      }
+    }
+    closeProjectContextMenu();
+  });
+
+  // Xu ly Banner va Luu cap nhat vao Nhan vat goc tren Canvas
+  const editingCharBanner = document.getElementById('editing-char-banner');
+  const btnCloseEditingChar = document.getElementById('btn-close-editing-char');
+  const btnSaveCharCorePixels = document.getElementById('btn-save-char-core-pixels');
+
+  btnCloseEditingChar?.addEventListener('click', () => {
+    currentEditingCoreCharacter = null;
+    if (editingCharBanner) editingCharBanner.style.display = 'none';
+  });
+
+  btnSaveCharCorePixels?.addEventListener('click', async () => {
+    if (!currentEditingCoreCharacter) return;
+    const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+    if (!currentFrame) return;
+
+    const mergedPixels: PixelPoint[] = [];
+    const pixelMap = new Map<string, string>();
+    for (const l of currentFrame.layers) {
+      if (!l.visible) continue;
+      for (const [k, color] of Object.entries(l.pixels)) {
+        if (color) pixelMap.set(k, color);
+      }
+    }
+
+    for (const [k, color] of pixelMap.entries()) {
+      const [x, y] = k.split(',').map(Number);
+      mergedPixels.push({ x, y, color });
+    }
+
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = project.width;
+    offCanvas.height = project.height;
+    const offCtx = offCanvas.getContext('2d');
+    if (offCtx) {
+      const imgData = offCtx.createImageData(project.width, project.height);
+      for (const p of mergedPixels) {
+        if (!p.color) continue;
+        const hex = p.color.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16) || 0;
+        const g = parseInt(hex.substring(2, 4), 16) || 0;
+        const b = parseInt(hex.substring(4, 6), 16) || 0;
+        const a = hex.length >= 8 ? parseInt(hex.substring(6, 8), 16) : 255;
+        const idx = (p.y * project.width + p.x) * 4;
+        imgData.data[idx] = r;
+        imgData.data[idx + 1] = g;
+        imgData.data[idx + 2] = b;
+        imgData.data[idx + 3] = a;
+      }
+      offCtx.putImageData(imgData, 0, 0);
+    }
+    const base64Png = offCanvas.toDataURL('image/png');
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/characters/update-core-pixels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentEditingCoreCharacter.id || currentEditingCoreCharacter.slug,
+          pixels: mergedPixels,
+          width: project.width,
+          height: project.height,
+          base64Png
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Đã cập nhật thành công nhân vật gốc "${currentEditingCoreCharacter.name}"!`);
+        refreshProjectAssetView();
+      } else {
+        alert('Lỗi cập nhật nhân vật gốc: ' + (data.error || 'Thất bại'));
+      }
+    } catch (err: any) {
+      alert('Lỗi kết nối máy chủ: ' + err.message);
+    }
+  });
+
   document.getElementById('ctx-asset-load-canvas')?.addEventListener('click', () => {
     if (contextTargetItem && contextTargetItem.type === 'sprite') {
       loadSpriteToCanvas(contextTargetItem);

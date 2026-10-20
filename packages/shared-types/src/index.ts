@@ -274,4 +274,44 @@ export function createDefaultAssetTree(): ProjectAssetTree {
   return { items };
 }
 
+// Dinh nghia goi tai nguyen nhan vat cot loi (Character Core Package)
+export interface CharacterActionFolder {
+  action: string; // 'walk' | 'idle' | 'attack' | 'run' ...
+  label: string; // 'Di bo' | 'Dung im' ...
+  framesCount: number;
+  folderPath: string; // Vi du: 'Assets/Characters/hero_knight/walk'
+  updatedAt: number;
+}
+
+export interface CharacterCoreData {
+  id: string; // Dinh danh duy nhat, vi du: 'char_warrior_1792482659'
+  name: string; // Ten hien thi: 'Warrior Knight'
+  slug: string; // Ten thu muc an toan: 'warrior_knight'
+  prompt: string; // Prompt goc dung de sinh nhan vat
+  seed: number; // Seed da khoa cua nhan vat
+  width: number; // Chieu rong pixel (vi du: 64)
+  height: number; // Chieu cao pixel (vi du: 64)
+  pixels: PixelPoint[]; // Mang diem anh goc cua nhan vat o tu the dung chuan
+  thumbnailUrl?: string; // Data URL anh dai dien thu nho
+  colorPalette: string[]; // Bang ma mau hex cua nhan vat
+  skeletonRig?: any; // Bo khung xuong da gan cho nhan vat
+  actions: CharacterActionFolder[]; // Danh sach cac hanh dong da duoc sinh
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CharacterSummary {
+  id: string;
+  name: string;
+  slug: string;
+  seed: number;
+  width: number;
+  height: number;
+  thumbnailUrl?: string;
+  actionsCount: number;
+  actionsList: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 

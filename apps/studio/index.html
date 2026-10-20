@@ -243,6 +243,13 @@
 
       <!-- 2.2 Khu vuc Canvas trung tam -->
       <section class="center-viewport" id="viewport">
+        <!-- Banner thong bao khi dang chinh sua Nhan vat cot loi -->
+        <div id="editing-char-banner" style="display: none; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(15, 23, 42, 0.92); border: 1px solid #38bdf8; border-radius: 20px; padding: 6px 14px; gap: 10px; align-items: center; box-shadow: 0 4px 16px rgba(0,0,0,0.5); backdrop-filter: blur(8px);">
+          <span style="font-size: 12px; color: #38bdf8; font-weight: 500;" id="editing-char-name-label">Đang sửa: Nhân vật</span>
+          <button class="btn btn-small btn-primary" id="btn-save-char-core-pixels" style="padding: 3px 10px; font-size: 11px; background: #0284c7; border-color: #38bdf8;">Lưu Vào Nhân Vật Gốc</button>
+          <button class="modal-close" id="btn-close-editing-char" style="font-size: 14px; line-height: 1;" title="Thoát chế độ sửa nhân vật gốc">&times;</button>
+        </div>
+
         <div class="canvas-container">
           <canvas id="main-canvas" width="600" height="600"></canvas>
         </div>
@@ -1175,6 +1182,7 @@
             <button class="btn" id="btn-wizard-back" style="display: none; padding: 6px 14px;">Quay lại</button>
             <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất vào Canvas">Nạp Ảnh Gần Nhất</button>
             <button class="btn" id="btn-wizard-upload-base" style="border-color: #38bdf8; color: #38bdf8;" title="Tải file ảnh nhân vật từ máy tính để làm mẫu">Tải Mẫu Từ Máy Tính</button>
+            <button class="btn" id="btn-wizard-pick-character" style="border-color: #a855f7; color: #c084fc;" title="Chọn nhân vật cốt lõi đã lưu trong dự án">Chọn Nhân Vật Có Sẵn</button>
             <input type="file" id="wizard-base-upload-input" accept="image/png,image/jpeg,image/webp" style="display: none;" />
           </div>
           <div style="display: flex; gap: 10px; align-items: center;">
@@ -1699,6 +1707,16 @@
         <span class="context-menu-shortcut">+Frame</span>
       </div>
 
+      <!-- Cac muc cho Nhan vat cot loi (Character Package) -->
+      <div class="context-menu-item" id="ctx-char-open-studio" style="display: none; color: #a855f7; font-weight: 500;">
+        <span>Tạo động tác mới từ nhân vật này (AI Studio)</span>
+        <span class="context-menu-shortcut">Step 3</span>
+      </div>
+      <div class="context-menu-item" id="ctx-char-load-canvas" style="display: none;">
+        <span>Nạp lên Canvas để chỉnh sửa thủ công</span>
+        <span class="context-menu-shortcut">Base</span>
+      </div>
+
       <!-- Cac muc cho Folder -->
       <div class="context-menu-item" id="ctx-folder-open" style="display: none;">
         <span>Mở thư mục này</span>
@@ -1735,6 +1753,64 @@
         <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px;">
           <button class="btn btn-small" id="btn-cancel-project-input">Hủy bỏ</button>
           <button class="btn btn-primary btn-small" id="btn-confirm-project-input">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 13. Modal Xac Nhan & Dat Ten Nhan Vat Cot Loi (Character Core Package) -->
+    <div class="modal-backdrop floating-tool-backdrop" id="character-lock-modal" style="display: none;">
+      <div class="modal-dialog floating-tool-dialog" style="max-width: 440px;">
+        <div class="modal-header">
+          <h3>Đóng Gói Nhân Vật Cốt Lõi (Character Package)</h3>
+          <button class="modal-close" id="btn-close-char-lock">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; gap: 14px; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="width: 72px; height: 72px; background: #000; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+              <img id="char-lock-preview-img" src="" alt="Base Pose" style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
+              <span id="char-lock-meta-seed" style="font-size: 11px; color: #38bdf8; font-family: monospace;">Seed: #--</span>
+              <span id="char-lock-meta-size" style="font-size: 11px; color: var(--text-muted);">Kích thước: 64x64 px</span>
+              <span id="char-lock-meta-rig" style="font-size: 11px; color: #4ade80;">16 Khớp Khung Xương Đã Sẵn Sàng</span>
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 6px;">Tên nhân vật (Đặt tên để dễ quản lý trong dự án):</label>
+            <input type="text" id="char-lock-name-input" class="gallery-search-input" placeholder="Ví dụ: Chiến Binh Rồng, Hiệp Sĩ Bóng Đêm..." style="width: 100%; font-size: 13px;" />
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; background: rgba(56, 189, 248, 0.06); padding: 8px 12px; border-radius: 4px; border-left: 3px solid #38bdf8;">
+            Nhân vật này sẽ được tạo thành gói lưu trữ riêng tại <code>storage/project_assets/characters/</code>. Bạn luôn có thể tải lại để vẽ tiếp hoặc render hành động mới bất cứ lúc nào mà không sợ mất nét!
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px;">
+          <button class="btn btn-small" id="btn-cancel-char-lock">Hủy bỏ</button>
+          <button class="btn btn-primary btn-small" id="btn-confirm-char-lock" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399; font-weight: 600;">Xác Nhận &amp; Đóng Gói</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 14. Modal Chon Nhan Vat Co San Tu Du An (Character Picker) -->
+    <div class="modal-backdrop" id="character-picker-modal" style="display: none;">
+      <div class="modal-dialog" style="max-width: 680px; max-height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+          <h3>Chọn Nhân Vật Cốt Lõi Từ Dự Án</h3>
+          <button class="modal-close" id="btn-close-char-picker">&times;</button>
+        </div>
+        <div style="padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; gap: 10px; align-items: center;">
+          <input type="text" id="char-picker-search-input" class="gallery-search-input" placeholder="Tìm kiếm nhân vật theo tên..." style="flex: 1;" />
+          <span id="char-picker-total-badge" class="brand-badge">0 Nhân vật</span>
+        </div>
+        <div class="modal-body" id="char-picker-grid-container" style="padding: 16px; overflow-y: auto; flex: 1; min-height: 240px;">
+          <div id="char-picker-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px;">
+            <!-- Render danh sach nhan vat tai day -->
+          </div>
+          <div id="char-picker-empty" style="display: none; text-align: center; padding: 40px 10px; color: var(--text-muted);">
+            Chưa có nhân vật nào được đóng gói trong dự án. Hãy chốt mẫu ở Bước 2 để tạo nhân vật đầu tiên!
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; padding: 10px 18px;">
+          <button class="btn btn-small" id="btn-cancel-char-picker">Đóng</button>
         </div>
       </div>
     </div>
