@@ -16,7 +16,9 @@ describe('Toa do pixel key helper', () => {
     expect(project.height).toBe(24);
     expect(project.frames.length).toBe(1);
     expect(project.frames[0].layers.length).toBe(1);
-    expect(project.clips.length).toBe(1);
-    expect(project.clips[0].name).toBe('idle');
+    expect(project.clips.length).toBe(3);
+    expect(project.clips[0].name).toBe('base');
+    expect(project.clips[1].name).toBe('idle');
+    expect(project.clips[2].name).toBe('run');
   });
 });

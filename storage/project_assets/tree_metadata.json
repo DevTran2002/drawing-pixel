@@ -1,0 +1,66 @@
+[
+  {
+    "id": "folder_1_1792481021645",
+    "name": "Assets",
+    "type": "folder",
+    "path": "Assets",
+    "parentPath": "",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_2_1792481021645",
+    "name": "Characters",
+    "type": "folder",
+    "path": "Assets/Characters",
+    "parentPath": "Assets",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_3_1792481021645",
+    "name": "Hero",
+    "type": "folder",
+    "path": "Assets/Characters/Hero",
+    "parentPath": "Assets/Characters",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_4_1792481021645",
+    "name": "Base",
+    "type": "folder",
+    "path": "Assets/Characters/Hero/Base",
+    "parentPath": "Assets/Characters/Hero",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_5_1792481021645",
+    "name": "Idle",
+    "type": "folder",
+    "path": "Assets/Characters/Hero/Idle",
+    "parentPath": "Assets/Characters/Hero",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_6_1792481021645",
+    "name": "Run",
+    "type": "folder",
+    "path": "Assets/Characters/Hero/Run",
+    "parentPath": "Assets/Characters/Hero",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_7_1792481021645",
+    "name": "Enemies",
+    "type": "folder",
+    "path": "Assets/Enemies",
+    "parentPath": "Assets",
+    "createdAt": 1792481021645
+  },
+  {
+    "id": "folder_8_1792481021645",
+    "name": "Items",
+    "type": "folder",
+    "path": "Assets/Items",
+    "parentPath": "Assets",
+    "createdAt": 1792481021645
+  }
+]

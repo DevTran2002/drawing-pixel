@@ -35,12 +35,14 @@ import { flipHorizontal, flipVertical, rotate90Clockwise } from './tools/transfo
 import { TAG_CATEGORIES } from './data/tags-dictionary';
 import { downloadProjectFile, importFromPxDraw, exportToPxDraw } from './core/project-file';
 import { applyColorAdjustment, ColorAdjustmentOptions, invertHexColor } from './tools/color-adjustments';
+import { AssetBrowserController } from './core/asset-browser-controller';
 
 // 1. Khoi tao trang thai toan cuc cua Studio
 const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
 const history = new HistoryManager(50);
 const animController = new AnimationController(project);
 const selectionManager = new SelectionManager();
+const assetBrowser = new AssetBrowserController('http://127.0.0.1:3055');
 let globalOpenAiWizardWithBaseChar: ((pixels: PixelPoint[], w: number, h: number, name: string) => void) | null = null;
 
 // Lay cac phan tu DOM
@@ -95,6 +97,7 @@ function renderAll(): void {
   const onionCanvas = onionSkinRenderer.render(project, onionSkinEnabled);
   canvasEngine.render(onionCanvas);
   previewPlayer.renderCurrent();
+  renderActionTabs();
   renderTimeline();
   renderLayers();
 }
@@ -1321,10 +1324,217 @@ function createFrameThumbnail(frame: FrameData): HTMLCanvasElement {
   return thumb;
 }
 
+// 7.0 UI: Quan ly he thong thu muc dong tac (Action Folders / Tabs) tren Footer
+function renderActionTabs(): void {
+  const container = document.getElementById('action-folders-tabs');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const activeClip = animController.getActiveClip();
+  const generateBtn = document.getElementById('btn-generate-from-base') as HTMLElement | null;
+
+  // Hien thi nut "Tao tu Tu the goc" neu khong phai thu muc Base
+  if (generateBtn) {
+    if (activeClip.isBase || activeClip.name === 'base') {
+      generateBtn.style.display = 'none';
+    } else {
+      generateBtn.style.display = 'inline-flex';
+      const labelSpan = generateBtn.querySelector('span');
+      if (labelSpan) {
+        const frameCount = activeClip.frames?.length || 0;
+        const actionLabel = activeClip.label || activeClip.name;
+        labelSpan.innerText = frameCount === 0
+          ? `Tạo ${actionLabel} từ Base`
+          : `Tái tạo ${actionLabel} từ Base`;
+      }
+    }
+  }
+
+  // Render tung tab thu muc
+  project.clips.forEach(clip => {
+    const tab = document.createElement('div');
+    const isActive = clip.id === activeClip.id;
+    const isBase = !!(clip.isBase || clip.name === 'base');
+    tab.className = `action-folder-tab ${isActive ? 'active' : ''} ${isBase ? 'is-base' : ''}`;
+    tab.dataset.clipId = clip.id;
+
+    const frameCount = clip.frames?.length || 0;
+    const displayName = clip.label || clip.name;
+
+    const titleSpan = document.createElement('span');
+    titleSpan.innerText = displayName;
+    tab.appendChild(titleSpan);
+
+    const badgeSpan = document.createElement('span');
+    badgeSpan.className = 'tab-frame-badge';
+    badgeSpan.innerText = `${frameCount}f`;
+    tab.appendChild(badgeSpan);
+
+    // Neu khong phai thu muc Base va co nhieu hon 1 thu muc thi cho phep xoa
+    if (!isBase && project.clips.length > 1) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'tab-del-btn';
+      delBtn.title = `Xóa thư mục động tác ${displayName}`;
+      delBtn.innerHTML = '&times;';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm(`Bạn có chắc muốn xóa thư mục động tác "${displayName}"?`)) {
+          animController.removeFolderClip(clip.id);
+          canvasEngine.rebuildBuffers();
+          renderAll();
+          syncProjectToServer();
+        }
+      });
+      tab.appendChild(delBtn);
+    }
+
+    tab.addEventListener('click', () => {
+      if (clip.id === activeClip.id) return;
+      animController.setActiveClipById(clip.id);
+      canvasEngine.rebuildBuffers();
+      renderAll();
+      syncProjectToServer();
+
+      const previewInfo = document.getElementById('preview-info');
+      if (previewInfo) {
+        previewInfo.innerText = `Clip: ${clip.label || clip.name}`;
+      }
+    });
+
+    container.appendChild(tab);
+  });
+}
+
+// Lay toan bo diem anh tu thu muc Tu the goc (Base Pose)
+function getBasePosePixels(): PixelPoint[] {
+  const baseClip = animController.getBaseClip();
+  const baseFrame = baseClip.frames?.[0] || project.frames?.[0];
+  if (!baseFrame) return [];
+
+  const points: PixelPoint[] = [];
+  for (const layer of baseFrame.layers) {
+    if (!layer.visible) continue;
+    for (const [key, color] of Object.entries(layer.pixels)) {
+      if (color) {
+        const [x, y] = key.split(',').map(Number);
+        points.push({ x, y, color });
+      }
+    }
+  }
+  return points;
+}
+
+// Ham tu dong tao hoat canh chuyen dong tu Nhan vat goc (Base Pose)
+async function generateAnimationFromBase(): Promise<void> {
+  const activeClip = animController.getActiveClip();
+  if (activeClip.isBase || activeClip.name === 'base') {
+    alert('Bạn đang ở thư mục Tư thế gốc. Vui lòng chuyển sang một thư mục động tác (như Đứng im hoặc Chạy bộ) để tạo hoạt cảnh!');
+    return;
+  }
+
+  const basePixels = getBasePosePixels();
+  if (basePixels.length === 0) {
+    alert('Chưa có điểm ảnh nào ở thư mục Tư thế gốc (Base Pose). Vui lòng chuyển sang tab "Tư thế gốc" để vẽ nhân vật trước!');
+    return;
+  }
+
+  const generateBtn = document.getElementById('btn-generate-from-base') as HTMLButtonElement | null;
+  const labelSpan = generateBtn?.querySelector('span');
+  if (generateBtn) {
+    generateBtn.disabled = true;
+    if (labelSpan) labelSpan.innerText = 'Đang tính toán khung xương...';
+  }
+
+  try {
+    const actionName = activeClip.name.toLowerCase();
+    const frameCount = 4;
+    const res = await fetch('http://127.0.0.1:3055/api/ai/generate-animation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        engine: 'template',
+        action: actionName,
+        frameCount,
+        size: project.width,
+        basePixels
+      })
+    });
+
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.frames)) {
+      throw new Error(data.error || 'Máy chủ không thể tạo hoạt cảnh');
+    }
+
+    // Chuyen doi ket qua diem anh sang cac FrameData
+    const newFrames: FrameData[] = data.frames.map((f: any, idx: number) => {
+      const pixelsRecord: Record<string, PixelColor> = {};
+      if (Array.isArray(f.pixels)) {
+        for (const p of f.pixels) {
+          if (p.color) {
+            pixelsRecord[coordToKey(p.x, p.y)] = p.color;
+          }
+        }
+      }
+
+      return {
+        id: `frame_${activeClip.name}_${idx + 1}_${Date.now()}`,
+        durationMs: Math.max(60, Math.floor(1000 / (activeClip.fps || 10))),
+        layers: [
+          {
+            id: `layer_${activeClip.name}_${idx + 1}_${Date.now()}`,
+            name: 'Layer 1',
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            pixels: pixelsRecord
+          }
+        ]
+      };
+    });
+
+    // Luu toan bo frames moi vao dung thu muc dong tac nay
+    animController.setClipFrames(activeClip.id, newFrames);
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+
+    // Tu dong phat xem truoc de nguoi dung thuong thuc nhan vat chuyen dong
+    previewPlayer.play();
+    updatePlayUi(true);
+
+  } catch (err: any) {
+    console.error('Lỗi khi tạo hoạt cảnh từ Tư thế gốc:', err);
+    alert('Không thể tạo hoạt cảnh từ Tư thế gốc: ' + (err.message || 'Lỗi kết nối máy chủ'));
+  } finally {
+    if (generateBtn) {
+      generateBtn.disabled = false;
+      renderActionTabs();
+    }
+  }
+}
+
 function renderTimeline(): void {
   const container = document.getElementById('timeline-frames-container');
   if (!container) return;
   container.innerHTML = '';
+
+  // Xu ly truong hop thu muc chua co frame nao
+  if (project.frames.length === 0) {
+    const emptyNotice = document.createElement('div');
+    emptyNotice.style.display = 'flex';
+    emptyNotice.style.alignItems = 'center';
+    emptyNotice.style.justifyContent = 'center';
+    emptyNotice.style.padding = '12px 20px';
+    emptyNotice.style.color = 'var(--text-muted)';
+    emptyNotice.style.fontSize = '12px';
+    emptyNotice.style.fontStyle = 'italic';
+    emptyNotice.style.gap = '8px';
+    emptyNotice.innerHTML = `
+      <span>Thư mục chưa có frame nào. Nhấn "+ Add Frame" để vẽ hoặc nhấn "Tạo từ Tư thế gốc" để sinh chuyển động tự động!</span>
+    `;
+    container.appendChild(emptyNotice);
+    return;
+  }
 
   // Khởi tạo sự kiện container một lần duy nhất để hỗ trợ thả vào khoảng trống cuối dòng
   if (!container.dataset.dragInitialized) {
@@ -1533,6 +1743,24 @@ document.getElementById('btn-duplicate-frame')?.addEventListener('click', () => 
   animController.duplicateActiveFrame();
   canvasEngine.rebuildBuffers();
   renderAll();
+});
+
+// Nut them thu muc dong tac moi tren Action Folders bar
+document.getElementById('btn-add-action-folder')?.addEventListener('click', () => {
+  const name = prompt('Nhập tên thư mục động tác mới (ví dụ: jump, attack, cast, hurt):', 'jump');
+  if (!name || !name.trim()) return;
+  const cleanName = name.trim().toLowerCase();
+  const label = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+  const newClip = animController.addFolderClip(cleanName, label);
+  animController.setActiveClipById(newClip.id);
+  canvasEngine.rebuildBuffers();
+  renderAll();
+  syncProjectToServer();
+});
+
+// Nut tao hoat anh tu Tu the goc (Generate from Base)
+document.getElementById('btn-generate-from-base')?.addEventListener('click', () => {
+  generateAnimationFromBase();
 });
 
 // Play / Pause Animation
@@ -3213,15 +3441,39 @@ function initAiPixelModal(): void {
     project.activeLayerId = project.frames[0].layers[0].id;
     project.clips = [
       {
-        id: `clip_default_${Date.now()}`,
-        name: 'DEFAULT',
+        id: 'clip_base',
+        name: 'base',
+        label: 'Tư thế gốc',
         startFrame: 0,
         endFrame: 0,
-        fps: 1,
-        loop: true
+        fps: 10,
+        loop: false,
+        frames: project.frames,
+        isBase: true
+      },
+      {
+        id: 'clip_idle',
+        name: 'idle',
+        label: 'Đứng im',
+        startFrame: 0,
+        endFrame: 0,
+        fps: 10,
+        loop: true,
+        frames: []
+      },
+      {
+        id: 'clip_run',
+        name: 'run',
+        label: 'Chạy bộ',
+        startFrame: 0,
+        endFrame: 0,
+        fps: 12,
+        loop: true,
+        frames: []
       }
     ];
-    animController.setActiveClip(project.clips[0].id);
+    project.activeClipId = 'clip_base';
+    animController.setActiveClipById('clip_base');
 
     const sizeBadge = document.getElementById('canvas-size-badge');
     if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
@@ -3735,17 +3987,30 @@ function initAiPixelModal(): void {
     project.frames = newFrames;
     project.activeFrameIndex = 0;
     project.activeLayerId = newFrames[0].layers[0].id;
-    project.clips = [
-      {
-        id: `clip_spritesheet_${Date.now()}`,
-        name: 'SPRITE_CYCLE',
-        startFrame: 0,
-        endFrame: newFrames.length - 1,
-        fps: slicerFps,
-        loop: true
-      }
-    ];
-    animController.setActiveClip(project.clips[0].id);
+    const baseClip: AnimationClip = {
+      id: 'clip_base',
+      name: 'base',
+      label: 'Tư thế gốc',
+      startFrame: 0,
+      endFrame: 0,
+      fps: 10,
+      loop: false,
+      frames: [newFrames[0]],
+      isBase: true
+    };
+    const cycleClip: AnimationClip = {
+      id: `clip_spritesheet_${Date.now()}`,
+      name: 'SPRITE_CYCLE',
+      label: 'Chuỗi Sprite',
+      startFrame: 0,
+      endFrame: newFrames.length - 1,
+      fps: slicerFps,
+      loop: true,
+      frames: newFrames
+    };
+    project.clips = [baseClip, cycleClip];
+    project.activeClipId = cycleClip.id;
+    animController.setActiveClipById(cycleClip.id);
 
     const sizeBadge = document.getElementById('canvas-size-badge');
     if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
@@ -4924,11 +5189,38 @@ function initAiPixelModal(): void {
       return;
     }
 
-    // Nạp toàn bộ các frame vào project.frames của Studio
     project.width = animSetupState.frameSize;
     project.height = animSetupState.frameSize;
-    project.frames = [];
 
+    // 1. Bao toan va luu Nhan vat goc vao thu muc Tu the goc (Base Pose)
+    const baseClip = animController.getBaseClip();
+    if (baseCharState.pixels && baseCharState.pixels.length > 0) {
+      const basePixelsRecord: Record<string, PixelColor> = {};
+      for (const p of baseCharState.pixels) {
+        if (p.color) {
+          basePixelsRecord[coordToKey(p.x, p.y)] = p.color;
+        }
+      }
+      baseClip.frames = [
+        {
+          id: `frame_base_${Date.now()}`,
+          durationMs: 100,
+          layers: [
+            {
+              id: `layer_base_${Date.now()}`,
+              name: 'Layer 1',
+              visible: true,
+              locked: false,
+              opacity: 1.0,
+              pixels: basePixelsRecord
+            }
+          ]
+        }
+      ];
+    }
+
+    // 2. Chuyen doi toan bo frame sinh ra thanh FrameData[]
+    const generatedFrames: FrameData[] = [];
     animSetupState.frames.forEach((frameObj: any, idx: number) => {
       const layerId = `layer_f${idx + 1}_${Date.now()}`;
       const pixelsRecord: Record<string, PixelColor> = {};
@@ -4955,24 +5247,26 @@ function initAiPixelModal(): void {
           }
         ]
       };
-      project.frames.push(frameData);
+      generatedFrames.push(frameData);
     });
 
-    project.activeFrameIndex = 0;
-    project.activeLayerId = project.frames[0]?.layers[0]?.id || 'layer_1';
+    // 3. Tim hoac tao thu muc dong tac tuong ung trong project.clips
+    const actionName = (animSetupState.action || 'idle').toLowerCase();
+    let actionLabel = actionName.charAt(0).toUpperCase() + actionName.slice(1);
+    if (actionName === 'idle') actionLabel = 'Đứng im';
+    else if (actionName === 'run') actionLabel = 'Chạy bộ';
+    else if (actionName === 'walk') actionLabel = 'Đi bộ';
 
-    // Tạo Clip hoạt ảnh cho Timeline
-    const clipId = `clip_${animSetupState.action}_${Date.now()}`;
-    const newClip: AnimationClip = {
-      id: clipId,
-      name: `${animSetupState.action.toUpperCase()}`,
-      startFrame: 0,
-      endFrame: animSetupState.frames.length - 1,
-      fps: livePlayerFps,
-      loop: true
-    };
-    project.clips = [newClip];
-    animController.setActiveClip(clipId);
+    let targetActionClip = animController.getClip(actionName);
+    if (!targetActionClip) {
+      targetActionClip = animController.addFolderClip(actionName, actionLabel, livePlayerFps);
+    }
+    targetActionClip.fps = livePlayerFps;
+    targetActionClip.label = actionLabel;
+
+    // Nap frames vao thu muc dong tac nay va kich hoat
+    animController.setClipFrames(targetActionClip.id, generatedFrames);
+    animController.setActiveClipById(targetActionClip.id);
 
     // Đồng bộ kích thước lên thanh trạng thái Studio
     const sizeBadge = document.getElementById('canvas-size-badge');
@@ -5967,20 +6261,33 @@ function initImageImport(): void {
 
       // 7. Tao Animation Clip va cap nhat giao dien
       const clipId = `clip_${Date.now()}`;
-      project.clips = [
-        {
-          id: clipId,
-          name: clipName,
-          startFrame: 0,
-          endFrame: count - 1,
-          fps,
-          loop: true
-        }
-      ];
+      const baseClip: AnimationClip = {
+        id: 'clip_base',
+        name: 'base',
+        label: 'Tư thế gốc',
+        startFrame: 0,
+        endFrame: 0,
+        fps: 10,
+        loop: false,
+        frames: [project.frames[0]],
+        isBase: true
+      };
+      const animClip: AnimationClip = {
+        id: clipId,
+        name: clipName,
+        label: clipName,
+        startFrame: 0,
+        endFrame: count - 1,
+        fps,
+        loop: true,
+        frames: project.frames
+      };
+      project.clips = [baseClip, animClip];
+      project.activeClipId = clipId;
 
       project.activeFrameIndex = 0;
       project.activeLayerId = project.frames[0].layers[0].id;
-      animController.setActiveClip(clipId);
+      animController.setActiveClipById(clipId);
 
       const sizeBadge = document.getElementById('canvas-size-badge');
       if (sizeBadge) sizeBadge.innerText = `${project.width}x${project.height} px`;
@@ -7176,7 +7483,492 @@ function initTimelineContextMenu(): void {
   });
 }
 
-// 16. Khoi dong ung dung
+// 17. UI & Logic: Bang Quan Ly Tai Nguyen Du An Phong Cach Unity (Project & Asset Browser Dock)
+function initProjectDock(): void {
+  const bottomDock = document.getElementById('bottom-dock');
+  const tabTimeline = document.getElementById('tab-mode-timeline');
+  const tabProject = document.getElementById('tab-mode-project');
+  const panelTimeline = document.getElementById('dock-panel-timeline');
+  const panelProject = document.getElementById('dock-panel-project');
+  const hintText = document.getElementById('dock-mode-hint');
+
+  const btnBack = document.getElementById('btn-project-back') as HTMLButtonElement | null;
+  const btnForward = document.getElementById('btn-project-forward') as HTMLButtonElement | null;
+  const btnRefresh = document.getElementById('btn-project-refresh');
+  const searchInput = document.getElementById('project-search-input') as HTMLInputElement | null;
+  const btnAddFolder = document.getElementById('btn-project-add-folder');
+  const btnSaveCanvas = document.getElementById('btn-project-save-canvas');
+  const btnLoadTimeline = document.getElementById('btn-project-load-timeline');
+  const zoomSlider = document.getElementById('project-zoom-slider') as HTMLInputElement | null;
+
+  // Chuyen doi che do Dock giua Timeline va Project
+  const switchDockMode = (mode: 'timeline' | 'project') => {
+    if (mode === 'project') {
+      bottomDock?.classList.add('dock-project-active');
+      tabProject?.classList.add('active');
+      tabTimeline?.classList.remove('active');
+      if (panelTimeline) panelTimeline.style.display = 'none';
+      if (panelProject) panelProject.style.display = 'flex';
+      if (hintText) hintText.innerText = 'Quản lý thư mục tài nguyên, sprite và animation chuẩn Unity';
+      assetBrowser.fetchTree().then(() => renderProjectView());
+    } else {
+      bottomDock?.classList.remove('dock-project-active');
+      tabTimeline?.classList.add('active');
+      tabProject?.classList.remove('active');
+      if (panelProject) panelProject.style.display = 'none';
+      if (panelTimeline) panelTimeline.style.display = 'flex';
+      if (hintText) hintText.innerText = 'Quản lý các chuyển động và chuỗi khung hình';
+      renderTimeline();
+    }
+  };
+
+  tabTimeline?.addEventListener('click', () => switchDockMode('timeline'));
+  tabProject?.addEventListener('click', () => switchDockMode('project'));
+
+  // Render toan bo giao dien Project (Tree, Breadcrumbs, Grid)
+  const renderProjectView = () => {
+    renderProjectTree();
+    renderProjectBreadcrumbs();
+    renderProjectGrid();
+    updateNavButtons();
+  };
+
+  // Cap nhat trang thai nut Back / Forward
+  const updateNavButtons = () => {
+    if (btnBack) btnBack.disabled = !assetBrowser.canGoBack();
+    if (btnForward) btnForward.disabled = !assetBrowser.canGoForward();
+  };
+
+  // 1. Render Cay thu muc ben trai (Folder Treeview)
+  const renderProjectTree = () => {
+    const treeList = document.getElementById('project-folder-tree-list');
+    if (!treeList) return;
+    treeList.innerHTML = '';
+
+    const hierarchy = assetBrowser.getFolderHierarchy();
+    hierarchy.forEach(node => {
+      const itemEl = document.createElement('div');
+      itemEl.className = `project-tree-item ${node.isSelected ? 'active' : ''}`;
+      itemEl.title = node.path;
+
+      // Khoang thut dong theo level
+      if (node.level > 0) {
+        const indentSpan = document.createElement('span');
+        indentSpan.style.display = 'inline-block';
+        indentSpan.style.width = `${node.level * 14}px`;
+        itemEl.appendChild(indentSpan);
+      }
+
+      // Nut dong/mo thu muc con [+] / [-]
+      const expander = document.createElement('span');
+      expander.className = 'project-tree-expander';
+      if (node.hasChildren) {
+        expander.innerText = node.isExpanded ? '▼' : '►';
+        expander.addEventListener('click', (e) => {
+          e.stopPropagation();
+          assetBrowser.toggleFolderExpand(node.path);
+          renderProjectTree();
+        });
+      } else {
+        expander.innerHTML = '&bull;';
+        expander.style.opacity = '0.3';
+      }
+      itemEl.appendChild(expander);
+
+      // Ten thu muc
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'project-tree-name';
+      nameSpan.innerText = node.name;
+      itemEl.appendChild(nameSpan);
+
+      // Chon thu muc khi click
+      itemEl.addEventListener('click', () => {
+        assetBrowser.navigateTo(node.path);
+        renderProjectView();
+      });
+
+      treeList.appendChild(itemEl);
+    });
+  };
+
+  // 2. Render Breadcrumbs dieu huong ben tren
+  const renderProjectBreadcrumbs = () => {
+    const breadcrumbBar = document.getElementById('project-breadcrumb-bar');
+    if (!breadcrumbBar) return;
+    breadcrumbBar.innerHTML = '';
+
+    const breadcrumbs = assetBrowser.getBreadcrumbs();
+    breadcrumbs.forEach((crumb, idx) => {
+      if (idx > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'breadcrumb-sep';
+        sep.innerText = '>';
+        breadcrumbBar.appendChild(sep);
+      }
+
+      const node = document.createElement('span');
+      const isCurrent = idx === breadcrumbs.length - 1;
+      node.className = `breadcrumb-node ${isCurrent ? 'current' : ''}`;
+      node.innerText = crumb.name;
+      node.addEventListener('click', () => {
+        assetBrowser.navigateTo(crumb.path);
+        renderProjectView();
+      });
+
+      breadcrumbBar.appendChild(node);
+    });
+  };
+
+  // 3. Render Luoi cac Folder va Sprite (Asset Grid)
+  const renderProjectGrid = () => {
+    const grid = document.getElementById('project-asset-grid');
+    const statusText = document.getElementById('project-status-text');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const items = assetBrowser.getItemsInCurrentFolder();
+    if (statusText) {
+      statusText.innerText = `${items.length} mục`;
+    }
+
+    if (items.length === 0) {
+      const emptyBox = document.createElement('div');
+      emptyBox.style.gridColumn = '1 / -1';
+      emptyBox.style.padding = '32px 16px';
+      emptyBox.style.textAlign = 'center';
+      emptyBox.style.color = '#64748b';
+      emptyBox.style.fontSize = '12px';
+      emptyBox.innerText = 'Thư mục hiện tại chưa có tài nguyên. Hãy bấm "+ Thư mục" hoặc "Lưu Canvas vào đây" để bắt đầu.';
+      grid.appendChild(emptyBox);
+      return;
+    }
+
+    items.forEach(item => {
+      const card = document.createElement('div');
+      const isSelected = assetBrowser.getSelectedItemPath() === item.path;
+      card.className = `asset-card ${item.type === 'folder' ? 'is-folder' : 'is-sprite'} ${isSelected ? 'selected' : ''}`;
+      card.title = `${item.name} (${item.path})`;
+
+      // Hop hien thi thumbnail
+      const thumbBox = document.createElement('div');
+      thumbBox.className = 'asset-thumb-box';
+
+      if (item.type === 'folder') {
+        const folderIcon = document.createElement('div');
+        folderIcon.className = 'asset-folder-icon';
+        folderIcon.innerText = 'DIR';
+        thumbBox.appendChild(folderIcon);
+
+        // Badge so luong con
+        if (item.childrenCount !== undefined && item.childrenCount > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'asset-card-badge';
+          badge.innerText = `${item.childrenCount}`;
+          card.appendChild(badge);
+        }
+      } else {
+        // Sprite thumbnail
+        if (item.thumbnailUrl) {
+          const img = document.createElement('img');
+          img.src = item.thumbnailUrl;
+          thumbBox.appendChild(img);
+        } else {
+          // Preview tu pixel data neu chua co file anh
+          const canvasMini = document.createElement('canvas');
+          canvasMini.width = item.data?.width || 24;
+          canvasMini.height = item.data?.height || 24;
+          const ctx = canvasMini.getContext('2d');
+          if (ctx && item.data?.pixels) {
+            ctx.clearRect(0, 0, canvasMini.width, canvasMini.height);
+            for (const [key, color] of Object.entries(item.data.pixels)) {
+              if (color) {
+                const [px, py] = key.split(',').map(Number);
+                ctx.fillStyle = color;
+                ctx.fillRect(px, py, 1, 1);
+              }
+            }
+          }
+          canvasMini.style.width = '100%';
+          canvasMini.style.height = '100%';
+          canvasMini.style.imageRendering = 'pixelated';
+          thumbBox.appendChild(canvasMini);
+        }
+      }
+      card.appendChild(thumbBox);
+
+      // Nhan ten
+      const label = document.createElement('div');
+      label.className = 'asset-card-label';
+      label.innerText = item.name;
+      card.appendChild(label);
+
+      // Su kien chon item
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        assetBrowser.selectItem(item.path);
+        renderProjectGrid();
+      });
+
+      // Su kien nhap dup (Double Click)
+      card.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        if (item.type === 'folder') {
+          assetBrowser.navigateTo(item.path);
+          renderProjectView();
+        } else if (item.type === 'sprite') {
+          // Nap sprite len Canvas de ve tiep
+          loadSpriteToCanvas(item);
+        }
+      });
+
+      // Menu chuot phai cho tung item
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        assetBrowser.selectItem(item.path);
+        renderProjectGrid();
+
+        if (item.type === 'folder') {
+          const action = prompt(`Thao tác cho thư mục "${item.name}":\n1. Mở thư mục\n2. Đổi tên\n3. Xóa thư mục\n(Nhập số 1, 2 hoặc 3):`, '1');
+          if (action === '1') {
+            assetBrowser.navigateTo(item.path);
+            renderProjectView();
+          } else if (action === '2') {
+            const newName = prompt(`Nhập tên mới cho thư mục "${item.name}":`, item.name);
+            if (newName && newName.trim() !== item.name) {
+              assetBrowser.renameItem(item.path, newName.trim()).then(() => renderProjectView());
+            }
+          } else if (action === '3') {
+            if (confirm(`Bạn có chắc muốn xóa thư mục "${item.name}" và toàn bộ nội dung bên trong?`)) {
+              assetBrowser.deleteItem(item.path).then(() => renderProjectView());
+            }
+          }
+        } else {
+          const action = prompt(`Thao tác cho Sprite "${item.name}":\n1. Nạp lên Canvas để vẽ tiếp\n2. Nạp vào Timeline hoạt cảnh\n3. Đổi tên\n4. Xóa sprite\n(Nhập số 1, 2, 3 hoặc 4):`, '1');
+          if (action === '1') {
+            loadSpriteToCanvas(item);
+          } else if (action === '2') {
+            loadSingleSpriteToTimeline(item);
+          } else if (action === '3') {
+            const newName = prompt(`Nhập tên mới cho sprite "${item.name}":`, item.name);
+            if (newName && newName.trim() !== item.name) {
+              assetBrowser.renameItem(item.path, newName.trim()).then(() => renderProjectView());
+            }
+          } else if (action === '4') {
+            if (confirm(`Bạn có chắc muốn xóa sprite "${item.name}"?`)) {
+              assetBrowser.deleteItem(item.path).then(() => renderProjectView());
+            }
+          }
+        }
+      });
+
+      grid.appendChild(card);
+    });
+  };
+
+  // Nap mot sprite len Canvas
+  const loadSpriteToCanvas = (spriteItem: any) => {
+    if (!spriteItem.data) return;
+    if (confirm(`Nạp sprite "${spriteItem.name}" lên Canvas hiện tại?`)) {
+      if (spriteItem.data.width !== project.width || spriteItem.data.height !== project.height) {
+        project.width = spriteItem.data.width;
+        project.height = spriteItem.data.height;
+        project.pivot = { x: Math.floor(project.width / 2), y: project.height - 1 };
+      }
+
+      const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+      if (!currentFrame) return;
+
+      if (spriteItem.data.layers && spriteItem.data.layers.length > 0) {
+        currentFrame.layers = JSON.parse(JSON.stringify(spriteItem.data.layers));
+        project.activeLayerId = currentFrame.layers[0].id;
+      } else if (spriteItem.data.pixels) {
+        const activeLayer = currentFrame.layers.find(l => l.id === project.activeLayerId) || currentFrame.layers[0];
+        if (activeLayer) {
+          activeLayer.pixels = { ...spriteItem.data.pixels };
+        }
+      }
+
+      canvasEngine.rebuildBuffers();
+      renderAll();
+      syncProjectToServer();
+      switchDockMode('timeline');
+    }
+  };
+
+  // Nap mot sprite vao frame tiep theo cua Timeline
+  const loadSingleSpriteToTimeline = (spriteItem: any) => {
+    if (!spriteItem.data) return;
+    const layerId = `layer_${Date.now()}`;
+    const newLayers: LayerData[] = spriteItem.data.layers && spriteItem.data.layers.length > 0
+      ? JSON.parse(JSON.stringify(spriteItem.data.layers))
+      : [{
+          id: layerId,
+          name: 'Layer 1',
+          visible: true,
+          locked: false,
+          opacity: 1.0,
+          pixels: spriteItem.data.pixels ? { ...spriteItem.data.pixels } : {}
+        }];
+
+    const newFrame: FrameData = {
+      id: `frame_${Date.now()}`,
+      durationMs: 100,
+      layers: newLayers
+    };
+
+    project.frames.push(newFrame);
+    project.activeFrameIndex = project.frames.length - 1;
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+    switchDockMode('timeline');
+  };
+
+  // Nap toan bo sprite trong thu muc hien tai vao Timeline
+  const loadFolderSpritesToTimeline = () => {
+    const items = assetBrowser.getItemsInCurrentFolder().filter(i => i.type === 'sprite');
+    if (items.length === 0) {
+      alert('Thư mục hiện tại không có sprite nào để nạp vào Timeline!');
+      return;
+    }
+
+    // Sap xep ten theo thu tu tu nhien
+    items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+    const currentPath = assetBrowser.getCurrentPath();
+    const folderName = currentPath.split('/').pop() || 'Action';
+    const clipId = `clip_${folderName.toLowerCase()}_${Date.now()}`;
+
+    const frames: FrameData[] = items.map((sprite, idx) => {
+      const layerId = `layer_sprite_${idx + 1}`;
+      const layers: LayerData[] = sprite.data?.layers && sprite.data.layers.length > 0
+        ? JSON.parse(JSON.stringify(sprite.data.layers))
+        : [{
+            id: layerId,
+            name: 'Layer 1',
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            pixels: sprite.data?.pixels ? { ...sprite.data.pixels } : {}
+          }];
+
+      return {
+        id: `frame_${idx + 1}_${Date.now()}`,
+        durationMs: 100,
+        layers
+      };
+    });
+
+    let targetClip = project.clips.find(c => c.name.toLowerCase() === folderName.toLowerCase());
+    if (targetClip && !targetClip.isBase) {
+      targetClip.frames = frames;
+      animController.setActiveClipById(targetClip.id);
+    } else {
+      const newClip: AnimationClip = {
+        id: clipId,
+        name: folderName.toLowerCase(),
+        label: folderName,
+        startFrame: 0,
+        endFrame: frames.length - 1,
+        fps: 10,
+        loop: true,
+        frames
+      };
+      project.clips.push(newClip);
+      animController.setActiveClipById(newClip.id);
+    }
+
+    switchDockMode('timeline');
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+
+    alert(`Đã nạp thành công ${frames.length} frame từ thư mục "${folderName}" vào Timeline!`);
+  };
+
+  // Lay pixels hop nhat cua frame hien tai tren Canvas
+  const getCurrentFrameCompositePixels = (): Record<string, PixelColor> => {
+    const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+    const pixels: Record<string, PixelColor> = {};
+    if (!currentFrame) return pixels;
+
+    for (const layer of currentFrame.layers) {
+      if (!layer.visible) continue;
+      for (const [key, color] of Object.entries(layer.pixels)) {
+        if (color) {
+          pixels[key] = color;
+        }
+      }
+    }
+    return pixels;
+  };
+
+  // Gan su kien cho cac nut dieu huong va thao tac
+  btnBack?.addEventListener('click', () => {
+    if (assetBrowser.goBack()) {
+      renderProjectView();
+    }
+  });
+
+  btnForward?.addEventListener('click', () => {
+    if (assetBrowser.goForward()) {
+      renderProjectView();
+    }
+  });
+
+  btnRefresh?.addEventListener('click', () => {
+    assetBrowser.fetchTree().then(() => renderProjectView());
+  });
+
+  searchInput?.addEventListener('input', (e) => {
+    const val = (e.target as HTMLInputElement).value;
+    assetBrowser.setSearchQuery(val);
+    renderProjectGrid();
+    renderProjectBreadcrumbs();
+  });
+
+  btnAddFolder?.addEventListener('click', async () => {
+    const name = prompt('Nhập tên thư mục mới cần tạo:');
+    if (name && name.trim()) {
+      await assetBrowser.createFolder(name.trim());
+      renderProjectView();
+    }
+  });
+
+  btnSaveCanvas?.addEventListener('click', async () => {
+    const defaultName = `Sprite_${Date.now().toString().slice(-4)}`;
+    const name = prompt('Nhập tên sprite cần lưu vào thư mục hiện tại:', defaultName);
+    if (!name || !name.trim()) return;
+
+    const pixels = getCurrentFrameCompositePixels();
+    const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+
+    const saved = await assetBrowser.saveCurrentSprite(name.trim(), {
+      width: project.width,
+      height: project.height,
+      pixels,
+      layers: currentFrame?.layers
+    });
+
+    if (saved) {
+      renderProjectView();
+      alert(`Đã lưu thành công "${name.trim()}" vào ${assetBrowser.getCurrentPath()}!`);
+    }
+  });
+
+  btnLoadTimeline?.addEventListener('click', () => {
+    loadFolderSpritesToTimeline();
+  });
+
+  zoomSlider?.addEventListener('input', (e) => {
+    const val = parseInt((e.target as HTMLInputElement).value, 10) || 72;
+    document.documentElement.style.setProperty('--asset-thumb-size', `${val}px`);
+    assetBrowser.setZoomSize(val);
+  });
+}
+
+// 18. Khoi dong ung dung
 loadPalette('endesga-32');
 renderAll();
 initAppMenuBar();
@@ -7188,3 +7980,4 @@ initResizeModal();
 initImageImport();
 initExportModal();
 initTimelineContextMenu();
+initProjectDock();

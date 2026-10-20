@@ -1,5 +1,18 @@
 [
   {
+    "id": "item_1792469129124",
+    "filename": "artwork_1792469129124.png",
+    "projectFile": "project_1792469129124.json",
+    "name": "HeroSprite",
+    "createdAt": "2026-10-20T04:05:29.134Z",
+    "width": 64,
+    "height": 64,
+    "sourceType": "custom",
+    "frameCount": 4,
+    "layerCount": 1,
+    "hasProjectData": true
+  },
+  {
     "id": "item_1792459118988",
     "filename": "artwork_1792459118988.png",
     "projectFile": "project_1792459118988.json",

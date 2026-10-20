@@ -1,7 +1,7 @@
 // apps/studio/src/core/project-file.ts
 // Module dong goi va trich xuat file du an Pixel Draw (.pxdraw)
 
-import { CanvasProject } from '@pixel-draw/shared-types';
+import { CanvasProject, AnimationClip } from '@pixel-draw/shared-types';
 
 export interface PxDrawProjectContainer {
   format: 'pxdraw';
@@ -34,17 +34,90 @@ export function validatePxDraw(data: any): boolean {
   return true;
 }
 
-// Doc va giai ma chuoi JSON thanh CanvasProject
+// Doc va giai ma chuoi JSON thanh CanvasProject, tu dong migrate sang he thong thu muc Action Folders
 export function importFromPxDraw(jsonStr: string): CanvasProject {
   const data = JSON.parse(jsonStr);
+  let project: CanvasProject;
   if (!validatePxDraw(data)) {
     // Ho tro fallback tuong thich nguoc neu file la JSON CanvasProject nguyen ban
     if (data && typeof data === 'object' && Array.isArray(data.frames)) {
-      return data as CanvasProject;
+      project = data as CanvasProject;
+    } else {
+      throw new Error('Định dạng file .pxdraw không hợp lệ hoặc bị lỗi cấu trúc');
     }
-    throw new Error('Định dạng file .pxdraw không hợp lệ hoặc bị lỗi cấu trúc');
+  } else {
+    project = data.project as CanvasProject;
   }
-  return data.project as CanvasProject;
+
+  // Tu dong chuyen doi ho tro he thong thu muc Action Folders
+  if (!project.clips || project.clips.length === 0) {
+    const baseFrame = project.frames[0];
+    const idleFrames = project.frames.length > 1 ? project.frames.slice(1) : [];
+    project.clips = [
+      {
+        id: 'clip_base',
+        name: 'base',
+        label: 'Tư thế gốc',
+        startFrame: 0,
+        endFrame: 0,
+        fps: 10,
+        loop: false,
+        frames: [baseFrame],
+        isBase: true
+      },
+      {
+        id: 'clip_idle',
+        name: 'idle',
+        label: 'Đứng im',
+        startFrame: 0,
+        endFrame: Math.max(0, idleFrames.length - 1),
+        fps: 10,
+        loop: true,
+        frames: idleFrames
+      },
+      {
+        id: 'clip_run',
+        name: 'run',
+        label: 'Chạy bộ',
+        startFrame: 0,
+        endFrame: 0,
+        fps: 12,
+        loop: true,
+        frames: []
+      }
+    ];
+    project.activeClipId = 'clip_base';
+    project.frames = project.clips[0].frames;
+  } else {
+    // Dam bao moi clip deu co mang frames
+    for (const clip of project.clips) {
+      if (!clip.frames) {
+        clip.frames = [];
+      }
+    }
+    // Dam bao co base clip hop le
+    let baseClip: AnimationClip | undefined = project.clips.find(c => c.isBase || c.name === 'base');
+    if (!baseClip) {
+      baseClip = project.clips[0];
+      baseClip.isBase = true;
+      if (!baseClip.label) baseClip.label = 'Tư thế gốc';
+      if (!baseClip.frames) baseClip.frames = [];
+      if (baseClip.frames.length === 0 && project.frames?.length > 0) {
+        baseClip.frames = [project.frames[0]];
+      }
+    } else {
+      if (!baseClip.frames) baseClip.frames = [];
+    }
+
+    if (!project.activeClipId) {
+      project.activeClipId = baseClip.id;
+    }
+    const currentActive: AnimationClip = project.clips.find(c => c.id === project.activeClipId) || baseClip;
+    if (!currentActive.frames) currentActive.frames = [];
+    project.frames = currentActive.frames;
+  }
+
+  return project;
 }
 
 // Tai file du an .pxdraw truc tiep ve may tinh qua trinh duyet

@@ -36,11 +36,14 @@ export interface FrameData {
 
 export interface AnimationClip {
   id: string;
-  name: string; // Vi du: 'idle', 'walk', 'attack', 'jump'
+  name: string; // Vi du: 'base', 'idle', 'walk', 'attack', 'jump'
+  label?: string; // Nhan tieng Viet: 'Tu the goc', 'Dung im', 'Chay bo'
   startFrame: number; // Chi so frame bat dau (0-indexed)
   endFrame: number; // Chi so frame ket thuc
   fps: number; // Toc do khung hinh (1-60)
   loop: boolean;
+  frames: FrameData[]; // Mang FrameData luu tru doc lap cho thu muc dong tac nay
+  isBase?: boolean; // Danh dau day la thu muc nhan vat goc bat bien
 }
 
 export interface Point2D {
@@ -55,6 +58,7 @@ export interface CanvasProject {
   height: number;
   pivot: Point2D; // Diem neo toa do (thuong la giua chan nhan vat)
   clips: AnimationClip[];
+  activeClipId?: string; // Id cua thu muc dong tac dang kich hoat
   frames: FrameData[];
   activeFrameIndex: number;
   activeLayerId: string;
@@ -75,7 +79,7 @@ export function keyToCoord(key: string): Point2D {
   };
 }
 
-// Ham tao du an mac dinh voi 1 frame, 1 layer va 1 clip idle
+// Ham tao du an mac dinh voi he thong thu muc: Base Pose, Idle, Run
 export function createDefaultProject(
   width = 24,
   height = 24,
@@ -99,13 +103,41 @@ export function createDefaultProject(
     layers: [initialLayer]
   };
 
-  const defaultClip: AnimationClip = {
-    id: 'clip_idle',
-    name: 'idle',
+  // 1. Thu muc Nhan vat goc (Base Pose) - Bat bien, khong bao gio bi ghi de
+  const baseClip: AnimationClip = {
+    id: 'clip_base',
+    name: 'base',
+    label: 'Tư thế gốc',
     startFrame: 0,
     endFrame: 0,
     fps: 10,
-    loop: true
+    loop: false,
+    frames: [initialFrame],
+    isBase: true
+  };
+
+  // 2. Thu muc Dong tac Dung im (Idle)
+  const idleClip: AnimationClip = {
+    id: 'clip_idle',
+    name: 'idle',
+    label: 'Đứng im',
+    startFrame: 0,
+    endFrame: 0,
+    fps: 10,
+    loop: true,
+    frames: []
+  };
+
+  // 3. Thu muc Dong tac Chay bo (Run)
+  const runClip: AnimationClip = {
+    id: 'clip_run',
+    name: 'run',
+    label: 'Chạy bộ',
+    startFrame: 0,
+    endFrame: 0,
+    fps: 12,
+    loop: true,
+    frames: []
   };
 
   return {
@@ -117,8 +149,9 @@ export function createDefaultProject(
       x: Math.floor(width / 2),
       y: height - 1
     },
-    clips: [defaultClip],
-    frames: [initialFrame],
+    clips: [baseClip, idleClip, runClip],
+    activeClipId: 'clip_base',
+    frames: baseClip.frames,
     activeFrameIndex: 0,
     activeLayerId: defaultLayerId,
     groups: []
@@ -189,6 +222,56 @@ export interface SkeletonRig {
   rootJoint: string;
   joints: Record<string, JointPin>;
   bones: [string, string][];
+}
+
+// Mo hinh tai nguyen du an phong cach Unity (Project Asset Tree)
+export type ProjectAssetType = 'folder' | 'sprite';
+
+export interface ProjectAssetItem {
+  id: string;
+  name: string; // Ten file hoac ten thu muc (vi du: 'Idle_01', 'Run')
+  type: ProjectAssetType;
+  path: string; // Duong dan day du tu Assets (vi du: 'Assets/Characters/Hero/Idle')
+  parentPath: string; // Duong dan thu muc cha (vi du: 'Assets/Characters/Hero')
+  thumbnailUrl?: string; // Duong dan URL anh thumbnail hoac Data URL
+  data?: {
+    width: number;
+    height: number;
+    pixels: Record<string, PixelColor>;
+    layers?: LayerData[];
+  };
+  childrenCount?: number; // So luong item con doi voi thu muc
+  createdAt?: number;
+}
+
+export interface ProjectAssetTree {
+  items: ProjectAssetItem[];
+}
+
+// Ham khoi tao cay thu muc tai nguyen mac dinh chuan Unity
+export function createDefaultAssetTree(): ProjectAssetTree {
+  const now = Date.now();
+  const defaultFolders: Array<{ name: string; path: string; parentPath: string }> = [
+    { name: 'Assets', path: 'Assets', parentPath: '' },
+    { name: 'Characters', path: 'Assets/Characters', parentPath: 'Assets' },
+    { name: 'Hero', path: 'Assets/Characters/Hero', parentPath: 'Assets/Characters' },
+    { name: 'Base', path: 'Assets/Characters/Hero/Base', parentPath: 'Assets/Characters/Hero' },
+    { name: 'Idle', path: 'Assets/Characters/Hero/Idle', parentPath: 'Assets/Characters/Hero' },
+    { name: 'Run', path: 'Assets/Characters/Hero/Run', parentPath: 'Assets/Characters/Hero' },
+    { name: 'Enemies', path: 'Assets/Enemies', parentPath: 'Assets' },
+    { name: 'Items', path: 'Assets/Items', parentPath: 'Assets' }
+  ];
+
+  const items: ProjectAssetItem[] = defaultFolders.map((f, idx) => ({
+    id: `folder_${idx + 1}_${now}`,
+    name: f.name,
+    type: 'folder',
+    path: f.path,
+    parentPath: f.parentPath,
+    createdAt: now
+  }));
+
+  return { items };
 }
 
 

@@ -225,17 +225,22 @@ export class StateStore {
       layers: newLayers
     });
 
+    const newFrameObj = this.project.frames[this.project.frames.length - 1];
     const clip = this.project.clips.find(c => c.name === clipName);
     if (clip) {
       clip.endFrame = this.project.frames.length - 1;
+      if (!clip.frames) clip.frames = [];
+      clip.frames.push(newFrameObj);
     } else {
       this.project.clips.push({
         id: `clip_${Date.now()}`,
         name: clipName,
+        label: clipName,
         startFrame: this.project.frames.length - 1,
         endFrame: this.project.frames.length - 1,
         fps: 10,
-        loop: true
+        loop: true,
+        frames: [newFrameObj]
       });
     }
 

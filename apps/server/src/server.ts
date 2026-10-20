@@ -10,10 +10,12 @@ import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, refineAnima
 import { generateTemplateAnimation } from './template-animator';
 import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
+import { ProjectAssetManager } from './asset-manager';
 
 const PORT = 3055;
 const stateStore = new StateStore();
 const galleryManager = new GalleryManager();
+const projectAssetManager = new ProjectAssetManager();
 const connectedClients = new Set<WebSocket>();
 
 // Giao dien va bo nho dem luu ket qua sinh anh AI gan nhat
@@ -682,6 +684,103 @@ const server = http.createServer(async (req, res) => {
         const success = galleryManager.deleteItem(id);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Lay toan bo cay thu muc va tai nguyen du an (Project Asset Tree)
+  if (url.pathname === '/api/project-assets/tree' && req.method === 'GET') {
+    try {
+      const tree = projectAssetManager.getAssetTree();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, tree }));
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    }
+    return;
+  }
+
+  // API Tao thu muc moi trong cay tai nguyen
+  if (url.pathname === '/api/project-assets/folder' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { name, parentPath } = JSON.parse(body || '{}');
+        if (!name) throw new Error('Vui lòng nhập tên thư mục');
+        const item = projectAssetManager.createFolder(name, parentPath || 'Assets');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, item, tree: projectAssetManager.getAssetTree() }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Luu sprite hien tai vao thu muc chi dinh
+  if (url.pathname === '/api/project-assets/save-sprite' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { name, folderPath, data } = JSON.parse(body || '{}');
+        if (!folderPath || !data) throw new Error('Dữ liệu lưu sprite không hợp lệ');
+        const item = await projectAssetManager.saveSprite({
+          name: name || `Sprite_${Date.now()}`,
+          folderPath,
+          data
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, item, tree: projectAssetManager.getAssetTree() }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Xoa mot thu muc hoac sprite
+  if ((url.pathname === '/api/project-assets/delete' && req.method === 'POST') ||
+      (url.pathname === '/api/project-assets/item' && req.method === 'DELETE')) {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        const targetPath = parsed.path || url.searchParams.get('path');
+        if (!targetPath) throw new Error('Vui lòng chỉ định đường dẫn cần xóa');
+        if (targetPath === 'Assets') throw new Error('Không thể xóa thư mục gốc Assets');
+        const success = projectAssetManager.deleteItem(targetPath);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success, tree: projectAssetManager.getAssetTree() }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Doi ten mot thu muc hoac sprite
+  if (url.pathname === '/api/project-assets/rename' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { path: targetPath, newName } = JSON.parse(body || '{}');
+        if (!targetPath || !newName) throw new Error('Thông tin đổi tên không đầy đủ');
+        if (targetPath === 'Assets') throw new Error('Không thể đổi tên thư mục gốc Assets');
+        const success = projectAssetManager.renameItem(targetPath, newName);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success, tree: projectAssetManager.getAssetTree() }));
       } catch (err: any) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));

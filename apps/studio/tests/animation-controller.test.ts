@@ -96,4 +96,66 @@ describe('AnimationController Core', () => {
     expect(project.frames[1].hidden).toBe(false);
     expect(controller.getNextFrameIndex(0)).toBe(1);
   });
+
+  it('khoi tao day du 3 thu muc base, idle, run va bao toan thu muc goc', () => {
+    const project = createDefaultProject(24, 24, 'HeroPose');
+    const controller = new AnimationController(project);
+
+    expect(project.clips.length).toBe(3);
+    const baseClip = controller.getBaseClip();
+    expect(baseClip).toBeDefined();
+    expect(baseClip.name).toBe('base');
+    expect(baseClip.isBase).toBe(true);
+
+    const activeClip = controller.getActiveClip();
+    expect(activeClip.id).toBe('clip_base');
+
+    // Ngan chan xoa thu muc base
+    const deleteBaseResult = controller.removeFolderClip(baseClip.id);
+    expect(deleteBaseResult).toBe(false);
+    expect(project.clips.length).toBe(3);
+  });
+
+  it('chuyen doi thu muc dong tac va cach ly danh sach frame', () => {
+    const project = createDefaultProject(24, 24, 'HeroPose');
+    const controller = new AnimationController(project);
+
+    // Thu muc base co 1 frame
+    expect(project.frames.length).toBe(1);
+    project.frames[0].layers[0].pixels['10,10'] = '#ff0000';
+
+    // Chuyen sang thu muc run
+    controller.setActiveClipById('clip_run');
+    expect(controller.getActiveClip().id).toBe('clip_run');
+    expect(project.activeClipId).toBe('clip_run');
+
+    // Them 2 frame vao thu muc run
+    controller.addFrameToActiveClip(false);
+    controller.addFrameToActiveClip(false);
+    expect(project.frames.length).toBe(2);
+
+    // Chuyen ve thu muc base: phai con nguyen 1 frame ban dau va dung diem anh
+    controller.setActiveClipById('clip_base');
+    expect(project.frames.length).toBe(1);
+    expect(project.frames[0].layers[0].pixels['10,10']).toBe('#ff0000');
+
+    // Quay lai thu muc run: van du 2 frame
+    controller.setActiveClipById('clip_run');
+    expect(project.frames.length).toBe(2);
+  });
+
+  it('them va xoa thu muc tuy chinh', () => {
+    const project = createDefaultProject(24, 24, 'HeroPose');
+    const controller = new AnimationController(project);
+
+    const customClip = controller.addFolderClip('jump', 'Nhảy lên');
+    expect(customClip.name).toBe('jump');
+    expect(customClip.label).toBe('Nhảy lên');
+    expect(project.clips.some(c => c.name === 'jump')).toBe(true);
+
+    // Xoa thu muc tuy chinh
+    const deleteSuccess = controller.removeFolderClip(customClip.id);
+    expect(deleteSuccess).toBe(true);
+    expect(project.clips.some(c => c.name === 'jump')).toBe(false);
+  });
 });
