@@ -789,6 +789,25 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // API Di chuyen item giua cac thu muc (ho tro Drag & Drop)
+  if (url.pathname === '/api/project-assets/move' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { sourcePath, targetFolderPath } = JSON.parse(body || '{}');
+        if (!sourcePath || !targetFolderPath) throw new Error('Thông tin di chuyển không đầy đủ');
+        const success = projectAssetManager.moveItem(sourcePath, targetFolderPath);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success, tree: projectAssetManager.getAssetTree() }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404);
   res.end('Not Found');
 });

@@ -7491,7 +7491,18 @@ function initProjectDock(): void {
   const tabProject = document.getElementById('tab-mode-project');
   const panelTimeline = document.getElementById('dock-panel-timeline');
   const panelProject = document.getElementById('dock-panel-project');
+  const dockSplitterResizer = document.getElementById('dock-splitter-resizer');
+  const projectTreeResizer = document.getElementById('project-tree-resizer');
+  const sidebarTree = document.getElementById('project-sidebar-tree');
   const hintText = document.getElementById('dock-mode-hint');
+
+  const dropOverlay = document.getElementById('dock-drop-overlay');
+  const dropZoneLeft = document.getElementById('dock-drop-left');
+  const dropZoneRight = document.getElementById('dock-drop-right');
+  const dropZoneTabs = document.getElementById('dock-drop-tabs');
+  const dragProxy = document.getElementById('dock-tab-drag-proxy');
+  const splitActions = document.getElementById('dock-split-actions');
+  const btnDockMerge = document.getElementById('btn-dock-merge');
 
   const btnBack = document.getElementById('btn-project-back') as HTMLButtonElement | null;
   const btnForward = document.getElementById('btn-project-forward') as HTMLButtonElement | null;
@@ -7502,14 +7513,40 @@ function initProjectDock(): void {
   const btnLoadTimeline = document.getElementById('btn-project-load-timeline');
   const zoomSlider = document.getElementById('project-zoom-slider') as HTMLInputElement | null;
 
-  // Quan ly chieu cao doc lap va luu tru trong LocalStorage
-  let currentDockMode: 'timeline' | 'project' = 'timeline';
+  type DockLayoutMode = 'timeline' | 'project' | 'split';
+  type DockTabId = 'timeline' | 'project';
+  type DockLayout = 'tabbed' | 'split';
+  type SplitSide = 'left' | 'right';
+
+  let currentLayout: DockLayout = (localStorage.getItem('pixel_draw_dock_layout') as DockLayout) || 'tabbed';
+  let activeTab: DockTabId = (localStorage.getItem('pixel_draw_dock_active_tab') as DockTabId) || 'timeline';
+  let projectSplitSide: SplitSide = (localStorage.getItem('pixel_draw_dock_split_side') as SplitSide) || 'left';
+
+  // Ho tro nguoi dung da luu trang thai cu
+  const savedMode = localStorage.getItem('pixel_draw_dock_mode');
+  if (savedMode === 'split') {
+    currentLayout = 'split';
+  } else if (savedMode === 'project') {
+    currentLayout = 'tabbed';
+    activeTab = 'project';
+  } else if (savedMode === 'timeline') {
+    currentLayout = 'tabbed';
+    activeTab = 'timeline';
+  }
+
+  let currentDockMode: DockLayoutMode = currentLayout === 'split' ? 'split' : activeTab;
   let savedTimelineHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_timeline') || '140', 10);
   let savedProjectHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_project') || '320', 10);
+  let savedSplitHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_split') || '340', 10);
+  let savedSplitWidth = parseInt(localStorage.getItem('pixel_draw_dock_split_width') || '480', 10);
+  let savedTreeWidth = parseInt(localStorage.getItem('pixel_draw_project_tree_width') || '220', 10);
 
-  // Dam bao gia tri chieu cao hop le
+  // Dam bao cac gia tri kich thuoc hop le
   savedTimelineHeight = Math.max(110, Math.min(650, isNaN(savedTimelineHeight) ? 140 : savedTimelineHeight));
   savedProjectHeight = Math.max(180, Math.min(650, isNaN(savedProjectHeight) ? 320 : savedProjectHeight));
+  savedSplitHeight = Math.max(180, Math.min(650, isNaN(savedSplitHeight) ? 340 : savedSplitHeight));
+  savedSplitWidth = Math.max(280, Math.min(1000, isNaN(savedSplitWidth) ? 480 : savedSplitWidth));
+  savedTreeWidth = Math.max(150, Math.min(450, isNaN(savedTreeWidth) ? 220 : savedTreeWidth));
 
   const applyDockHeight = (animate = false) => {
     if (!bottomDock) return;
@@ -7518,41 +7555,224 @@ function initProjectDock(): void {
     } else {
       bottomDock.classList.remove('no-transition');
     }
-    const h = currentDockMode === 'project' ? savedProjectHeight : savedTimelineHeight;
+    let h = savedTimelineHeight;
+    if (currentLayout === 'split') h = savedSplitHeight;
+    else if (activeTab === 'project') h = savedProjectHeight;
     bottomDock.style.height = `${h}px`;
   };
 
-  // Khoi tao chieu cao ban dau cho Dock
-  applyDockHeight(false);
+  // Khoi tao do rong cay thu muc
+  if (sidebarTree) {
+    sidebarTree.style.width = `${savedTreeWidth}px`;
+  }
 
-  // Chuyen doi che do Dock giua Timeline va Project
-  const switchDockMode = (mode: 'timeline' | 'project') => {
-    currentDockMode = mode;
-    applyDockHeight(true);
+  // Cap nhat bo cuc Dock dua tren currentLayout va activeTab
+  const updateDockLayout = (animateHeight = true) => {
+    currentDockMode = currentLayout === 'split' ? 'split' : activeTab;
+    try {
+      localStorage.setItem('pixel_draw_dock_layout', currentLayout);
+      localStorage.setItem('pixel_draw_dock_active_tab', activeTab);
+      localStorage.setItem('pixel_draw_dock_split_side', projectSplitSide);
+      localStorage.setItem('pixel_draw_dock_mode', currentDockMode);
+    } catch (e) {}
 
-    if (mode === 'project') {
+    applyDockHeight(animateHeight);
+
+    if (currentLayout === 'split') {
+      // Che do chia doi song song
+      bottomDock?.classList.add('dock-split-active');
       bottomDock?.classList.add('dock-project-active');
+
+      if (projectSplitSide === 'right') {
+        bottomDock?.classList.add('dock-order-reversed');
+      } else {
+        bottomDock?.classList.remove('dock-order-reversed');
+      }
+
+      tabTimeline?.classList.add('active');
       tabProject?.classList.add('active');
-      tabTimeline?.classList.remove('active');
-      if (panelTimeline) panelTimeline.style.display = 'none';
-      if (panelProject) panelProject.style.display = 'flex';
-      if (hintText) hintText.innerText = 'Quản lý thư mục tài nguyên, sprite và animation chuẩn Unity';
+
+      if (splitActions) splitActions.style.display = 'flex';
+      if (dockSplitterResizer) dockSplitterResizer.style.display = 'flex';
+
+      if (panelProject) {
+        panelProject.style.display = 'flex';
+        panelProject.style.width = `${savedSplitWidth}px`;
+      }
+      if (panelTimeline) {
+        panelTimeline.style.display = 'flex';
+        panelTimeline.style.width = '';
+      }
+      if (sidebarTree) sidebarTree.style.width = `${savedTreeWidth}px`;
+      if (hintText) {
+        hintText.innerText = 'Kéo thanh phân cách để chỉnh độ rộng. Kéo tab vào giữa để gộp lại hoặc bấm Gộp lại thành Tab.';
+      }
+
+      renderTimeline();
       assetBrowser.fetchTree().then(() => renderProjectView());
     } else {
-      bottomDock?.classList.remove('dock-project-active');
-      tabTimeline?.classList.add('active');
-      tabProject?.classList.remove('active');
-      if (panelProject) panelProject.style.display = 'none';
-      if (panelTimeline) panelTimeline.style.display = 'flex';
-      if (hintText) hintText.innerText = 'Quản lý các chuyển động và chuỗi khung hình';
-      renderTimeline();
+      // Che do tab don toan man hinh
+      bottomDock?.classList.remove('dock-split-active');
+      bottomDock?.classList.remove('dock-order-reversed');
+      if (splitActions) splitActions.style.display = 'none';
+      if (dockSplitterResizer) dockSplitterResizer.style.display = 'none';
+
+      if (activeTab === 'project') {
+        bottomDock?.classList.add('dock-project-active');
+        tabProject?.classList.add('active');
+        tabTimeline?.classList.remove('active');
+
+        if (panelProject) {
+          panelProject.style.display = 'flex';
+          panelProject.style.width = '100%';
+        }
+        if (panelTimeline) panelTimeline.style.display = 'none';
+        if (sidebarTree) sidebarTree.style.width = `${savedTreeWidth}px`;
+        if (hintText) {
+          hintText.innerText = 'Kéo tab sang nửa bên trái hoặc bên phải để chia đôi giao diện tự do';
+        }
+
+        assetBrowser.fetchTree().then(() => renderProjectView());
+      } else {
+        bottomDock?.classList.remove('dock-project-active');
+        tabTimeline?.classList.add('active');
+        tabProject?.classList.remove('active');
+
+        if (panelProject) panelProject.style.display = 'none';
+        if (panelTimeline) {
+          panelTimeline.style.display = 'flex';
+          panelTimeline.style.width = '100%';
+        }
+        if (hintText) {
+          hintText.innerText = 'Kéo tab sang nửa bên trái hoặc bên phải để chia đôi giao diện tự do';
+        }
+
+        renderTimeline();
+      }
     }
   };
 
-  tabTimeline?.addEventListener('click', () => switchDockMode('timeline'));
-  tabProject?.addEventListener('click', () => switchDockMode('project'));
+  // Ham chuyen doi de duy tri tinh tuong thich
+  const switchDockMode = (mode: DockLayoutMode) => {
+    if (mode === 'split') {
+      currentLayout = 'split';
+    } else {
+      currentLayout = 'tabbed';
+      activeTab = mode;
+    }
+    updateDockLayout();
+  };
 
-  // Co che keo chuot de tuy chinh chieu cao (Mouse Drag Resizer)
+  // Khoi tao che do ban dau
+  updateDockLayout(false);
+
+  // Thiet lap keo tha tab de chia bo cuc tu do
+  const setupTabDragAndDrop = (tabEl: HTMLElement | null, tabId: DockTabId, label: string) => {
+    if (!tabEl) return;
+
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
+    let activeDropTarget: 'left' | 'right' | 'tabs' | null = null;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      if (!isDragging && dist > 5) {
+        isDragging = true;
+        tabEl.classList.add('is-tab-dragging');
+        if (dragProxy) {
+          dragProxy.innerText = label;
+          dragProxy.style.display = 'block';
+          dragProxy.style.left = `${e.clientX}px`;
+          dragProxy.style.top = `${e.clientY}px`;
+        }
+        if (dropOverlay) {
+          dropOverlay.style.display = 'flex';
+        }
+      }
+
+      if (isDragging) {
+        if (dragProxy) {
+          dragProxy.style.left = `${e.clientX}px`;
+          dragProxy.style.top = `${e.clientY}px`;
+        }
+
+        if (bottomDock) {
+          const dockRect = bottomDock.getBoundingClientRect();
+          if (e.clientY < dockRect.top + 45) {
+            activeDropTarget = 'tabs';
+          } else if (e.clientX < dockRect.left + dockRect.width * 0.5) {
+            activeDropTarget = 'left';
+          } else {
+            activeDropTarget = 'right';
+          }
+
+          dropZoneTabs?.classList.toggle('active-target', activeDropTarget === 'tabs');
+          dropZoneLeft?.classList.toggle('active-target', activeDropTarget === 'left');
+          dropZoneRight?.classList.toggle('active-target', activeDropTarget === 'right');
+        }
+      }
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      if (isDragging) {
+        tabEl.classList.remove('is-tab-dragging');
+        if (dragProxy) dragProxy.style.display = 'none';
+        if (dropOverlay) dropOverlay.style.display = 'none';
+        dropZoneTabs?.classList.remove('active-target');
+        dropZoneLeft?.classList.remove('active-target');
+        dropZoneRight?.classList.remove('active-target');
+
+        if (activeDropTarget === 'left') {
+          currentLayout = 'split';
+          projectSplitSide = tabId === 'project' ? 'left' : 'right';
+          updateDockLayout();
+        } else if (activeDropTarget === 'right') {
+          currentLayout = 'split';
+          projectSplitSide = tabId === 'project' ? 'right' : 'left';
+          updateDockLayout();
+        } else if (activeDropTarget === 'tabs') {
+          currentLayout = 'tabbed';
+          activeTab = tabId;
+          updateDockLayout();
+        }
+      } else {
+        // Nhap chuot binh thuong khong keo
+        if (currentLayout === 'split') {
+          currentLayout = 'tabbed';
+          activeTab = tabId;
+          updateDockLayout();
+        } else {
+          activeTab = tabId;
+          updateDockLayout();
+        }
+      }
+    };
+
+    tabEl.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      isDragging = false;
+      activeDropTarget = null;
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  };
+
+  setupTabDragAndDrop(tabTimeline, 'timeline', 'Dòng thời gian (Timeline)');
+  setupTabDragAndDrop(tabProject, 'project', 'Dự án & Thư mục (Project)');
+
+  btnDockMerge?.addEventListener('click', () => {
+    currentLayout = 'tabbed';
+    updateDockLayout();
+  });
+
+  // 1. Co che keo chuot de tuy chinh chieu cao doc (Vertical Height Resizer)
   let isDraggingResize = false;
   let startY = 0;
   let startHeight = 0;
@@ -7561,7 +7781,10 @@ function initProjectDock(): void {
     e.preventDefault();
     isDraggingResize = true;
     startY = e.clientY;
-    startHeight = bottomDock?.getBoundingClientRect().height || (currentDockMode === 'project' ? savedProjectHeight : savedTimelineHeight);
+    const currentH = currentDockMode === 'split'
+      ? savedSplitHeight
+      : (currentDockMode === 'project' ? savedProjectHeight : savedTimelineHeight);
+    startHeight = bottomDock?.getBoundingClientRect().height || currentH;
 
     document.body.classList.add('dock-resizing');
     bottomDock?.classList.add('no-transition');
@@ -7575,13 +7798,15 @@ function initProjectDock(): void {
     const deltaY = startY - e.clientY;
     const newHeight = startHeight + deltaY;
 
-    const minH = currentDockMode === 'project' ? 180 : 110;
+    const minH = currentDockMode === 'timeline' ? 110 : 180;
     const maxH = Math.min(window.innerHeight - 100, 700);
     const clampedHeight = Math.max(minH, Math.min(maxH, newHeight));
 
     bottomDock.style.height = `${clampedHeight}px`;
 
-    if (currentDockMode === 'project') {
+    if (currentDockMode === 'split') {
+      savedSplitHeight = clampedHeight;
+    } else if (currentDockMode === 'project') {
       savedProjectHeight = clampedHeight;
     } else {
       savedTimelineHeight = clampedHeight;
@@ -7600,22 +7825,118 @@ function initProjectDock(): void {
     try {
       localStorage.setItem('pixel_draw_dock_height_timeline', savedTimelineHeight.toString());
       localStorage.setItem('pixel_draw_dock_height_project', savedProjectHeight.toString());
+      localStorage.setItem('pixel_draw_dock_height_split', savedSplitHeight.toString());
     } catch (err) {}
   };
 
   resizeHandle?.addEventListener('mousedown', handleResizeDown);
 
-  // Nhap dup vao thanh keo de chuyen nhanh giua cac muc chieu cao
+  // Nhap dup vao thanh keo doc de chuyen nhanh giua cac muc chieu cao
   resizeHandle?.addEventListener('dblclick', () => {
     if (currentDockMode === 'timeline') {
       savedTimelineHeight = savedTimelineHeight > 180 ? 140 : 250;
       localStorage.setItem('pixel_draw_dock_height_timeline', savedTimelineHeight.toString());
+    } else if (currentDockMode === 'split') {
+      savedSplitHeight = savedSplitHeight > 380 ? 300 : 500;
+      localStorage.setItem('pixel_draw_dock_height_split', savedSplitHeight.toString());
     } else {
       savedProjectHeight = savedProjectHeight > 380 ? 300 : 500;
       localStorage.setItem('pixel_draw_dock_height_project', savedProjectHeight.toString());
     }
     applyDockHeight(true);
   });
+
+  // 2. Co che keo ngang giua Project va Timeline trong che do Song song (Horizontal Splitter)
+  let isDraggingSplitter = false;
+  let startSplitX = 0;
+  let startProjectWidth = 0;
+
+  const handleSplitDown = (e: MouseEvent) => {
+    e.preventDefault();
+    isDraggingSplitter = true;
+    startSplitX = e.clientX;
+    startProjectWidth = panelProject?.getBoundingClientRect().width || savedSplitWidth;
+
+    document.body.classList.add('dock-horizontal-resizing');
+    window.addEventListener('mousemove', handleSplitMove);
+    window.addEventListener('mouseup', handleSplitUp);
+  };
+
+  const handleSplitMove = (e: MouseEvent) => {
+    if (!isDraggingSplitter || !panelProject || !bottomDock) return;
+    const deltaX = e.clientX - startSplitX;
+    const effectiveDelta = projectSplitSide === 'right' ? -deltaX : deltaX;
+    const newWidth = startProjectWidth + effectiveDelta;
+
+    const dockWidth = bottomDock.getBoundingClientRect().width;
+    const minW = 280;
+    const maxW = dockWidth - 320;
+    const clampedW = Math.max(minW, Math.min(maxW, newWidth));
+
+    panelProject.style.width = `${clampedW}px`;
+    savedSplitWidth = clampedW;
+  };
+
+  const handleSplitUp = () => {
+    if (!isDraggingSplitter) return;
+    isDraggingSplitter = false;
+    document.body.classList.remove('dock-horizontal-resizing');
+    window.removeEventListener('mousemove', handleSplitMove);
+    window.removeEventListener('mouseup', handleSplitUp);
+
+    try {
+      localStorage.setItem('pixel_draw_dock_split_width', savedSplitWidth.toString());
+    } catch (err) {}
+  };
+
+  dockSplitterResizer?.addEventListener('mousedown', handleSplitDown);
+
+  dockSplitterResizer?.addEventListener('dblclick', () => {
+    const dockWidth = bottomDock?.getBoundingClientRect().width || 1000;
+    savedSplitWidth = Math.round(dockWidth * 0.48);
+    if (panelProject) panelProject.style.width = `${savedSplitWidth}px`;
+    localStorage.setItem('pixel_draw_dock_split_width', savedSplitWidth.toString());
+  });
+
+  // 3. Co che keo ngang cay thu muc (Project Treeview Resizer)
+  let isDraggingTreeResizer = false;
+  let startTreeX = 0;
+  let startTreeWidth = 0;
+
+  const handleTreeResizeDown = (e: MouseEvent) => {
+    e.preventDefault();
+    isDraggingTreeResizer = true;
+    startTreeX = e.clientX;
+    startTreeWidth = sidebarTree?.getBoundingClientRect().width || savedTreeWidth;
+
+    document.body.classList.add('tree-resizing');
+    window.addEventListener('mousemove', handleTreeResizeMove);
+    window.addEventListener('mouseup', handleTreeResizeUp);
+  };
+
+  const handleTreeResizeMove = (e: MouseEvent) => {
+    if (!isDraggingTreeResizer || !sidebarTree) return;
+    const deltaX = e.clientX - startTreeX;
+    const newW = startTreeWidth + deltaX;
+    const clamped = Math.max(150, Math.min(450, newW));
+
+    sidebarTree.style.width = `${clamped}px`;
+    savedTreeWidth = clamped;
+  };
+
+  const handleTreeResizeUp = () => {
+    if (!isDraggingTreeResizer) return;
+    isDraggingTreeResizer = false;
+    document.body.classList.remove('tree-resizing');
+    window.removeEventListener('mousemove', handleTreeResizeMove);
+    window.removeEventListener('mouseup', handleTreeResizeUp);
+
+    try {
+      localStorage.setItem('pixel_draw_project_tree_width', savedTreeWidth.toString());
+    } catch (err) {}
+  };
+
+  projectTreeResizer?.addEventListener('mousedown', handleTreeResizeDown);
 
   // Render toan bo giao dien Project (Tree, Breadcrumbs, Grid)
   const renderProjectView = () => {
@@ -7642,6 +7963,33 @@ function initProjectDock(): void {
       const itemEl = document.createElement('div');
       itemEl.className = `project-tree-item ${node.isSelected ? 'active' : ''}`;
       itemEl.title = node.path;
+
+      // Cho phep keo tha tai nguyen vao cay thu muc (Drop target)
+      itemEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        itemEl.classList.add('drop-folder-hover');
+      });
+      itemEl.addEventListener('dragleave', () => {
+        itemEl.classList.remove('drop-folder-hover');
+      });
+      itemEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        itemEl.classList.remove('drop-folder-hover');
+        try {
+          const raw = e.dataTransfer?.getData('application/json');
+          if (raw) {
+            const dragData = JSON.parse(raw);
+            if (dragData.path && dragData.path !== node.path) {
+              await assetBrowser.moveItem(dragData.path, node.path);
+              renderProjectView();
+            }
+          }
+        } catch (err) {
+          console.warn('Loi khi keo tha vao thu muc tree:', err);
+        }
+      });
 
       // Khoang thut dong theo level
       if (node.level > 0) {
@@ -7677,6 +8025,15 @@ function initProjectDock(): void {
       itemEl.addEventListener('click', () => {
         assetBrowser.navigateTo(node.path);
         renderProjectView();
+      });
+
+      // Chuot phai tren node thu muc
+      itemEl.addEventListener('contextmenu', (e) => {
+        showProjectContextMenu(e, {
+          type: 'folder',
+          path: node.path,
+          name: node.name
+        });
       });
 
       treeList.appendChild(itemEl);
@@ -7739,7 +8096,52 @@ function initProjectDock(): void {
       const card = document.createElement('div');
       const isSelected = assetBrowser.getSelectedItemPath() === item.path;
       card.className = `asset-card ${item.type === 'folder' ? 'is-folder' : 'is-sprite'} ${isSelected ? 'selected' : ''}`;
-      card.title = `${item.name} (${item.path})`;
+      card.title = `${item.name} (${item.path}) - Kéo thả lên Canvas hoặc Timeline`;
+
+      // Kich hoat tinh nang Keo Tha (Drag & Drop)
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', (e) => {
+        card.classList.add('is-dragging');
+        e.dataTransfer?.setData('application/json', JSON.stringify({
+          type: item.type,
+          path: item.path,
+          name: item.name,
+          data: item.data,
+          thumbnailUrl: item.thumbnailUrl
+        }));
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('is-dragging');
+      });
+
+      // Neu la thu muc thi cho phep tha item khac vao de di chuyen
+      if (item.type === 'folder') {
+        card.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          card.classList.add('drop-folder-hover');
+        });
+        card.addEventListener('dragleave', () => {
+          card.classList.remove('drop-folder-hover');
+        });
+        card.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          card.classList.remove('drop-folder-hover');
+          try {
+            const raw = e.dataTransfer?.getData('application/json');
+            if (raw) {
+              const dragData = JSON.parse(raw);
+              if (dragData.path && dragData.path !== item.path) {
+                await assetBrowser.moveItem(dragData.path, item.path);
+                renderProjectView();
+              }
+            }
+          } catch (err) {
+            console.warn('Loi khi keo tha vao thu muc card:', err);
+          }
+        });
+      }
 
       // Hop hien thi thumbnail
       const thumbBox = document.createElement('div');
@@ -7808,50 +8210,15 @@ function initProjectDock(): void {
           assetBrowser.navigateTo(item.path);
           renderProjectView();
         } else if (item.type === 'sprite') {
-          // Nap sprite len Canvas de ve tiep
           loadSpriteToCanvas(item);
         }
       });
 
-      // Menu chuot phai cho tung item
+      // Menu chuot phai hien dai (Custom Context Menu)
       card.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
         assetBrowser.selectItem(item.path);
         renderProjectGrid();
-
-        if (item.type === 'folder') {
-          const action = prompt(`Thao tác cho thư mục "${item.name}":\n1. Mở thư mục\n2. Đổi tên\n3. Xóa thư mục\n(Nhập số 1, 2 hoặc 3):`, '1');
-          if (action === '1') {
-            assetBrowser.navigateTo(item.path);
-            renderProjectView();
-          } else if (action === '2') {
-            const newName = prompt(`Nhập tên mới cho thư mục "${item.name}":`, item.name);
-            if (newName && newName.trim() !== item.name) {
-              assetBrowser.renameItem(item.path, newName.trim()).then(() => renderProjectView());
-            }
-          } else if (action === '3') {
-            if (confirm(`Bạn có chắc muốn xóa thư mục "${item.name}" và toàn bộ nội dung bên trong?`)) {
-              assetBrowser.deleteItem(item.path).then(() => renderProjectView());
-            }
-          }
-        } else {
-          const action = prompt(`Thao tác cho Sprite "${item.name}":\n1. Nạp lên Canvas để vẽ tiếp\n2. Nạp vào Timeline hoạt cảnh\n3. Đổi tên\n4. Xóa sprite\n(Nhập số 1, 2, 3 hoặc 4):`, '1');
-          if (action === '1') {
-            loadSpriteToCanvas(item);
-          } else if (action === '2') {
-            loadSingleSpriteToTimeline(item);
-          } else if (action === '3') {
-            const newName = prompt(`Nhập tên mới cho sprite "${item.name}":`, item.name);
-            if (newName && newName.trim() !== item.name) {
-              assetBrowser.renameItem(item.path, newName.trim()).then(() => renderProjectView());
-            }
-          } else if (action === '4') {
-            if (confirm(`Bạn có chắc muốn xóa sprite "${item.name}"?`)) {
-              assetBrowser.deleteItem(item.path).then(() => renderProjectView());
-            }
-          }
-        }
+        showProjectContextMenu(e, item);
       });
 
       grid.appendChild(card);
@@ -7861,29 +8228,29 @@ function initProjectDock(): void {
   // Nap mot sprite len Canvas
   const loadSpriteToCanvas = (spriteItem: any) => {
     if (!spriteItem.data) return;
-    if (confirm(`Nạp sprite "${spriteItem.name}" lên Canvas hiện tại?`)) {
-      if (spriteItem.data.width !== project.width || spriteItem.data.height !== project.height) {
-        project.width = spriteItem.data.width;
-        project.height = spriteItem.data.height;
-        project.pivot = { x: Math.floor(project.width / 2), y: project.height - 1 };
+    if (spriteItem.data.width !== project.width || spriteItem.data.height !== project.height) {
+      project.width = spriteItem.data.width;
+      project.height = spriteItem.data.height;
+      project.pivot = { x: Math.floor(project.width / 2), y: project.height - 1 };
+    }
+
+    const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+    if (!currentFrame) return;
+
+    if (spriteItem.data.layers && spriteItem.data.layers.length > 0) {
+      currentFrame.layers = JSON.parse(JSON.stringify(spriteItem.data.layers));
+      project.activeLayerId = currentFrame.layers[0].id;
+    } else if (spriteItem.data.pixels) {
+      const activeLayer = currentFrame.layers.find(l => l.id === project.activeLayerId) || currentFrame.layers[0];
+      if (activeLayer) {
+        activeLayer.pixels = { ...spriteItem.data.pixels };
       }
+    }
 
-      const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
-      if (!currentFrame) return;
-
-      if (spriteItem.data.layers && spriteItem.data.layers.length > 0) {
-        currentFrame.layers = JSON.parse(JSON.stringify(spriteItem.data.layers));
-        project.activeLayerId = currentFrame.layers[0].id;
-      } else if (spriteItem.data.pixels) {
-        const activeLayer = currentFrame.layers.find(l => l.id === project.activeLayerId) || currentFrame.layers[0];
-        if (activeLayer) {
-          activeLayer.pixels = { ...spriteItem.data.pixels };
-        }
-      }
-
-      canvasEngine.rebuildBuffers();
-      renderAll();
-      syncProjectToServer();
+    canvasEngine.rebuildBuffers();
+    renderAll();
+    syncProjectToServer();
+    if (currentDockMode !== 'split') {
       switchDockMode('timeline');
     }
   };
@@ -7914,22 +8281,24 @@ function initProjectDock(): void {
     canvasEngine.rebuildBuffers();
     renderAll();
     syncProjectToServer();
-    switchDockMode('timeline');
+    if (currentDockMode !== 'split') {
+      switchDockMode('timeline');
+    }
   };
 
   // Nap toan bo sprite trong thu muc hien tai vao Timeline
-  const loadFolderSpritesToTimeline = () => {
-    const items = assetBrowser.getItemsInCurrentFolder().filter(i => i.type === 'sprite');
+  const loadFolderSpritesToTimeline = (customFolderPath?: string) => {
+    const targetPath = customFolderPath || assetBrowser.getCurrentPath();
+    const items = assetBrowser.getItemsInCurrentFolder().filter(i => i.type === 'sprite' && (customFolderPath ? i.parentPath === customFolderPath : true));
     if (items.length === 0) {
-      alert('Thư mục hiện tại không có sprite nào để nạp vào Timeline!');
+      alert('Thư mục được chọn không có sprite nào để nạp vào Timeline!');
       return;
     }
 
     // Sap xep ten theo thu tu tu nhien
     items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-    const currentPath = assetBrowser.getCurrentPath();
-    const folderName = currentPath.split('/').pop() || 'Action';
+    const folderName = targetPath.split('/').pop() || 'Action';
     const clipId = `clip_${folderName.toLowerCase()}_${Date.now()}`;
 
     const frames: FrameData[] = items.map((sprite, idx) => {
@@ -7971,12 +8340,12 @@ function initProjectDock(): void {
       animController.setActiveClipById(newClip.id);
     }
 
-    switchDockMode('timeline');
+    if (currentDockMode !== 'split') {
+      switchDockMode('timeline');
+    }
     canvasEngine.rebuildBuffers();
     renderAll();
     syncProjectToServer();
-
-    alert(`Đã nạp thành công ${frames.length} frame từ thư mục "${folderName}" vào Timeline!`);
   };
 
   // Lay pixels hop nhat cua frame hien tai tren Canvas
@@ -7995,6 +8364,235 @@ function initProjectDock(): void {
     }
     return pixels;
   };
+
+  // Modal nhap ten thay the cho prompt()
+  const openProjectInputModal = (title: string, label: string, defaultValue: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('project-input-modal');
+      const titleEl = document.getElementById('project-input-title');
+      const labelEl = document.getElementById('project-input-label');
+      const inputEl = document.getElementById('project-input-value') as HTMLInputElement | null;
+      const btnConfirm = document.getElementById('btn-confirm-project-input');
+      const btnCancel = document.getElementById('btn-cancel-project-input');
+      const btnClose = document.getElementById('btn-close-project-input');
+
+      if (!modal || !inputEl) {
+        resolve(null);
+        return;
+      }
+
+      if (titleEl) titleEl.innerText = title;
+      if (labelEl) labelEl.innerText = label;
+      inputEl.value = defaultValue;
+      modal.style.display = 'flex';
+
+      setTimeout(() => {
+        inputEl.focus();
+        inputEl.select();
+      }, 50);
+
+      const cleanup = () => {
+        modal.style.display = 'none';
+        btnConfirm?.removeEventListener('click', onConfirm);
+        btnCancel?.removeEventListener('click', onCancel);
+        btnClose?.removeEventListener('click', onCancel);
+        inputEl.removeEventListener('keydown', onKeyDown);
+      };
+
+      const onConfirm = () => {
+        const val = inputEl.value.trim();
+        cleanup();
+        resolve(val.length > 0 ? val : null);
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onConfirm();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          onCancel();
+        }
+      };
+
+      btnConfirm?.addEventListener('click', onConfirm);
+      btnCancel?.addEventListener('click', onCancel);
+      btnClose?.addEventListener('click', onCancel);
+      inputEl.addEventListener('keydown', onKeyDown);
+    });
+  };
+
+  // Quan ly Menu Chuot Phai (Custom Context Menu)
+  const projectContextMenu = document.getElementById('project-context-menu');
+  let contextTargetItem: any = null;
+
+  const closeProjectContextMenu = () => {
+    if (projectContextMenu) projectContextMenu.style.display = 'none';
+    contextTargetItem = null;
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!projectContextMenu?.contains(e.target as Node)) {
+      closeProjectContextMenu();
+    }
+  });
+
+  const showProjectContextMenu = (e: MouseEvent, item: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextTargetItem = item;
+
+    const titleEl = document.getElementById('ctx-project-title');
+    const itemLoadCanvas = document.getElementById('ctx-asset-load-canvas');
+    const itemLoadTimeline = document.getElementById('ctx-asset-load-timeline');
+    const itemFolderOpen = document.getElementById('ctx-folder-open');
+    const itemFolderLoadAll = document.getElementById('ctx-folder-load-all-timeline');
+
+    if (titleEl) titleEl.innerText = `${item.type === 'folder' ? 'Thư mục' : 'Sprite'}: ${item.name}`;
+
+    if (item.type === 'folder') {
+      if (itemLoadCanvas) itemLoadCanvas.style.display = 'none';
+      if (itemLoadTimeline) itemLoadTimeline.style.display = 'none';
+      if (itemFolderOpen) itemFolderOpen.style.display = 'flex';
+      if (itemFolderLoadAll) itemFolderLoadAll.style.display = 'flex';
+    } else {
+      if (itemLoadCanvas) itemLoadCanvas.style.display = 'flex';
+      if (itemLoadTimeline) itemLoadTimeline.style.display = 'flex';
+      if (itemFolderOpen) itemFolderOpen.style.display = 'none';
+      if (itemFolderLoadAll) itemFolderLoadAll.style.display = 'none';
+    }
+
+    if (projectContextMenu) {
+      projectContextMenu.style.display = 'block';
+      const menuWidth = 210;
+      const menuHeight = 160;
+      let left = e.clientX;
+      let top = e.clientY;
+
+      if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 8;
+      if (top + menuHeight > window.innerHeight) top = window.innerHeight - menuHeight - 8;
+
+      projectContextMenu.style.left = `${left}px`;
+      projectContextMenu.style.top = `${top}px`;
+    }
+  };
+
+  // Gan hanh dong cho Custom Context Menu
+  document.getElementById('ctx-asset-load-canvas')?.addEventListener('click', () => {
+    if (contextTargetItem && contextTargetItem.type === 'sprite') {
+      loadSpriteToCanvas(contextTargetItem);
+    }
+    closeProjectContextMenu();
+  });
+
+  document.getElementById('ctx-asset-load-timeline')?.addEventListener('click', () => {
+    if (contextTargetItem && contextTargetItem.type === 'sprite') {
+      loadSingleSpriteToTimeline(contextTargetItem);
+    }
+    closeProjectContextMenu();
+  });
+
+  document.getElementById('ctx-folder-open')?.addEventListener('click', () => {
+    if (contextTargetItem && contextTargetItem.type === 'folder') {
+      assetBrowser.navigateTo(contextTargetItem.path);
+      renderProjectView();
+    }
+    closeProjectContextMenu();
+  });
+
+  document.getElementById('ctx-folder-load-all-timeline')?.addEventListener('click', () => {
+    if (contextTargetItem && contextTargetItem.type === 'folder') {
+      loadFolderSpritesToTimeline(contextTargetItem.path);
+    }
+    closeProjectContextMenu();
+  });
+
+  document.getElementById('ctx-asset-rename')?.addEventListener('click', async () => {
+    if (contextTargetItem) {
+      const target = contextTargetItem;
+      closeProjectContextMenu();
+      const newName = await openProjectInputModal(
+        `Đổi Tên ${target.type === 'folder' ? 'Thư Mục' : 'Sprite'}`,
+        'Nhập tên mới:',
+        target.name
+      );
+      if (newName && newName !== target.name) {
+        await assetBrowser.renameItem(target.path, newName);
+        renderProjectView();
+      }
+    }
+  });
+
+  document.getElementById('ctx-asset-delete')?.addEventListener('click', async () => {
+    if (contextTargetItem) {
+      const target = contextTargetItem;
+      closeProjectContextMenu();
+      const msg = target.type === 'folder'
+        ? `Bạn có chắc muốn xóa thư mục "${target.name}" và toàn bộ tài nguyên bên trong?`
+        : `Bạn có chắc muốn xóa sprite "${target.name}"?`;
+      if (confirm(msg)) {
+        await assetBrowser.deleteItem(target.path);
+        renderProjectView();
+      }
+    }
+  });
+
+  // Tich hop Drag & Drop vao Viewport Canvas
+  const viewportBox = document.getElementById('viewport');
+  viewportBox?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    viewportBox.classList.add('drag-target-active');
+  });
+  viewportBox?.addEventListener('dragleave', () => {
+    viewportBox.classList.remove('drag-target-active');
+  });
+  viewportBox?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    viewportBox.classList.remove('drag-target-active');
+    try {
+      const raw = e.dataTransfer?.getData('application/json');
+      if (raw) {
+        const item = JSON.parse(raw);
+        if (item.type === 'sprite') {
+          loadSpriteToCanvas(item);
+        }
+      }
+    } catch (err) {
+      console.warn('Loi khi tha vao Canvas:', err);
+    }
+  });
+
+  // Tich hop Drag & Drop vao Timeline
+  const timelineFramesBox = document.getElementById('timeline-frames-container');
+  timelineFramesBox?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    timelineFramesBox.classList.add('drag-target-active');
+  });
+  timelineFramesBox?.addEventListener('dragleave', () => {
+    timelineFramesBox.classList.remove('drag-target-active');
+  });
+  timelineFramesBox?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    timelineFramesBox.classList.remove('drag-target-active');
+    try {
+      const raw = e.dataTransfer?.getData('application/json');
+      if (raw) {
+        const item = JSON.parse(raw);
+        if (item.type === 'sprite') {
+          loadSingleSpriteToTimeline(item);
+        } else if (item.type === 'folder') {
+          loadFolderSpritesToTimeline(item.path);
+        }
+      }
+    } catch (err) {
+      console.warn('Loi khi tha vao Timeline:', err);
+    }
+  });
 
   // Gan su kien cho cac nut dieu huong va thao tac
   btnBack?.addEventListener('click', () => {
@@ -8021,22 +8619,22 @@ function initProjectDock(): void {
   });
 
   btnAddFolder?.addEventListener('click', async () => {
-    const name = prompt('Nhập tên thư mục mới cần tạo:');
-    if (name && name.trim()) {
-      await assetBrowser.createFolder(name.trim());
+    const name = await openProjectInputModal('Tạo Thư Mục Mới', 'Nhập tên thư mục:', 'NewFolder');
+    if (name) {
+      await assetBrowser.createFolder(name);
       renderProjectView();
     }
   });
 
   btnSaveCanvas?.addEventListener('click', async () => {
     const defaultName = `Sprite_${Date.now().toString().slice(-4)}`;
-    const name = prompt('Nhập tên sprite cần lưu vào thư mục hiện tại:', defaultName);
-    if (!name || !name.trim()) return;
+    const name = await openProjectInputModal('Lưu Canvas Vào Thư Mục', 'Nhập tên sprite:', defaultName);
+    if (!name) return;
 
     const pixels = getCurrentFrameCompositePixels();
     const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
 
-    const saved = await assetBrowser.saveCurrentSprite(name.trim(), {
+    const saved = await assetBrowser.saveCurrentSprite(name, {
       width: project.width,
       height: project.height,
       pixels,
@@ -8045,7 +8643,6 @@ function initProjectDock(): void {
 
     if (saved) {
       renderProjectView();
-      alert(`Đã lưu thành công "${name.trim()}" vào ${assetBrowser.getCurrentPath()}!`);
     }
   });
 
@@ -8073,3 +8670,4 @@ initImageImport();
 initExportModal();
 initTimelineContextMenu();
 initProjectDock();
+

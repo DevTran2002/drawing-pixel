@@ -255,4 +255,42 @@ export class ProjectAssetManager {
     this.writeItems(items);
     return true;
   }
+
+  // Di chuyen mot item sang thu muc khac (ho tro keo tha Drag & Drop)
+  public moveItem(sourcePath: string, targetFolderPath: string): boolean {
+    const items = this.readItems();
+    const source = items.find(i => i.path === sourcePath);
+    if (!source) return false;
+    if (sourcePath === targetFolderPath) return false;
+    // Khong cho phep di chuyen thu muc cha vao chinh thu muc con cua no
+    if (targetFolderPath.startsWith(`${sourcePath}/`)) return false;
+
+    const newPath = `${targetFolderPath}/${source.name}`;
+    if (items.some(i => i.path === newPath && i.path !== sourcePath)) {
+      return false;
+    }
+
+    const oldPath = source.path;
+    source.parentPath = targetFolderPath;
+    source.path = newPath;
+
+    if (source.type === 'folder') {
+      const oldPrefix = `${oldPath}/`;
+      const newPrefix = `${newPath}/`;
+      for (const item of items) {
+        if (item.path.startsWith(oldPrefix)) {
+          item.path = newPrefix + item.path.substring(oldPrefix.length);
+          if (item.parentPath === oldPath) {
+            item.parentPath = newPath;
+          } else if (item.parentPath.startsWith(oldPrefix)) {
+            item.parentPath = newPrefix + item.parentPath.substring(oldPrefix.length);
+          }
+        }
+      }
+    }
+
+    this.writeItems(items);
+    return true;
+  }
 }
+

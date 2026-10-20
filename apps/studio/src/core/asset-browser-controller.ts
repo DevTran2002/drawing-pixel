@@ -411,4 +411,59 @@ export class AssetBrowserController {
     this.saveToLocalStorage();
     return true;
   }
+
+  // Di chuyen mot item sang thu muc khac (Drag & Drop)
+  public async moveItem(sourcePath: string, targetFolderPath: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.serverUrl}/api/project-assets/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourcePath, targetFolderPath })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.tree) {
+          this.tree = data.tree;
+          this.saveToLocalStorage();
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[AssetBrowserController] Loi server di chuyen item, xu ly cuc bo:', err);
+    }
+
+    // Fallback di chuyen cuc bo
+    const source = this.tree.items.find(i => i.path === sourcePath);
+    if (!source) return false;
+    if (sourcePath === targetFolderPath) return false;
+    if (targetFolderPath.startsWith(`${sourcePath}/`)) return false;
+
+    const newPath = `${targetFolderPath}/${source.name}`;
+    if (this.tree.items.some(i => i.path === newPath && i.path !== sourcePath)) {
+      return false;
+    }
+
+    const oldPath = source.path;
+    source.parentPath = targetFolderPath;
+    source.path = newPath;
+
+    if (source.type === 'folder') {
+      const oldPrefix = `${oldPath}/`;
+      const newPrefix = `${newPath}/`;
+      for (const it of this.tree.items) {
+        if (it.path.startsWith(oldPrefix)) {
+          it.path = newPrefix + it.path.substring(oldPrefix.length);
+          if (it.parentPath === oldPath) {
+            it.parentPath = newPath;
+          } else if (it.parentPath.startsWith(oldPrefix)) {
+            it.parentPath = newPrefix + it.parentPath.substring(oldPrefix.length);
+          }
+        }
+      }
+    }
+
+    this.saveToLocalStorage();
+    return true;
+  }
 }

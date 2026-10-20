@@ -2194,7 +2194,8 @@ body.dock-resizing * {
   font-size: 12px;
   font-weight: 500;
   border-radius: 4px;
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
   transition: all 0.15s ease;
   border-bottom: 2px solid transparent;
 }
@@ -2204,11 +2205,128 @@ body.dock-resizing * {
   color: #f8fafc;
 }
 
+.dock-mode-tab:active {
+  cursor: grabbing;
+}
+
 .dock-mode-tab.active {
   color: #38bdf8;
   background: rgba(56, 189, 248, 0.1);
   border-bottom-color: #38bdf8;
   font-weight: 600;
+}
+
+.dock-mode-tab.is-tab-dragging {
+  opacity: 0.35;
+  outline: 1px dashed #38bdf8;
+}
+
+/* Nut thao tac nhanh khi chia doi */
+.dock-split-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 6px;
+}
+
+.dock-split-label {
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+/* Drop Zone Overlay khi keo tha tab */
+.dock-drop-overlay {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  display: flex;
+  background: rgba(10, 10, 18, 0.78);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  padding: 10px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.dock-drop-zone {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.04);
+  transition: all 0.15s ease;
+}
+
+.dock-drop-zone.active-target {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.22);
+  box-shadow: inset 0 0 24px rgba(56, 189, 248, 0.35);
+  transform: scale(0.992);
+}
+
+.dock-drop-zone-tabs {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  height: 38px;
+  border: 2px dashed rgba(168, 85, 247, 0.45);
+  border-radius: 6px;
+  background: rgba(168, 85, 247, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-drop-zone-tabs.active-target {
+  border-color: #c084fc;
+  background: rgba(168, 85, 247, 0.28);
+  box-shadow: inset 0 0 16px rgba(168, 85, 247, 0.4);
+}
+
+.dock-drop-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.dock-drop-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.dock-drop-desc {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* The ao bay theo con tro chuot */
+.dock-tab-drag-proxy {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 6px 14px;
+  background: #1e293b;
+  border: 1px solid #38bdf8;
+  border-radius: 6px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.4);
+  transform: translate(-50%, -50%);
+  user-select: none;
+  white-space: nowrap;
 }
 
 .dock-mode-info {
@@ -2227,6 +2345,128 @@ body.dock-resizing * {
   flex-direction: column;
 }
 
+/* Container chua cac dock panels ho tro hien thi doc lap hoac song song */
+.dock-panels-wrapper {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Thanh phan cach ngang giua Project va Timeline */
+.dock-splitter-resizer {
+  width: 9px;
+  background-color: transparent;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  user-select: none;
+  flex-shrink: 0;
+  margin: 0 -1px;
+  transition: background-color 0.15s ease;
+}
+
+.dock-splitter-grip {
+  width: 3px;
+  height: 38px;
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.2);
+  transition: all 0.15s ease;
+}
+
+.dock-splitter-resizer:hover,
+body.dock-horizontal-resizing .dock-splitter-resizer {
+  background-color: rgba(56, 189, 248, 0.12);
+}
+
+.dock-splitter-resizer:hover .dock-splitter-grip,
+body.dock-horizontal-resizing .dock-splitter-grip {
+  width: 4px;
+  height: 52px;
+  background-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+}
+
+body.dock-horizontal-resizing,
+body.dock-horizontal-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* Thanh keo co gian cay thu muc trong Project Window */
+.project-tree-resizer {
+  width: 7px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  z-index: 10;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.project-tree-resizer-grip {
+  width: 2px;
+  height: 26px;
+  border-radius: 1px;
+  background-color: rgba(255, 255, 255, 0.25);
+  transition: all 0.15s ease;
+}
+
+.project-tree-resizer:hover,
+body.tree-resizing .project-tree-resizer {
+  background-color: rgba(56, 189, 248, 0.2);
+}
+
+.project-tree-resizer:hover .project-tree-resizer-grip,
+body.tree-resizing .project-tree-resizer-grip {
+  background-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+  height: 38px;
+}
+
+body.tree-resizing,
+body.tree-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* Che do Song Song (Split Mode) */
+.bottom-dock.dock-split-active .dock-panels-wrapper {
+  display: flex;
+  flex-direction: row;
+}
+
+.bottom-dock.dock-split-active.dock-order-reversed .dock-panels-wrapper {
+  flex-direction: row-reverse;
+}
+
+.bottom-dock.dock-split-active #dock-panel-project {
+  display: flex !important;
+  flex-shrink: 0;
+  min-width: 280px;
+  max-width: calc(100% - 320px);
+}
+
+.bottom-dock.dock-split-active #dock-splitter-resizer {
+  display: flex !important;
+}
+
+.bottom-dock.dock-split-active #dock-panel-timeline {
+  display: flex !important;
+  flex: 1 !important;
+  min-width: 320px;
+  overflow-x: auto;
+}
+
 /* Khung layout 2 cot chuan Unity Editor */
 .unity-project-container {
   display: flex;
@@ -2241,13 +2481,13 @@ body.dock-resizing * {
 /* Cot trai: Cay thu muc (Folder Treeview) */
 .project-sidebar-tree {
   width: 220px;
-  min-width: 170px;
-  max-width: 280px;
+  min-width: 150px;
+  max-width: 450px;
   background: #101017;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .project-tree-header {
@@ -2534,4 +2774,37 @@ body.dock-resizing * {
   accent-color: #38bdf8;
   cursor: pointer;
 }
+
+/* Hieu ung Keo Tha (Drag & Drop) truc quan giua Asset Window, Canvas va Timeline */
+.asset-card[draggable="true"] {
+  cursor: grab;
+}
+
+.asset-card.is-dragging {
+  opacity: 0.45;
+  outline: 2px dashed #38bdf8;
+  cursor: grabbing;
+}
+
+.drop-folder-hover {
+  background: rgba(56, 189, 248, 0.25) !important;
+  outline: 2px solid #38bdf8 !important;
+  border-radius: 4px;
+}
+
+.center-viewport.drag-target-active,
+.canvas-container.drag-target-active,
+#main-canvas.drag-target-active {
+  outline: 3px dashed #38bdf8 !important;
+  outline-offset: -4px;
+  background-color: rgba(56, 189, 248, 0.06);
+}
+
+.timeline-frames.drag-target-active {
+  outline: 2px dashed #10b981 !important;
+  outline-offset: -2px;
+  background-color: rgba(16, 185, 129, 0.08);
+  border-radius: 6px;
+}
+
 

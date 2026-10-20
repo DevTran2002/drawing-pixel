@@ -323,150 +323,191 @@
         <div class="dock-resize-bar"></div>
       </div>
 
-      <!-- 3.1 Cụm tab chuyển chế độ Dock (Timeline vs Project) -->
-      <div class="dock-mode-bar">
-        <div class="dock-mode-tabs">
-          <button class="dock-mode-tab active" id="tab-mode-timeline" data-dock="timeline">
+      <!-- 3.1 Cụm tab chuyển chế độ Dock (Hỗ trợ kéo thả tab để chia layout tự do) -->
+      <div class="dock-mode-bar" id="dock-mode-bar">
+        <div class="dock-mode-tabs" id="dock-mode-tabs">
+          <button class="dock-mode-tab active" id="tab-mode-timeline" data-panel="timeline" title="Nhấp để chuyển tab, hoặc kéo thả sang trái/phải để chia đôi giao diện tự do">
             Dòng thời gian (Timeline)
           </button>
-          <button class="dock-mode-tab" id="tab-mode-project" data-dock="project">
+          <button class="dock-mode-tab" id="tab-mode-project" data-panel="project" title="Nhấp để chuyển tab, hoặc kéo thả sang trái/phải để chia đôi giao diện tự do">
             Dự án & Thư mục (Project)
           </button>
         </div>
+        <div class="dock-split-actions" id="dock-split-actions" style="display: none;">
+          <span class="dock-split-label">Bố cục: Đang chia đôi</span>
+          <button class="btn btn-tiny" id="btn-dock-merge" title="Gộp 2 khối lại thành dạng tab toàn màn hình">Gộp lại thành Tab</button>
+        </div>
         <div class="dock-mode-info">
-          <span id="dock-mode-hint">Quản lý các chuyển động và chuỗi khung hình</span>
+          <span id="dock-mode-hint">Kéo tab sang nửa bên trái hoặc bên phải để chia đôi giao diện tự do</span>
         </div>
       </div>
 
-      <!-- 3.2 Che do 1: Dong thoi gian (Timeline) -->
-      <div class="dock-panel-view active" id="dock-panel-timeline">
-        <!-- Action Folders / Tabs Header -->
-        <div class="timeline-action-bar">
-          <div class="action-folders-tabs" id="action-folders-tabs">
-            <!-- Danh sach tab thu muc dong tac se render dong boi JS: Base Pose, Idle, Run... -->
-          </div>
-          <div class="action-folders-actions">
-            <button class="btn btn-small" id="btn-add-action-folder" title="Tạo thêm thư mục động tác mới">
-              <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>+ Động tác</span>
-            </button>
-            <button class="btn btn-small btn-generate-from-base" id="btn-generate-from-base" style="display: none;" title="Tự động tính toán khung xương sinh hoạt cảnh chuẩn nhịp điệu từ Tư thế gốc">
-              <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>
-              <span>Tạo từ Tư thế gốc</span>
-            </button>
+      <!-- Lop phu Drop Zone chi thi vi tri khi keo tha tab -->
+      <div class="dock-drop-overlay" id="dock-drop-overlay" style="display: none;">
+        <div class="dock-drop-zone dock-drop-zone-left" id="dock-drop-left">
+          <div class="dock-drop-box">
+            <span class="dock-drop-title">Chia sang bên trái (50%)</span>
+            <span class="dock-drop-desc">Thả chuột để đặt khối này ở nửa bên trái</span>
           </div>
         </div>
-
-        <!-- Thanh dieu khien va dai frame thumbnails -->
-        <div class="timeline-main-row">
-          <div class="timeline-controls">
-            <button class="btn btn-small" id="btn-prev-frame" title="Frame trước (Mũi tên Trái hoặc phím [ )">
-              <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="15 18 9 12 15 6"/></svg>
-            </button>
-            <button class="btn btn-primary btn-small" id="btn-play-pause">
-              <svg class="btn-icon" id="play-pause-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span id="play-pause-text">Play</span>
-            </button>
-            <button class="btn btn-small" id="btn-next-frame" title="Frame tiếp theo (Mũi tên Phải hoặc phím ] )">
-              <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="9 18 15 12 9 6"/></svg>
-            </button>
-            <button class="btn btn-small" id="btn-onion-skin">
-              <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>
-              <span id="onion-text">Onion: Off</span>
-            </button>
-
-            <label style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
-              FPS:
-              <input type="range" id="fps-slider" min="1" max="30" value="10" style="width: 80px;" />
-              <span id="fps-label">10</span>
-            </label>
-
-            <select id="clip-select" class="btn btn-small" style="font-size: 11px; display: none;">
-              <option value="base">Clip: base</option>
-            </select>
+        <div class="dock-drop-zone dock-drop-zone-right" id="dock-drop-right">
+          <div class="dock-drop-box">
+            <span class="dock-drop-title">Chia sang bên phải (50%)</span>
+            <span class="dock-drop-desc">Thả chuột để đặt khối này ở nửa bên phải</span>
           </div>
-
-          <div class="timeline-frames" id="timeline-frames-container">
-            <!-- Danh sach Frame cards duoc sinh tu dong -->
-          </div>
-
-          <div style="display: flex; gap: 6px; flex-shrink: 0;">
-            <button class="btn btn-small" id="btn-duplicate-frame" title="Nhân bản frame đang chọn">
-              <svg class="btn-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              Duplicate
-            </button>
-            <button class="btn btn-small" id="btn-add-frame" title="Thêm frame mới vào thư mục hiện tại">
-              <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              + Add Frame
-            </button>
+        </div>
+        <div class="dock-drop-zone-tabs" id="dock-drop-tabs">
+          <div class="dock-drop-box">
+            <span class="dock-drop-title">Gộp chung thành thẻ Tab</span>
           </div>
         </div>
       </div>
 
-      <!-- 3.3 Che do 2: Cua so Du an phong cach Unity (Project & Asset Browser) -->
-      <div class="dock-panel-view" id="dock-panel-project" style="display: none;">
-        <div class="unity-project-container">
-          <!-- Cot trai: Cay thu muc (Folder Treeview) -->
-          <aside class="project-sidebar-tree">
-            <div class="project-tree-header">
-              <span class="project-pane-title">Thư Mục Dự Án</span>
-              <button class="btn btn-tiny" id="btn-project-refresh" title="Đồng bộ lại cây thư mục với máy chủ">Làm mới</button>
-            </div>
-            <div class="project-tree-body" id="project-folder-tree-list">
-              <!-- Danh sach nut thu muc render boi JS -->
-            </div>
-          </aside>
+      <!-- The ao bay theo con tro chuot khi keo tha tab -->
+      <div class="dock-tab-drag-proxy" id="dock-tab-drag-proxy" style="display: none;"></div>
 
-          <!-- Cot phai: Trinh duyet noi dung tai nguyen (Asset Browser View) -->
-          <section class="project-main-browser">
-            <!-- Thanh dieu huong va hanh dong -->
-            <div class="project-nav-toolbar">
-              <div class="project-history-nav">
-                <button class="btn btn-tiny" id="btn-project-back" title="Quay lại thư mục trước">Trở về</button>
-                <button class="btn btn-tiny" id="btn-project-forward" title="Tiến tới thư mục sau">Tiếp</button>
+      <!-- Container boc ca 2 khoi giao dien ho tro hien thi doc lap hoac song song -->
+      <div class="dock-panels-wrapper" id="dock-panels-wrapper">
+        <!-- KHOI 1: Cua so Du an & Thu muc (Project Asset Browser) -->
+        <div class="dock-panel-view" id="dock-panel-project" style="display: none;">
+          <div class="unity-project-container">
+            <!-- Cot trai: Cay thu muc (Folder Treeview) -->
+            <aside class="project-sidebar-tree" id="project-sidebar-tree">
+              <div class="project-tree-header">
+                <span class="project-pane-title">Thư Mục Dự Án</span>
+                <button class="btn btn-tiny" id="btn-project-refresh" title="Đồng bộ lại cây thư mục với máy chủ">Làm mới</button>
               </div>
+              <div class="project-tree-body" id="project-folder-tree-list">
+                <!-- Danh sach nut thu muc render boi JS -->
+              </div>
+            </aside>
 
-              <!-- Thanh Breadcrumb -->
-              <div class="project-breadcrumb-bar" id="project-breadcrumb-bar">
-                <!-- Breadcrumbs render boi JS -->
-              </div>
-
-              <!-- O tim kiem nhanh -->
-              <div class="project-search-wrapper">
-                <input type="text" id="project-search-input" class="project-search-input" placeholder="Tìm kiếm sprite/folder..." />
-              </div>
-
-              <!-- Cac nut thao tac nhanh -->
-              <div class="project-action-buttons">
-                <button class="btn btn-small" id="btn-project-add-folder" title="Tạo thư mục con mới tại vị trí này">
-                  + Thư mục
-                </button>
-                <button class="btn btn-small btn-primary" id="btn-project-save-canvas" title="Lưu khung hình vẽ trên Canvas vào thư mục hiện tại">
-                  Lưu Canvas vào đây
-                </button>
-                <button class="btn btn-small btn-success" id="btn-project-load-timeline" title="Nạp toàn bộ sprite trong thư mục này vào Timeline làm hoạt cảnh">
-                  Nạp vào Timeline
-                </button>
-              </div>
+            <!-- Thanh keo phan cach co gian cay thu muc -->
+            <div class="project-tree-resizer" id="project-tree-resizer" title="Kéo để tùy chỉnh độ rộng cây thư mục">
+              <div class="project-tree-resizer-grip"></div>
             </div>
 
-            <!-- Luoi hien thi Thumbnail Asset chuan Unity -->
-            <div class="project-asset-grid-scroll">
-              <div class="project-asset-grid" id="project-asset-grid">
-                <!-- Cac asset cards render boi JS -->
+            <!-- Cot phai: Trinh duyet noi dung tai nguyen (Asset Browser View) -->
+            <section class="project-main-browser" id="project-main-browser">
+              <!-- Thanh dieu huong va hanh dong -->
+              <div class="project-nav-toolbar">
+                <div class="project-history-nav">
+                  <button class="btn btn-tiny" id="btn-project-back" title="Quay lại thư mục trước">Trở về</button>
+                  <button class="btn btn-tiny" id="btn-project-forward" title="Tiến tới thư mục sau">Tiếp</button>
+                </div>
+
+                <!-- Thanh Breadcrumb -->
+                <div class="project-breadcrumb-bar" id="project-breadcrumb-bar">
+                  <!-- Breadcrumbs render boi JS -->
+                </div>
+
+                <!-- O tim kiem nhanh -->
+                <div class="project-search-wrapper">
+                  <input type="text" id="project-search-input" class="project-search-input" placeholder="Tìm kiếm sprite/folder..." />
+                </div>
+
+                <!-- Cac nut thao tac nhanh -->
+                <div class="project-action-buttons">
+                  <button class="btn btn-small" id="btn-project-add-folder" title="Tạo thư mục con mới tại vị trí này">
+                    + Thư mục
+                  </button>
+                  <button class="btn btn-small btn-primary" id="btn-project-save-canvas" title="Lưu khung hình vẽ trên Canvas vào thư mục hiện tại">
+                    Lưu Canvas vào đây
+                  </button>
+                  <button class="btn btn-small btn-success" id="btn-project-load-timeline" title="Nạp toàn bộ sprite trong thư mục này vào Timeline làm hoạt cảnh">
+                    Nạp vào Timeline
+                  </button>
+                </div>
               </div>
+
+              <!-- Luoi hien thi Thumbnail Asset chuan Unity -->
+              <div class="project-asset-grid-scroll">
+                <div class="project-asset-grid" id="project-asset-grid">
+                  <!-- Cac asset cards render boi JS -->
+                </div>
+              </div>
+
+              <!-- Thanh trang thai va Zoom Slider o day -->
+              <div class="project-dock-footer">
+                <span class="project-status-text" id="project-status-text">0 mục</span>
+                <div class="project-zoom-control">
+                  <span class="project-zoom-label">Thu nhỏ</span>
+                  <input type="range" id="project-zoom-slider" min="48" max="128" value="72" />
+                  <span class="project-zoom-label">Phóng to</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- Thanh keo phan cach ngang giua Thu muc Project va Timeline (Horizontal Splitter) -->
+        <div class="dock-splitter-resizer" id="dock-splitter-resizer" style="display: none;" title="Kéo sang trái/phải để tùy chỉnh độ rộng (Nhấp đúp để chia đôi 50/50)">
+          <div class="dock-splitter-grip"></div>
+        </div>
+
+        <!-- KHOI 2: Dong thoi gian (Timeline) -->
+        <div class="dock-panel-view active" id="dock-panel-timeline">
+          <!-- Action Folders / Tabs Header -->
+          <div class="timeline-action-bar">
+            <div class="action-folders-tabs" id="action-folders-tabs">
+              <!-- Danh sach tab thu muc dong tac se render dong boi JS: Base Pose, Idle, Run... -->
+            </div>
+            <div class="action-folders-actions">
+              <button class="btn btn-small" id="btn-add-action-folder" title="Tạo thêm thư mục động tác mới">
+                <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ Động tác</span>
+              </button>
+              <button class="btn btn-small btn-generate-from-base" id="btn-generate-from-base" style="display: none;" title="Tự động tính toán khung xương sinh hoạt cảnh chuẩn nhịp điệu từ Tư thế gốc">
+                <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>
+                <span>Tạo từ Tư thế gốc</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Thanh dieu khien va dai frame thumbnails -->
+          <div class="timeline-main-row">
+            <div class="timeline-controls">
+              <button class="btn btn-small" id="btn-prev-frame" title="Frame trước (Mũi tên Trái hoặc phím [ )">
+                <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button class="btn btn-primary btn-small" id="btn-play-pause">
+                <svg class="btn-icon" id="play-pause-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span id="play-pause-text">Play</span>
+              </button>
+              <button class="btn btn-small" id="btn-next-frame" title="Frame tiếp theo (Mũi tên Phải hoặc phím ] )">
+                <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button class="btn btn-small" id="btn-onion-skin">
+                <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>
+                <span id="onion-text">Onion: Off</span>
+              </button>
+
+              <label style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                FPS:
+                <input type="range" id="fps-slider" min="1" max="30" value="10" style="width: 80px;" />
+                <span id="fps-label">10</span>
+              </label>
+
+              <select id="clip-select" class="btn btn-small" style="font-size: 11px; display: none;">
+                <option value="base">Clip: base</option>
+              </select>
             </div>
 
-            <!-- Thanh trang thai va Zoom Slider o day -->
-            <div class="project-dock-footer">
-              <span class="project-status-text" id="project-status-text">0 mục</span>
-              <div class="project-zoom-control">
-                <span class="project-zoom-label">Thu nhỏ</span>
-                <input type="range" id="project-zoom-slider" min="48" max="128" value="72" />
-                <span class="project-zoom-label">Phóng to</span>
-              </div>
+            <div class="timeline-frames" id="timeline-frames-container">
+              <!-- Danh sach Frame cards duoc sinh tu dong -->
             </div>
-          </section>
+
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <button class="btn btn-small" id="btn-duplicate-frame" title="Nhân bản frame đang chọn">
+                <svg class="btn-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Duplicate
+              </button>
+              <button class="btn btn-small" id="btn-add-frame" title="Thêm frame mới vào thư mục hiện tại">
+                <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                + Add Frame
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </footer>
@@ -1645,6 +1686,60 @@
         <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 6px; padding: 10px 14px;">
           <button class="btn btn-small" id="btn-cancel-duration">Hủy</button>
           <button class="btn btn-primary btn-small" id="btn-apply-duration">Áp dụng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. Menu ngu canh cho Project Asset Browser (Chuot phai vao Sprite / Folder) -->
+    <div class="timeline-context-menu project-context-menu" id="project-context-menu" style="display: none;">
+      <div class="context-menu-header" id="ctx-project-title">Tài nguyên</div>
+      
+      <!-- Cac muc cho Sprite -->
+      <div class="context-menu-item" id="ctx-asset-load-canvas">
+        <span>Nạp lên Canvas vẽ tiếp</span>
+        <span class="context-menu-shortcut">DblClick</span>
+      </div>
+      <div class="context-menu-item" id="ctx-asset-load-timeline">
+        <span>Nạp vào Timeline</span>
+        <span class="context-menu-shortcut">+Frame</span>
+      </div>
+
+      <!-- Cac muc cho Folder -->
+      <div class="context-menu-item" id="ctx-folder-open" style="display: none;">
+        <span>Mở thư mục này</span>
+        <span class="context-menu-shortcut">Enter</span>
+      </div>
+      <div class="context-menu-item" id="ctx-folder-load-all-timeline" style="display: none;">
+        <span>Nạp toàn bộ vào Timeline</span>
+        <span class="context-menu-shortcut">All</span>
+      </div>
+
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" id="ctx-asset-rename">
+        <span>Đổi tên</span>
+        <span class="context-menu-shortcut">F2</span>
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item text-danger" id="ctx-asset-delete">
+        <span>Xóa</span>
+        <span class="context-menu-shortcut">Del</span>
+      </div>
+    </div>
+
+    <!-- 12. Modal nhap ten cho Thu muc moi / Doi ten / Luu Sprite (Thay the toan bo prompt cu) -->
+    <div class="modal-backdrop floating-tool-backdrop" id="project-input-modal" style="display: none;">
+      <div class="modal-dialog floating-tool-dialog" style="max-width: 360px;">
+        <div class="modal-header">
+          <h3 id="project-input-title">Nhập Tên</h3>
+          <button class="modal-close" id="btn-close-project-input">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+          <label id="project-input-label" style="font-size: 11px; color: var(--text-muted);">Tên mới:</label>
+          <input type="text" id="project-input-value" class="gallery-search-input" style="width: 100%; font-size: 13px;" />
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px;">
+          <button class="btn btn-small" id="btn-cancel-project-input">Hủy bỏ</button>
+          <button class="btn btn-primary btn-small" id="btn-confirm-project-input">Xác nhận</button>
         </div>
       </div>
     </div>
