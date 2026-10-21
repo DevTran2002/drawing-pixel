@@ -29,8 +29,7 @@ models/**/*.pt
 models/**/*.safetensors
 
 # Storage and generated outputs
-storage/outputs/*
-!storage/outputs/.gitkeep
+storage/
 exports/
 scratch/
 trainning/
