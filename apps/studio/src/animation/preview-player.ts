@@ -1,5 +1,5 @@
 // apps/studio/src/animation/preview-player.ts
-// Bo phat hoat anh xem truoc mini realtime
+// Bộ phát hoạt ảnh xem trước mini thời gian thực (Real-time Preview Player)
 
 import { CanvasProject } from '@pixel-draw/shared-types';
 import { AnimationController } from './animation-controller';
@@ -9,13 +9,14 @@ export class PreviewPlayer {
   private ctx: CanvasRenderingContext2D;
   private project: CanvasProject;
   private controller: AnimationController;
+  private extraCanvases: HTMLCanvasElement[] = [];
 
   private isPlaying = false;
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
   private previewFrameIndex = 0;
 
-  // Callback thong bao frame hien tai thay doi
+  // Hàm gọi lại thông báo khi khung hình hiện tại thay đổi
   public onFrameChange?: (frameIndex: number) => void;
 
   constructor(
@@ -26,13 +27,21 @@ export class PreviewPlayer {
     this.canvas = canvas;
     const context = this.canvas.getContext('2d');
     if (!context) {
-      throw new Error('Khong the khoi tao Preview Player context');
+      throw new Error('Không thể khởi tạo ngữ cảnh vẽ Preview Player');
     }
     this.ctx = context;
     this.project = project;
     this.controller = controller;
 
     this.renderCurrent();
+  }
+
+  // Đăng ký thêm canvas phụ để đồng bộ hoạt cảnh thời gian thực (ví dụ trên Timeline)
+  public addExtraCanvas(c: HTMLCanvasElement): void {
+    if (!this.extraCanvases.includes(c)) {
+      this.extraCanvases.push(c);
+      this.renderCurrent();
+    }
   }
 
   play(): void {
@@ -97,35 +106,41 @@ export class PreviewPlayer {
   }
 
   private renderFrame(frameIndex: number): void {
-    const ctx = this.ctx;
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
     const frame = this.project.frames[frameIndex];
     if (!frame) return;
 
-    const scale = Math.min(
-      Math.floor(this.canvas.width / this.project.width),
-      Math.floor(this.canvas.height / this.project.height)
-    ) || 1;
+    const allCanvases = [this.canvas, ...this.extraCanvases];
 
-    const offsetX = Math.floor((this.canvas.width - this.project.width * scale) / 2);
-    const offsetY = Math.floor((this.canvas.height - this.project.height * scale) / 2);
+    for (const cv of allCanvases) {
+      const cContext = cv.getContext('2d');
+      if (!cContext) continue;
 
-    for (const layer of frame.layers) {
-      if (!layer.visible) continue;
-      if (layer.groupId) {
-        const grp = this.project.groups?.find(g => g.id === layer.groupId);
-        if (grp && grp.visible === false) continue;
-      }
-      for (const [key, color] of Object.entries(layer.pixels)) {
-        if (!color) continue;
-        const [xStr, yStr] = key.split(',');
-        const px = parseInt(xStr, 10);
-        const py = parseInt(yStr, 10);
+      cContext.imageSmoothingEnabled = false;
+      cContext.clearRect(0, 0, cv.width, cv.height);
 
-        ctx.fillStyle = color;
-        ctx.fillRect(offsetX + px * scale, offsetY + py * scale, scale, scale);
+      const scale = Math.min(
+        Math.floor(cv.width / this.project.width),
+        Math.floor(cv.height / this.project.height)
+      ) || 1;
+
+      const offsetX = Math.floor((cv.width - this.project.width * scale) / 2);
+      const offsetY = Math.floor((cv.height - this.project.height * scale) / 2);
+
+      for (const layer of frame.layers) {
+        if (!layer.visible) continue;
+        if (layer.groupId) {
+          const grp = this.project.groups?.find(g => g.id === layer.groupId);
+          if (grp && grp.visible === false) continue;
+        }
+        for (const [key, color] of Object.entries(layer.pixels)) {
+          if (!color) continue;
+          const [xStr, yStr] = key.split(',');
+          const px = parseInt(xStr, 10);
+          const py = parseInt(yStr, 10);
+
+          cContext.fillStyle = color;
+          cContext.fillRect(offsetX + px * scale, offsetY + py * scale, scale, scale);
+        }
       }
     }
   }

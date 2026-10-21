@@ -1,5 +1,5 @@
 // apps/studio/src/core/asset-browser-controller.ts
-// Bo dieu khien trinh duyet tai nguyen du an (Project Asset Browser) phong cach Unity
+// Bộ điều khiển trình duyệt tài nguyên dự án (Project Asset Browser) phong cách Unity
 
 import {
   ProjectAssetItem,
@@ -30,7 +30,7 @@ export class AssetBrowserController {
   private historyIndex: number = 0;
   private searchQuery: string = '';
   private selectedItemPath: string | null = null;
-  private zoomSize: number = 72; // Kich thuoc thumbnail (px), tu 48 den 128
+  private zoomSize: number = 72; // Kích thước thumbnail thu nhỏ (px), từ 48 đến 128
   private expandedFolders: Set<string> = new Set(['Assets', 'Assets/Characters', 'Assets/Characters/Hero']);
   private serverUrl: string = 'http://127.0.0.1:3055';
 
@@ -40,16 +40,16 @@ export class AssetBrowserController {
     this.loadFromLocalStorage();
   }
 
-  // Luu bo nho tam vao localStorage de ho tro che do offline
+  // Lưu bộ nhớ tạm vào localStorage để hỗ trợ chế độ ngoại tuyến
   private saveToLocalStorage(): void {
     try {
       localStorage.setItem('pixel_draw_project_assets', JSON.stringify(this.tree));
     } catch (e) {
-      // Bo qua neu day bo nho storage
+      // Bỏ qua nếu đầy bộ nhớ lưu trữ
     }
   }
 
-  // Nap cay tai nguyen tu localStorage
+  // Nạp cây tài nguyên từ localStorage
   private loadFromLocalStorage(): void {
     try {
       const saved = localStorage.getItem('pixel_draw_project_assets');
@@ -60,11 +60,11 @@ export class AssetBrowserController {
         }
       }
     } catch (e) {
-      // Dung cay mac dinh
+      // Sử dụng cây mặc định nếu không có dữ liệu lưu
     }
   }
 
-  // Lay du lieu cay tai nguyen tu backend server
+  // Lấy dữ liệu cây tài nguyên từ máy chủ backend
   public async fetchTree(): Promise<ProjectAssetTree> {
     try {
       const response = await fetch(`${this.serverUrl}/api/project-assets/tree`);
@@ -76,51 +76,51 @@ export class AssetBrowserController {
         }
       }
     } catch (err) {
-      console.warn('[AssetBrowserController] Khong the ket noi server, su dung du lieu cuc bo:', err);
+      console.warn('[AssetBrowserController] Không thể kết nối máy chủ, sử dụng dữ liệu cục bộ:', err);
     }
     return this.tree;
   }
 
-  // Lay duong dan thu muc hien tai
+  // Lấy đường dẫn thư mục hiện tại
   public getCurrentPath(): string {
     return this.currentPath;
   }
 
-  // Lay muc zoom hien tai
+  // Lấy mức zoom hiện tại
   public getZoomSize(): number {
     return this.zoomSize;
   }
 
-  // Thiet lap muc zoom (48px - 128px)
+  // Thiết lập mức zoom (48px - 128px)
   public setZoomSize(size: number): void {
     this.zoomSize = Math.max(48, Math.min(128, size));
   }
 
-  // Dat tu khoa tim kiem
+  // Đặt từ khóa tìm kiếm
   public setSearchQuery(query: string): void {
     this.searchQuery = query.trim().toLowerCase();
   }
 
-  // Lay tu khoa tim kiem
+  // Lấy từ khóa tìm kiếm
   public getSearchQuery(): string {
     return this.searchQuery;
   }
 
-  // Chon mot item
+  // Chọn một mục tài nguyên
   public selectItem(path: string | null): void {
     this.selectedItemPath = path;
   }
 
-  // Lay duong dan item dang duoc chon
+  // Lấy đường dẫn mục đang được chọn
   public getSelectedItemPath(): string | null {
     return this.selectedItemPath;
   }
 
-  // Dieu huong toi mot thu muc cu the
+  // Điều hướng tới một thư mục cụ thể
   public navigateTo(targetPath: string): void {
     if (this.currentPath === targetPath) return;
 
-    // Cat bo phan lich su phia sau neu dang o giua lich su
+    // Cắt bỏ phần lịch sử phía sau nếu đang ở giữa lịch sử
     if (this.historyIndex < this.history.length - 1) {
       this.history = this.history.slice(0, this.historyIndex + 1);
     }
@@ -132,7 +132,7 @@ export class AssetBrowserController {
     this.expandedFolders.add(targetPath);
   }
 
-  // Quay lai thu muc truoc do
+  // Quay lại thư mục trước đó trong lịch sử
   public goBack(): boolean {
     if (this.historyIndex > 0) {
       this.historyIndex--;
@@ -143,7 +143,7 @@ export class AssetBrowserController {
     return false;
   }
 
-  // Tien toi thu muc tiep theo
+  // Tiến tới thư mục tiếp theo trong lịch sử
   public goForward(): boolean {
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex++;
@@ -162,7 +162,7 @@ export class AssetBrowserController {
     return this.historyIndex < this.history.length - 1;
   }
 
-  // Danh sach breadcrumbs dieu huong (vi du: Assets > Characters > Hero)
+  // Danh sách breadcrumbs điều hướng (ví dụ: Assets > Characters > Hero)
   public getBreadcrumbs(): BreadcrumbItem[] {
     const parts = this.currentPath.split('/');
     const breadcrumbs: BreadcrumbItem[] = [];
@@ -179,13 +179,13 @@ export class AssetBrowserController {
     return breadcrumbs;
   }
 
-  // Lay toan bo danh sach cac folder de render Treeview ben trai
+  // Lấy toàn bộ danh sách các thư mục để hiển thị cây thư mục bên trái (Treeview)
   public getFolderHierarchy(): FolderNodeItem[] {
     const folders = this.tree.items.filter(item => item.type === 'folder');
     const folderMap = new Map<string, ProjectAssetItem>();
     folders.forEach(f => folderMap.set(f.path, f));
 
-    // Tim tat ca folder con truc tiep cua mot parentPath
+    // Tìm tất cả thư mục con trực tiếp của một parentPath
     const getChildren = (parentPath: string) => {
       return folders.filter(f => f.parentPath === parentPath);
     };
@@ -208,7 +208,7 @@ export class AssetBrowserController {
         isSelected: this.currentPath === node.path
       });
 
-      // Neu folder duoc mo thi de quy tiep cac folder con
+      // Nếu thư mục được mở thì đệ quy tiếp các thư mục con
       if (isExpanded) {
         children.forEach(child => traverse(child.path, level + 1));
       }
@@ -218,7 +218,7 @@ export class AssetBrowserController {
     return result;
   }
 
-  // Mo rong hoac thu gon thu muc tren Treeview
+  // Mở rộng hoặc thu gọn thư mục trên cây thư mục (Treeview)
   public toggleFolderExpand(path: string): void {
     if (this.expandedFolders.has(path)) {
       this.expandedFolders.delete(path);
@@ -227,20 +227,20 @@ export class AssetBrowserController {
     }
   }
 
-  // Lay danh sach cac item trong thu muc hien tai (hoac ket qua tim kiem)
+  // Lấy danh sách các mục trong thư mục hiện tại (hoặc kết quả tìm kiếm)
   public getItemsInCurrentFolder(): ProjectAssetItem[] {
     if (this.searchQuery) {
-      // Neu co tu khoa tim kiem, quet toan bo cay tai nguyen
+      // Nếu có từ khóa tìm kiếm, quét toàn bộ cây tài nguyên
       return this.tree.items.filter(item =>
         item.name.toLowerCase().includes(this.searchQuery)
       );
     }
 
-    // Lay cac folder va sprite co parentPath la currentPath
+    // Lấy các thư mục và sprite có parentPath là currentPath
     return this.tree.items.filter(item => item.parentPath === this.currentPath);
   }
 
-  // Tao mot thu muc moi trong thu muc hien tai
+  // Tạo một thư mục mới trong thư mục hiện tại
   public async createFolder(name: string): Promise<ProjectAssetItem | null> {
     try {
       const response = await fetch(`${this.serverUrl}/api/project-assets/folder`, {
@@ -262,10 +262,10 @@ export class AssetBrowserController {
         }
       }
     } catch (err) {
-      console.warn('[AssetBrowserController] Loi server tao folder, tao cuc bo:', err);
+      console.warn('[AssetBrowserController] Lỗi máy chủ khi tạo thư mục, thực hiện tạo cục bộ:', err);
     }
 
-    // Fallback tao cuc bo
+    // Cơ chế dự phòng tạo thư mục cục bộ
     const cleanName = name.trim().replace(/[/\\?%*:|"<>]/g, '_');
     const folderPath = `${this.currentPath}/${cleanName}`;
     const newItem: ProjectAssetItem = {
@@ -283,7 +283,7 @@ export class AssetBrowserController {
     return newItem;
   }
 
-  // Luu sprite hien tai vao thu muc dang mo
+  // Lưu sprite hiện tại vào thư mục đang mở
   public async saveCurrentSprite(
     name: string,
     data: {
@@ -313,10 +313,10 @@ export class AssetBrowserController {
         }
       }
     } catch (err) {
-      console.warn('[AssetBrowserController] Loi server luu sprite, luu cuc bo:', err);
+      console.warn('[AssetBrowserController] Lỗi máy chủ khi lưu sprite, thực hiện lưu cục bộ:', err);
     }
 
-    // Fallback luu cuc bo
+    // Cơ chế dự phòng lưu sprite cục bộ
     const id = `sprite_${Date.now()}`;
     const cleanName = name.trim() || `Sprite_${Date.now()}`;
     const newItem: ProjectAssetItem = {
@@ -333,7 +333,7 @@ export class AssetBrowserController {
     return newItem;
   }
 
-  // Xoa mot item
+  // Xóa một mục tài nguyên
   public async deleteItem(path: string): Promise<boolean> {
     try {
       const response = await fetch(`${this.serverUrl}/api/project-assets/delete`, {
@@ -351,10 +351,10 @@ export class AssetBrowserController {
         }
       }
     } catch (err) {
-      console.warn('[AssetBrowserController] Loi server xoa item, xoa cuc bo:', err);
+      console.warn('[AssetBrowserController] Lỗi máy chủ khi xóa mục, thực hiện xóa cục bộ:', err);
     }
 
-    // Fallback xoa cuc bo
+    // Cơ chế dự phòng xóa cục bộ
     this.tree.items = this.tree.items.filter(
       item => item.path !== path && !item.path.startsWith(`${path}/`)
     );
@@ -362,7 +362,7 @@ export class AssetBrowserController {
     return true;
   }
 
-  // Doi ten item
+  // Đổi tên mục tài nguyên
   public async renameItem(path: string, newName: string): Promise<boolean> {
     try {
       const response = await fetch(`${this.serverUrl}/api/project-assets/rename`, {
@@ -380,10 +380,10 @@ export class AssetBrowserController {
         }
       }
     } catch (err) {
-      console.warn('[AssetBrowserController] Loi server doi ten item, cap nhat cuc bo:', err);
+      console.warn('[AssetBrowserController] Lỗi máy chủ khi đổi tên, thực hiện cập nhật cục bộ:', err);
     }
 
-    // Fallback doi ten cuc bo
+    // Cơ chế dự phòng đổi tên cục bộ
     const item = this.tree.items.find(i => i.path === path);
     if (!item) return false;
 
@@ -412,7 +412,7 @@ export class AssetBrowserController {
     return true;
   }
 
-  // Di chuyen mot item sang thu muc khac (Drag & Drop)
+  // Di chuyển một mục sang thư mục khác (Kéo & Thả - Drag & Drop)
   public async moveItem(sourcePath: string, targetFolderPath: string): Promise<boolean> {
     try {
       const response = await fetch(`${this.serverUrl}/api/project-assets/move`, {
@@ -430,10 +430,10 @@ export class AssetBrowserController {
         }
       }
     } catch (err) {
-      console.warn('[AssetBrowserController] Loi server di chuyen item, xu ly cuc bo:', err);
+      console.warn('[AssetBrowserController] Lỗi máy chủ khi di chuyển mục, thực hiện xử lý cục bộ:', err);
     }
 
-    // Fallback di chuyen cuc bo
+    // Cơ chế dự phòng di chuyển cục bộ
     const source = this.tree.items.find(i => i.path === sourcePath);
     if (!source) return false;
     if (sourcePath === targetFolderPath) return false;

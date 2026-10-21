@@ -16,7 +16,23 @@
         <span class="brand-badge" id="canvas-zoom-badge" title="Nhấn để căn giữa Canvas">1600%</span>
       </div>
 
-      <!-- 1.2 Thanh Menu Tha Xuong (App Menu Bar) -->
+      <!-- 1.2 Bo chuyen doi che do Workspace (Workspaces Switcher) -->
+      <div class="workspace-nav-switcher" id="workspace-switcher">
+        <button class="workspace-tab-btn active" id="workspace-switch-draw" data-mode="draw" title="Chế độ Vẽ Pixel & Quản lý Layer">
+          Vẽ Pixel
+        </button>
+        <button class="workspace-tab-btn" id="workspace-switch-animate" data-mode="animate" title="Chế độ Làm Hoạt Cảnh & Dòng Thời Gian">
+          Hoạt Ảnh
+        </button>
+        <button class="workspace-tab-btn" id="workspace-switch-ai" data-mode="ai" title="Chế độ Sinh Nhân Vật & Hoạt Cảnh AI">
+          AI Studio
+        </button>
+        <button class="workspace-tab-btn" id="workspace-switch-assets" data-mode="assets" title="Chế độ Quản Lý Tài Nguyên & Thư Viện Tranh">
+          Tài Nguyên
+        </button>
+      </div>
+
+      <!-- 1.3 Thanh Menu Tha Xuong (App Menu Bar) -->
       <nav class="nav-menu-bar" id="app-menu-bar">
         <!-- Menu Tep (File) -->
         <div class="nav-menu-item" data-menu="file">
@@ -125,7 +141,7 @@
         </div>
       </nav>
 
-      <!-- 1.3 Tac vu nhanh va Trang thai ket noi ben phai -->
+      <!-- 1.4 Tac vu nhanh va Trang thai ket noi ben phai -->
       <div class="nav-quick-actions">
         <!-- Quick Undo/Redo icons -->
         <div class="quick-history-group">
@@ -142,6 +158,12 @@
           <span class="status-dot" id="status-dot"></span>
           <span id="status-text">Bridge: Offline</span>
         </div>
+
+        <!-- Nut Huong Dan Nhanh -->
+        <button class="btn btn-guide" id="btn-open-quick-guide" title="Hướng dẫn bắt đầu nhanh và tra cứu phím tắt">
+          <svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Hướng Dẫn
+        </button>
 
         <!-- Kho Anh -->
         <button class="btn btn-gallery" id="btn-open-gallery" title="Mở kho lưu trữ và lịch sử tác phẩm">
@@ -169,76 +191,81 @@
 
     <!-- 2. Khong gian lam viec chinh -->
     <main class="studio-body">
-      <!-- 2.1 Thanh cong cu ben trai (Co Icon SVG truc quan) -->
+      <!-- 2.1 Thanh cong cu ben trai (Phan nhom 4 khoi truc quan) -->
       <aside class="left-toolbar" id="toolbar">
-        <!-- Selection -->
-        <button class="tool-btn" data-tool="select" title="Chọn vùng hình chữ nhật (S) - Ctrl+C / Ctrl+V / Delete">
-          <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/></svg>
-          <span class="tool-shortcut">S</span>
-        </button>
-        <!-- Magic Wand -->
-        <button class="tool-btn" data-tool="magicwand" title="Cây đũa thần chọn mảng pixel cùng màu (W)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14.5 2.5l7 7-12 12-7-7 12-12zM12 8l4 4M2 2l3 3M19 19l3 3M8 2l-1 2M16 2l1 2M22 8l-2 1M22 16l-2-1"/></svg>
-          <span class="tool-shortcut">W</span>
-        </button>
-        <!-- Move -->
-        <button class="tool-btn" data-tool="move" title="Di chuyển vùng chọn hoặc Layer (M)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
-          <span class="tool-shortcut">M</span>
-        </button>
+        <!-- Nhom 1: Vung Chon (Selection) -->
+        <div class="tool-group" data-group="selection">
+          <button class="tool-btn" data-tool="select" data-name="Chọn vùng" data-desc="Chọn vùng hình chữ nhật (Ctrl+C / Ctrl+V / Del)">
+            <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/></svg>
+            <span class="tool-shortcut">S</span>
+          </button>
+          <button class="tool-btn" data-tool="magicwand" data-name="Cây đũa thần" data-desc="Tự động chọn mảng điểm ảnh cùng màu">
+            <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14.5 2.5l7 7-12 12-7-7 12-12zM12 8l4 4M2 2l3 3M19 19l3 3M8 2l-1 2M16 2l1 2M22 8l-2 1M22 16l-2-1"/></svg>
+            <span class="tool-shortcut">W</span>
+          </button>
+          <button class="tool-btn" data-tool="move" data-name="Di chuyển" data-desc="Dịch chuyển vùng đang chọn hoặc Layer">
+            <svg class="tool-icon" viewBox="0 0 24 24"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+            <span class="tool-shortcut">M</span>
+          </button>
+        </div>
+
         <div class="toolbar-divider"></div>
-        <!-- Pen -->
-        <button class="tool-btn active" data-tool="pencil" title="Bút chì vẽ pixel (P)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-          <span class="tool-shortcut">P</span>
-        </button>
-        <!-- Erase -->
-        <button class="tool-btn" data-tool="eraser" title="Tẩy xóa pixel (E)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M20 20H7L2 15l10-10 8 5-7 7M18 11l-5-5"/></svg>
-          <span class="tool-shortcut">E</span>
-        </button>
-        <!-- Fill -->
-        <button class="tool-btn" data-tool="bucket" title="Thùng sơn tô mảng màu (G)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l5 5a2.12 2.12 0 0 0 3 0L19 11zM5 2l5 5M2 13h15M22 20a2 2 0 1 1-4 0c0-1.6 2-3 2-3s2 1.4 2 3z"/></svg>
-          <span class="tool-shortcut">G</span>
-        </button>
-        <!-- Pick -->
-        <button class="tool-btn" data-tool="eyedropper" title="Hút màu điểm ảnh (I)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14 2l4 4L6 18l-4 4 1-5L14 2zM15 7l2 2"/></svg>
-          <span class="tool-shortcut">I</span>
-        </button>
+
+        <!-- Nhom 2: Cong cu ve (Drawing) -->
+        <div class="tool-group" data-group="drawing">
+          <button class="tool-btn active" data-tool="pencil" data-name="Bút chì vẽ" data-desc="Vẽ pixel (Chuột trái: Màu chính | Chuột phải: Màu phụ)">
+            <svg class="tool-icon" viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            <span class="tool-shortcut">P</span>
+          </button>
+          <button class="tool-btn" data-tool="eraser" data-name="Tẩy xóa" data-desc="Xóa điểm ảnh về nền trong suốt">
+            <svg class="tool-icon" viewBox="0 0 24 24"><path d="M20 20H7L2 15l10-10 8 5-7 7M18 11l-5-5"/></svg>
+            <span class="tool-shortcut">E</span>
+          </button>
+          <button class="tool-btn" data-tool="bucket" data-name="Thùng sơn tô" data-desc="Tô màu kín mảng điểm ảnh đồng màu">
+            <svg class="tool-icon" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l5 5a2.12 2.12 0 0 0 3 0L19 11zM5 2l5 5M2 13h15M22 20a2 2 0 1 1-4 0c0-1.6 2-3 2-3s2 1.4 2 3z"/></svg>
+            <span class="tool-shortcut">G</span>
+          </button>
+          <button class="tool-btn" data-tool="eyedropper" data-name="Hút màu" data-desc="Lấy mã màu điểm ảnh trên Canvas">
+            <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14 2l4 4L6 18l-4 4 1-5L14 2zM15 7l2 2"/></svg>
+            <span class="tool-shortcut">I</span>
+          </button>
+        </div>
+
         <div class="toolbar-divider"></div>
-        <!-- Line -->
-        <button class="tool-btn" data-tool="line" title="Đường thẳng (L)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>
-          <span class="tool-shortcut">L</span>
-        </button>
-        <!-- Rect -->
-        <button class="tool-btn" data-tool="rectangle" title="Khung hình chữ nhật (U)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
-          <span class="tool-shortcut">U</span>
-        </button>
-        <!-- Circle -->
-        <button class="tool-btn" data-tool="circle" title="Hình tròn (C)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
-          <span class="tool-shortcut">C</span>
-        </button>
+
+        <!-- Nhom 3: Hinh khoi (Shapes) -->
+        <div class="tool-group" data-group="shapes">
+          <button class="tool-btn" data-tool="line" data-name="Đoạn thẳng" data-desc="Vẽ đoạn thẳng pixel theo thuật toán Bresenham">
+            <svg class="tool-icon" viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>
+            <span class="tool-shortcut">L</span>
+          </button>
+          <button class="tool-btn" data-tool="rectangle" data-name="Hình chữ nhật" data-desc="Vẽ khung viền hình chữ nhật">
+            <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
+            <span class="tool-shortcut">U</span>
+          </button>
+          <button class="tool-btn" data-tool="circle" data-name="Hình tròn" data-desc="Vẽ đường tròn pixel">
+            <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+            <span class="tool-shortcut">C</span>
+          </button>
+        </div>
+
         <div class="toolbar-divider"></div>
-        <!-- Dither -->
-        <button class="tool-btn" data-tool="dither" title="Tô hoa văn chấm Dither (J)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="4" height="4"/><rect x="12" y="4" width="4" height="4"/><rect x="8" y="10" width="4" height="4"/><rect x="16" y="10" width="4" height="4"/><rect x="4" y="16" width="4" height="4"/><rect x="12" y="16" width="4" height="4"/></svg>
-          <span class="tool-shortcut">J</span>
-        </button>
-        <!-- Light -->
-        <button class="tool-btn" data-tool="lighten" title="Tăng sáng màu điểm ảnh (D)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <span class="tool-shortcut">D</span>
-        </button>
-        <!-- Dark -->
-        <button class="tool-btn" data-tool="darken" title="Làm tối màu điểm ảnh (K)">
-          <svg class="tool-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <span class="tool-shortcut">K</span>
-        </button>
+
+        <!-- Nhom 4: Hieu ung (Effects) -->
+        <div class="tool-group" data-group="effects">
+          <button class="tool-btn" data-tool="dither" data-name="Tô Dither" data-desc="Tô hoa văn chấm hạt caro đan xen chuyển tiếp">
+            <svg class="tool-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="4" height="4"/><rect x="12" y="4" width="4" height="4"/><rect x="8" y="10" width="4" height="4"/><rect x="16" y="10" width="4" height="4"/><rect x="4" y="16" width="4" height="4"/><rect x="12" y="16" width="4" height="4"/></svg>
+            <span class="tool-shortcut">J</span>
+          </button>
+          <button class="tool-btn" data-tool="lighten" data-name="Tăng sáng" data-desc="Nâng độ sáng điểm ảnh khi vẽ qua">
+            <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <span class="tool-shortcut">D</span>
+          </button>
+          <button class="tool-btn" data-tool="darken" data-name="Làm tối" data-desc="Hạ độ sáng điểm ảnh khi vẽ qua">
+            <svg class="tool-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span class="tool-shortcut">K</span>
+          </button>
+        </div>
       </aside>
 
       <!-- 2.2 Khu vuc Canvas trung tam -->
@@ -255,8 +282,14 @@
         </div>
 
         <div class="viewport-info">
-          <span id="cursor-coord">X: --, Y: --</span>
-          <span id="canvas-resolution">24 x 24</span>
+          <div class="context-hint-bar" id="context-hint-bar">
+            <span class="hint-tool-name" id="hint-tool-name">Bút chì (P)</span>
+            <span class="hint-tool-desc" id="hint-tool-desc">Chuột trái: Vẽ màu chính | Chuột phải: Màu phụ | Giữ Space: Kéo Canvas</span>
+          </div>
+          <div class="viewport-coords">
+            <span id="cursor-coord">X: --, Y: --</span>
+            <span id="canvas-resolution">24 x 24</span>
+          </div>
         </div>
       </section>
 
@@ -330,48 +363,17 @@
         <div class="dock-resize-bar"></div>
       </div>
 
-      <!-- 3.1 Cụm tab chuyển chế độ Dock (Hỗ trợ kéo thả tab để chia layout tự do) -->
+      <!-- 3.1 Cụm tab chuyển chế độ Dock -->
       <div class="dock-mode-bar" id="dock-mode-bar">
         <div class="dock-mode-tabs" id="dock-mode-tabs">
-          <button class="dock-mode-tab active" id="tab-mode-timeline" data-panel="timeline" title="Nhấp để chuyển tab, hoặc kéo thả sang trái/phải để chia đôi giao diện tự do">
+          <button class="dock-mode-tab active" id="tab-mode-timeline" data-panel="timeline" title="Dòng thời gian hoạt cảnh">
             Dòng thời gian (Timeline)
           </button>
-          <button class="dock-mode-tab" id="tab-mode-project" data-panel="project" title="Nhấp để chuyển tab, hoặc kéo thả sang trái/phải để chia đôi giao diện tự do">
+          <button class="dock-mode-tab" id="tab-mode-project" data-panel="project" title="Quản lý thư mục dự án">
             Dự án & Thư mục (Project)
           </button>
         </div>
-        <div class="dock-split-actions" id="dock-split-actions" style="display: none;">
-          <span class="dock-split-label">Bố cục: Đang chia đôi</span>
-          <button class="btn btn-tiny" id="btn-dock-merge" title="Gộp 2 khối lại thành dạng tab toàn màn hình">Gộp lại thành Tab</button>
-        </div>
-        <div class="dock-mode-info">
-          <span id="dock-mode-hint">Kéo tab sang nửa bên trái hoặc bên phải để chia đôi giao diện tự do</span>
-        </div>
       </div>
-
-      <!-- Lop phu Drop Zone chi thi vi tri khi keo tha tab -->
-      <div class="dock-drop-overlay" id="dock-drop-overlay" style="display: none;">
-        <div class="dock-drop-zone dock-drop-zone-left" id="dock-drop-left">
-          <div class="dock-drop-box">
-            <span class="dock-drop-title">Chia sang bên trái (50%)</span>
-            <span class="dock-drop-desc">Thả chuột để đặt khối này ở nửa bên trái</span>
-          </div>
-        </div>
-        <div class="dock-drop-zone dock-drop-zone-right" id="dock-drop-right">
-          <div class="dock-drop-box">
-            <span class="dock-drop-title">Chia sang bên phải (50%)</span>
-            <span class="dock-drop-desc">Thả chuột để đặt khối này ở nửa bên phải</span>
-          </div>
-        </div>
-        <div class="dock-drop-zone-tabs" id="dock-drop-tabs">
-          <div class="dock-drop-box">
-            <span class="dock-drop-title">Gộp chung thành thẻ Tab</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- The ao bay theo con tro chuot khi keo tha tab -->
-      <div class="dock-tab-drag-proxy" id="dock-tab-drag-proxy" style="display: none;"></div>
 
       <!-- Container boc ca 2 khoi giao dien ho tro hien thi doc lap hoac song song -->
       <div class="dock-panels-wrapper" id="dock-panels-wrapper">
@@ -447,11 +449,6 @@
           </div>
         </div>
 
-        <!-- Thanh keo phan cach ngang giua Thu muc Project va Timeline (Horizontal Splitter) -->
-        <div class="dock-splitter-resizer" id="dock-splitter-resizer" style="display: none;" title="Kéo sang trái/phải để tùy chỉnh độ rộng (Nhấp đúp để chia đôi 50/50)">
-          <div class="dock-splitter-grip"></div>
-        </div>
-
         <!-- KHOI 2: Dong thoi gian (Timeline) -->
         <div class="dock-panel-view active" id="dock-panel-timeline">
           <!-- Action Folders / Tabs Header -->
@@ -462,7 +459,7 @@
             <div class="action-folders-actions">
               <button class="btn btn-small" id="btn-add-action-folder" title="Tạo thêm thư mục động tác mới">
                 <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>+ Động tác</span>
+                <span>Động tác</span>
               </button>
               <button class="btn btn-small btn-generate-from-base" id="btn-generate-from-base" style="display: none;" title="Tự động tính toán khung xương sinh hoạt cảnh chuẩn nhịp điệu từ Tư thế gốc">
                 <svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9Z"/></svg>
@@ -473,6 +470,17 @@
 
           <!-- Thanh dieu khien va dai frame thumbnails -->
           <div class="timeline-main-row">
+            <!-- Khung xem truoc hoat anh truc tiep tren Timeline (Unified Live Player) -->
+            <div class="timeline-preview-card" id="timeline-preview-card" title="Xem trước hoạt ảnh chạy theo thời gian thực">
+              <div class="timeline-preview-box">
+                <canvas id="timeline-preview-canvas" width="64" height="64"></canvas>
+              </div>
+              <div class="timeline-preview-meta">
+                <span class="timeline-preview-title" id="timeline-preview-clip-name">Clip: base</span>
+                <span class="timeline-preview-badge" id="timeline-preview-fps-text">10 FPS</span>
+              </div>
+            </div>
+
             <div class="timeline-controls">
               <button class="btn btn-small" id="btn-prev-frame" title="Frame trước (Mũi tên Trái hoặc phím [ )">
                 <svg class="btn-icon" viewBox="0 0 24 24"><polygon points="15 18 9 12 15 6"/></svg>
@@ -511,7 +519,7 @@
               </button>
               <button class="btn btn-small" id="btn-add-frame" title="Thêm frame mới vào thư mục hiện tại">
                 <svg class="btn-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                + Add Frame
+                <span>Thêm Frame</span>
               </button>
             </div>
           </div>
@@ -646,6 +654,7 @@
                     <div style="flex: 1;">
                       <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">LoRA Model:</label>
                       <select id="ai-lora-select" class="btn btn-small" style="width: 100%; font-size: 11px;">
+                        <option value="models/lora/2d_pixel_sprites_64.safetensors">2D Pixel Sprites 64 (Chuyên Sprite Game)</option>
                         <option value="models/lora/pixel_f2.safetensors">Pixel F2 (RPG / Sprites)</option>
                         <option value="models/lora/pixel_portrait_lora.safetensors">Pixel Portrait LoRA</option>
                       </select>
@@ -727,6 +736,9 @@
               <div class="step2-quick-bar" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px;">
                 <button type="button" class="btn btn-small" id="btn-step2-reroll" style="padding: 6px 14px; font-weight: 500;" title="Tao lai mau nhan vat khac voi Seed ngau nhien moi">
                   Vẽ lại mẫu khác (Reroll)
+                </button>
+                <button type="button" class="btn btn-small" id="btn-step2-sync-from-canvas" style="background: rgba(16, 185, 129, 0.18); border: 1px solid #10b981; color: #34d399; font-weight: 600; padding: 6px 14px;" title="Cập nhật hình ảnh nhân vật mới nhất từ Canvas (sau khi bạn vừa vẽ hoặc tỉa sửa lại)">
+                  Cập Nhật Từ Canvas Đã Sửa
                 </button>
                 <button type="button" class="btn btn-small" id="btn-step2-toggle-slicer" style="background: rgba(124, 58, 237, 0.15); border: 1px solid rgba(167, 139, 250, 0.4); color: #c084fc; font-weight: 500; padding: 6px 14px;" title="Mo bo cat cac o tu Sprite Sheet de xem truoc hoat anh">
                   Cắt Lưới Sprite Sheet &amp; Xem Thử
@@ -815,7 +827,10 @@
                   <img id="wizard-step3-thumb-img" style="width: 80px; height: 80px; object-fit: contain; image-rendering: pixelated;" />
                 </div>
                 <span id="wizard-step3-seed-label" style="font-size: 10px; color: #4ade80; font-family: monospace;">Seed: #0</span>
-                <button class="btn btn-tiny" id="btn-step3-change-char" style="font-size: 10px; padding: 2px 6px;">Đổi mẫu khác</button>
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                  <button class="btn btn-tiny" id="btn-step3-change-char" style="font-size: 10px; padding: 2px 6px;">Đổi mẫu</button>
+                  <button class="btn btn-tiny" id="btn-step3-sync-canvas" style="font-size: 10px; padding: 2px 6px; border-color: #10b981; color: #34d399;" title="Lấy lại hình đã sửa mới nhất trên Canvas nạp vào khung xương">Lấy từ Canvas</button>
+                </div>
               </div>
 
               <!-- COT PHAI: CHON HANH DONG, SO FRAME, CO ANH VA GAN KHUNG XUONG -->
@@ -1180,6 +1195,7 @@
         <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid rgba(255,255,255,0.08); background: #0e0f16;">
           <div style="display: flex; gap: 8px; align-items: center;">
             <button class="btn" id="btn-wizard-back" style="display: none; padding: 6px 14px;">Quay lại</button>
+            <button class="btn" id="btn-wizard-use-canvas-char" style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #34d399; font-weight: 600;" title="Lấy ngay bức tranh nhân vật đang vẽ trên Canvas làm mẫu để tạo hoạt ảnh">Lấy Từ Canvas Hiện Tại</button>
             <button class="btn" id="btn-load-existing-ai" title="Nạp ảnh đã sinh gần nhất vào Canvas">Nạp Ảnh Gần Nhất</button>
             <button class="btn" id="btn-wizard-upload-base" style="border-color: #38bdf8; color: #38bdf8;" title="Tải file ảnh nhân vật từ máy tính để làm mẫu">Tải Mẫu Từ Máy Tính</button>
             <button class="btn" id="btn-wizard-pick-character" style="border-color: #a855f7; color: #c084fc;" title="Chọn nhân vật cốt lõi đã lưu trong dự án">Chọn Nhân Vật Có Sẵn</button>
@@ -1813,6 +1829,118 @@
           <button class="btn btn-small" id="btn-cancel-char-picker">Đóng</button>
         </div>
       </div>
+    </div>
+
+    <!-- 15. Modal Huong Dan Bat Dau Nhanh & Phim Tat (Quick Start Guide) -->
+    <div class="modal-backdrop" id="quick-guide-modal" style="display: none;">
+      <div class="modal-dialog" style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3>Hướng Dẫn Khởi Đầu Nhanh (Quick Start Guide)</h3>
+            <span class="brand-badge" style="color: #38bdf8; border-color: #0284c7;">Người Mới Bắt Đầu</span>
+          </div>
+          <button class="modal-close" id="btn-close-quick-guide">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+          <!-- 4 Buoc de hieu -->
+          <div>
+            <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">Quy Trình Tạo Tác Phẩm Pixel & Hoạt Cảnh Trong 4 Bước:</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 700; font-size: 12px; color: #4ade80;">1. Chọn Chế Độ "Vẽ Pixel"</span>
+                <span style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                  Chọn bút chì (P) để vẽ chi tiết. Chuột trái vẽ màu chính, chuột phải vẽ màu phụ. Thùng sơn (G) tô kín mảng màu. Hút màu (I) lấy lại mã màu cũ.
+                </span>
+              </div>
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 700; font-size: 12px; color: #38bdf8;">2. Chuyển Sang "Hoạt Ảnh"</span>
+                <span style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                  Bấm tab "Hoạt Ảnh" trên đầu để mở rộng Timeline. Nhấn "Duplicate" hoặc "Thêm Frame" để vẽ từng khung hình chuyển động. Xem chuyển động trực tiếp ngay cạnh Timeline.
+                </span>
+              </div>
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 700; font-size: 12px; color: #c084fc;">3. Hoặc Tạo Tự Động Từ "AI Studio"</span>
+                <span style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                  Nhập mô tả hoặc chọn mẫu 1-click. Hệ thống gán khung xương 16 khớp OpenPose Puppet Rigging giúp tạo chuỗi bước đi, chém kiếm giữ nguyên 100% nét vẽ.
+                </span>
+              </div>
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 700; font-size: 12px; color: #f59e0b;">4. Lưu & Xuất Tác Phẩm</span>
+                <span style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                  Lưu vào "Tài Nguyên" dự án để tái sử dụng. Bấm "Export" để tải ảnh PNG đơn lẻ hoặc trích xuất Sprite Sheet kèm file JSON Atlas cho Game Engine.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bang tra cuu phim tat -->
+          <div>
+            <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.5px;">Phím Tắt Thao Tác Nhanh (Shortcuts):</h4>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 11px;">
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Di chuyển Canvas</span>
+                <span style="color: #38bdf8; font-weight: 600;">Space + Kéo</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Phóng to / Thu nhỏ</span>
+                <span style="color: #38bdf8; font-weight: 600;">Cuộn chuột</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Hoàn tác (Undo)</span>
+                <span style="color: #38bdf8; font-weight: 600;">Ctrl + Z</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Làm lại (Redo)</span>
+                <span style="color: #38bdf8; font-weight: 600;">Ctrl + Y</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Bút chì (Pen)</span>
+                <span style="color: #4ade80; font-weight: 600;">P</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Tẩy xóa (Erase)</span>
+                <span style="color: #4ade80; font-weight: 600;">E</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Thùng sơn (Bucket)</span>
+                <span style="color: #4ade80; font-weight: 600;">G</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Hút màu (Picker)</span>
+                <span style="color: #4ade80; font-weight: 600;">I</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Lật ngang (Flip H)</span>
+                <span style="color: #f59e0b; font-weight: 600;">H</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Lật dọc (Flip V)</span>
+                <span style="color: #f59e0b; font-weight: 600;">V</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Xoay 90 độ</span>
+                <span style="color: #f59e0b; font-weight: 600;">R</span>
+              </div>
+              <div style="background: #11121a; padding: 6px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Bật/Tắt Lưới Pixel</span>
+                <span style="color: #c084fc; font-weight: 600;">Phím G</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; padding: 10px 18px;">
+          <button class="btn btn-primary" id="btn-close-quick-guide-footer">Đã hiểu & Bắt đầu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tooltip tuc thi khi re chuot qua cong cu -->
+    <div id="instant-tooltip" class="instant-floating-tooltip" style="display: none;">
+      <div class="tooltip-header">
+        <span class="tooltip-title" id="tooltip-title">Bút chì</span>
+        <span class="tooltip-key" id="tooltip-key">P</span>
+      </div>
+      <div class="tooltip-body" id="tooltip-desc">Vẽ pixel điểm ảnh</div>
     </div>
 
     <script type="module" src="./src/main.ts"></script>

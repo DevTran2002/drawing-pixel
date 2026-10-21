@@ -1,5 +1,5 @@
 // apps/studio/src/main.ts
-// Diem vao chinh cua ung dung Pixel Art Studio
+// Điểm vào chính của ứng dụng Pixel Art Studio
 
 import {
   createDefaultProject,
@@ -7,6 +7,7 @@ import {
   PixelColor,
   Point2D,
   coordToKey,
+  keyToCoord,
   McpDrawPayload,
   LayerData,
   LayerGroup,
@@ -40,7 +41,7 @@ import { downloadProjectFile, importFromPxDraw, exportToPxDraw } from './core/pr
 import { applyColorAdjustment, ColorAdjustmentOptions, invertHexColor } from './tools/color-adjustments';
 import { AssetBrowserController } from './core/asset-browser-controller';
 
-// 1. Khoi tao trang thai toan cuc cua Studio
+// 1. Khởi tạo trạng thái toàn cục của Studio
 const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
 const history = new HistoryManager(50);
 const animController = new AnimationController(project);
@@ -50,6 +51,7 @@ let globalOpenAiWizardWithBaseChar: ((pixels: PixelPoint[], w: number, h: number
 let globalSelectAndLoadCharacter: ((idOrSlug: string) => Promise<void>) | null = null;
 let currentEditingCoreCharacter: { id: string; slug: string; name: string } | null = null;
 let globalRenderProjectView: (() => void) | null = null;
+let globalSwitchDockTab: ((tab: 'timeline' | 'project', animate?: boolean, overrideHeight?: number) => void) | null = null;
 
 export const refreshProjectAssetView = () => {
   assetBrowser.fetchTree().then(() => {
@@ -57,7 +59,7 @@ export const refreshProjectAssetView = () => {
   }).catch(() => {});
 };
 
-// Lay cac phan tu DOM
+// Lấy các phần tử DOM chính
 const mainCanvas = document.getElementById('main-canvas') as HTMLCanvasElement;
 const previewCanvas = document.getElementById('preview-canvas') as HTMLCanvasElement;
 
@@ -71,7 +73,13 @@ const canvasEngine = new CanvasEngine({
 const onionSkinRenderer = new OnionSkinRenderer(project.width, project.height);
 const previewPlayer = new PreviewPlayer(previewCanvas, project, animController);
 
-// Theo doi thay doi kich thuoc cua Viewport de co gian Canvas toan man hinh
+// Đăng ký khung xem trước phụ trên thanh Timeline
+const timelinePreviewCanvas = document.getElementById('timeline-preview-canvas') as HTMLCanvasElement;
+if (timelinePreviewCanvas) {
+  previewPlayer.addExtraCanvas(timelinePreviewCanvas);
+}
+
+// Theo dõi thay đổi kích thước của Viewport để co giãn Canvas toàn màn hình
 const viewportContainer = document.getElementById('viewport');
 if (viewportContainer) {
   const resizeObserver = new ResizeObserver((entries) => {
@@ -86,7 +94,7 @@ if (viewportContainer) {
   resizeObserver.observe(viewportContainer);
 }
 
-// Trang thai cong cu va co ve
+// Trạng thái công cụ và cọ vẽ
 let activeTool: ToolType = 'pencil';
 let primaryColor: PixelColor = '#ec4899';
 let secondaryColor: PixelColor = '#000000';
@@ -95,7 +103,7 @@ let symmetryX = false;
 let symmetryY = false;
 let onionSkinEnabled = false;
 
-// Trang thai giu phim Space va lia chuot (Pan/Hand tool)
+// Trạng thái giữ phím Space và lia chuột (Pan/Hand tool)
 let isSpacePressed = false;
 let isPanning = false;
 let lastPanPoint = { x: 0, y: 0 };
@@ -104,7 +112,7 @@ let isPointerDown = false;
 let pointerStartPoint: Point2D | null = null;
 let currentStrokeChanges: PixelChange[] = [];
 
-// 2. Ham render dong bo toan bo giao dien
+// 2. Hàm render đồng bộ toàn bộ giao diện
 function renderAll(): void {
   const onionCanvas = onionSkinRenderer.render(project, onionSkinEnabled);
   canvasEngine.render(onionCanvas);
@@ -112,9 +120,20 @@ function renderAll(): void {
   renderActionTabs();
   renderTimeline();
   renderLayers();
+
+  // Cập nhật nhãn thông tin xem trước trên Timeline
+  const timelineClipLabel = document.getElementById('timeline-preview-clip-name');
+  const timelineFpsLabel = document.getElementById('timeline-preview-fps-text');
+  const activeClip = animController.getActiveClip();
+  if (timelineClipLabel) {
+    timelineClipLabel.textContent = `Clip: ${activeClip?.name || 'base'}`;
+  }
+  if (timelineFpsLabel) {
+    timelineFpsLabel.textContent = `${activeClip?.fps || 10} FPS`;
+  }
 }
 
-// 3. Xu ly ve bang chuot va co ve
+// 3. Xử lý vẽ bằng chuột và cọ vẽ
 function applyBrushAt(
   px: number,
   py: number,
@@ -774,6 +793,7 @@ window.addEventListener('keydown', (e) => {
       const b = btn as HTMLElement;
       b.classList.toggle('active', b.dataset.tool === activeTool);
     });
+    updateContextHintBar(activeTool);
   }
 });
 
@@ -818,8 +838,105 @@ if (zoomBadge) {
   });
 }
 
-// 4. UI: Thanh cong cu ben trai (Toolbar)
+// Bản đồ hướng dẫn thao tác ngữ cảnh cho từng công cụ
+const TOOL_HINTS: Record<ToolType, { name: string; desc: string }> = {
+  pencil: {
+    name: 'Bút chì (P)',
+    desc: 'Chuột trái: Vẽ màu chính | Chuột phải: Màu phụ | Giữ Space: Kéo Canvas'
+  },
+  eraser: {
+    name: 'Tẩy xóa (E)',
+    desc: 'Chuột trái/phải: Xóa điểm ảnh về nền trong suốt | Giữ Space: Kéo Canvas'
+  },
+  bucket: {
+    name: 'Thùng sơn (G)',
+    desc: 'Chuột trái: Tô màu chính | Chuột phải: Tô màu phụ kín mảng đồng màu'
+  },
+  eyedropper: {
+    name: 'Hút màu (I)',
+    desc: 'Nhấp chuột lên Canvas để lấy mã màu làm màu chính'
+  },
+  select: {
+    name: 'Chọn vùng (S)',
+    desc: 'Kéo chuột chọn vùng hình chữ nhật | Ctrl+C: Sao chép | Ctrl+V: Dán | Del: Xóa'
+  },
+  magicwand: {
+    name: 'Cây đũa thần (W)',
+    desc: 'Nhấp chuột để tự động chọn toàn bộ mảng điểm ảnh cùng màu'
+  },
+  move: {
+    name: 'Di chuyển (M)',
+    desc: 'Kéo chuột để di chuyển vùng đang chọn hoặc các điểm ảnh'
+  },
+  line: {
+    name: 'Đoạn thẳng (L)',
+    desc: 'Nhấp giữ và kéo để vẽ đoạn thẳng pixel chuẩn Bresenham'
+  },
+  rectangle: {
+    name: 'Hình chữ nhật (U)',
+    desc: 'Nhấp giữ và kéo để vẽ khung hình chữ nhật pixel'
+  },
+  circle: {
+    name: 'Hình tròn (C)',
+    desc: 'Nhấp giữ và kéo từ tâm để vẽ đường tròn pixel'
+  },
+  dither: {
+    name: 'Tô Dither (J)',
+    desc: 'Tô hoa văn chấm hạt đan xen giữa màu chính và màu phụ'
+  },
+  lighten: {
+    name: 'Tăng sáng (D)',
+    desc: 'Vẽ qua để tăng độ sáng (Lighten) của điểm ảnh'
+  },
+  darken: {
+    name: 'Làm tối (K)',
+    desc: 'Vẽ qua để giảm độ sáng (Darken) của điểm ảnh'
+  }
+};
+
+// Hàm cập nhật thanh chỉ dẫn ngữ cảnh dưới Canvas
+function updateContextHintBar(tool: ToolType): void {
+  const hintName = document.getElementById('hint-tool-name');
+  const hintDesc = document.getElementById('hint-tool-desc');
+  const info = TOOL_HINTS[tool] || { name: tool, desc: 'Đang chọn công cụ' };
+  if (hintName) hintName.textContent = info.name;
+  if (hintDesc) hintDesc.textContent = info.desc;
+}
+
+// 4. UI: Thanh công cụ bên trái (Toolbar)
 const toolbar = document.getElementById('toolbar');
+const instantTooltip = document.getElementById('instant-tooltip');
+const tooltipTitle = document.getElementById('tooltip-title');
+const tooltipKey = document.getElementById('tooltip-key');
+const tooltipDesc = document.getElementById('tooltip-desc');
+
+function setupInstantTooltips(): void {
+  if (!toolbar || !instantTooltip) return;
+
+  toolbar.querySelectorAll('.tool-btn').forEach((btnEl) => {
+    const btn = btnEl as HTMLElement;
+    const tool = btn.dataset.tool as ToolType;
+    const toolName = btn.dataset.name || tool;
+    const toolDesc = btn.dataset.desc || '';
+    const shortcut = btn.querySelector('.tool-shortcut')?.textContent || '';
+
+    btn.addEventListener('mouseenter', () => {
+      if (tooltipTitle) tooltipTitle.textContent = toolName;
+      if (tooltipKey) tooltipKey.textContent = shortcut;
+      if (tooltipDesc) tooltipDesc.textContent = toolDesc;
+
+      const rect = btn.getBoundingClientRect();
+      instantTooltip.style.top = `${rect.top + (rect.height / 2) - 18}px`;
+      instantTooltip.style.left = `${rect.right + 10}px`;
+      instantTooltip.style.display = 'block';
+    });
+
+    btn.addEventListener('mouseleave', () => {
+      instantTooltip.style.display = 'none';
+    });
+  });
+}
+
 if (toolbar) {
   toolbar.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('.tool-btn') as HTMLElement;
@@ -829,7 +946,10 @@ if (toolbar) {
     btn.classList.add('active');
 
     activeTool = btn.dataset.tool as ToolType;
+    updateContextHintBar(activeTool);
   });
+  setupInstantTooltips();
+  updateContextHintBar(activeTool);
 }
 
 // 5. UI: Bang mau (Color Palette)
@@ -2945,6 +3065,7 @@ function initAiPixelModal(): void {
 
   // Các nút điều hướng ở chân Modal
   const btnWizardBack = document.getElementById('btn-wizard-back');
+  const btnWizardUseCanvasChar = document.getElementById('btn-wizard-use-canvas-char');
   const btnWizardDrawStatic = document.getElementById('btn-wizard-draw-static');
   const btnWizardDrawBase = document.getElementById('btn-wizard-draw-base');
   const btnWizardStep2UseStatic = document.getElementById('btn-wizard-step2-use-static');
@@ -2962,6 +3083,7 @@ function initAiPixelModal(): void {
   const animPreviewBox = document.getElementById('anim-base-preview-container');
   const btnStep2BackStep1 = document.getElementById('btn-step2-back-step1');
   const btnStep2Reroll = document.getElementById('btn-step2-reroll');
+  const btnStep2SyncFromCanvas = document.getElementById('btn-step2-sync-from-canvas');
   const btnStep2UseStatic = document.getElementById('btn-step2-use-static');
   const btnStep2Lock = document.getElementById('btn-step2-lock') as HTMLButtonElement | null;
 
@@ -2969,6 +3091,7 @@ function initAiPixelModal(): void {
   const step3ThumbImg = document.getElementById('wizard-step3-thumb-img') as HTMLImageElement | null;
   const step3SeedLabel = document.getElementById('wizard-step3-seed-label');
   const btnStep3ChangeChar = document.getElementById('btn-step3-change-char');
+  const btnStep3SyncCanvas = document.getElementById('btn-step3-sync-canvas');
   const animFrameSizeSelect = document.getElementById('anim-frame-size-select') as HTMLSelectElement | null;
   const animRemoveBgCheckbox = document.getElementById('anim-remove-bg-checkbox') as HTMLInputElement | null;
   const btnStep3TabActions = document.getElementById('btn-step3-tab-actions');
@@ -3087,6 +3210,10 @@ function initAiPixelModal(): void {
       btnLoadExistingAi.style.display = validStep === 1 ? 'inline-flex' : 'none';
     }
 
+    if (btnWizardUseCanvasChar) {
+      btnWizardUseCanvasChar.style.display = validStep === 1 ? 'inline-flex' : 'none';
+    }
+
     if (btnWizardUploadBase) {
       btnWizardUploadBase.style.display = (validStep === 1 || validStep === 2) ? 'inline-flex' : 'none';
       btnWizardUploadBase.innerText = validStep === 2 ? 'Tải mẫu khác từ máy' : 'Tải Mẫu Từ Máy Tính';
@@ -3105,7 +3232,7 @@ function initAiPixelModal(): void {
 
     if (btnStep2Lock) {
       btnStep2Lock.style.display = validStep === 2 ? 'inline-flex' : 'none';
-      btnStep2Lock.disabled = !baseCharState.seed;
+      btnStep2Lock.disabled = !baseCharState.pixels || baseCharState.pixels.length === 0;
       btnStep2Lock.innerText = baseCharState.locked ? 'Đã Chốt Mẫu (Sang Bước 3)' : 'Chốt Mẫu Này & Sang Bước 3';
     }
 
@@ -3146,7 +3273,7 @@ function initAiPixelModal(): void {
         }
       }
       if (btnStep2Lock) {
-        btnStep2Lock.disabled = !baseCharState.seed;
+        btnStep2Lock.disabled = !baseCharState.pixels || baseCharState.pixels.length === 0;
         btnStep2Lock.innerText = baseCharState.locked ? 'Đã Chốt Mẫu (Tiếp tục)' : 'Chốt Mẫu Này & Sang Bước 3';
       }
 
@@ -3445,6 +3572,106 @@ function initAiPixelModal(): void {
   // ==========================================
   // XỬ LÝ BƯỚC 2: XEM TRƯỚC & CHỐT MẪU
   // ==========================================
+
+  // Trích xuất toàn bộ pixel hiển thị từ Canvas hiện tại của Studio
+  const extractPixelsFromCurrentCanvas = (): { pixels: PixelPoint[]; width: number; height: number } => {
+    const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+    const combinedMap: Record<string, PixelColor> = {};
+    if (currentFrame && currentFrame.layers) {
+      for (const layer of currentFrame.layers) {
+        if (!layer.visible) continue;
+        for (const [key, color] of Object.entries(layer.pixels)) {
+          if (color) {
+            combinedMap[key] = color;
+          }
+        }
+      }
+    }
+
+    const pixels: PixelPoint[] = [];
+    for (const [key, color] of Object.entries(combinedMap)) {
+      const pt = keyToCoord(key);
+      if (!isNaN(pt.x) && !isNaN(pt.y)) {
+        pixels.push({ x: pt.x, y: pt.y, color });
+      }
+    }
+
+    return {
+      pixels,
+      width: project.width || 64,
+      height: project.height || 64
+    };
+  };
+
+  // Đồng bộ nhân vật từ Canvas vào bộ wizard làm mẫu cơ sở
+  const syncBaseCharacterFromCanvas = (autoGoStep2 = true): boolean => {
+    const { pixels, width, height } = extractPixelsFromCurrentCanvas();
+    if (pixels.length === 0) {
+      alert('Canvas hiện tại đang trống! Vui lòng vẽ hoặc nạp nhân vật lên Canvas trước.');
+      return false;
+    }
+
+    baseCharState.pixels = pixels;
+    baseCharState.width = width;
+    baseCharState.height = height;
+    baseCharState.dataUrl = renderPixelsToDataUrl(pixels, width, height);
+    if (!baseCharState.seed) {
+      baseCharState.seed = Math.floor(Math.random() * 900000000) + 100000000;
+    }
+    if (!baseCharState.prompt) {
+      baseCharState.prompt = 'Canvas Character Edit';
+    }
+    baseCharState.locked = false;
+
+    // Ước tính lại khung xương để khớp với dáng nhân vật mới chỉnh sửa
+    activeSkeletonRig = autoEstimateSkeletonRig(pixels, width, height);
+
+    // Cập nhật giao diện xem trước Bước 2
+    if (animBaseImg) {
+      animBaseImg.src = baseCharState.dataUrl;
+      animBaseImg.style.display = 'block';
+      if (animBasePlaceholder) animBasePlaceholder.style.display = 'none';
+    }
+    if (animBaseBadge) {
+      animBaseBadge.innerText = `Đã đồng bộ từ Canvas (${width}x${height}px)`;
+      animBaseBadge.style.color = '#34d399';
+      animBaseBadge.style.borderColor = '#10b981';
+    }
+    if (animBaseSeedText) {
+      animBaseSeedText.innerText = `Seed: #${baseCharState.seed}`;
+    }
+
+    // Cập nhật ảnh đại diện Bước 3
+    if (step3ThumbImg && baseCharState.dataUrl) {
+      step3ThumbImg.src = baseCharState.dataUrl;
+    }
+
+    // Cập nhật lại bộ cắt lưới nếu đang mở
+    if (step2SlicerPanel && step2SlicerPanel.style.display === 'flex') {
+      sliceBaseCharGrid();
+    }
+
+    saveWizardCheckpoint();
+
+    if (autoGoStep2) {
+      goToStep(2);
+    }
+    return true;
+  };
+
+  // Sự kiện nút Lấy Từ Canvas Hiện Tại ở Bước 1
+  btnWizardUseCanvasChar?.addEventListener('click', () => {
+    syncBaseCharacterFromCanvas(true);
+  });
+
+  // Sự kiện nút Cập Nhật Từ Canvas Đã Sửa ở Bước 2
+  btnStep2SyncFromCanvas?.addEventListener('click', () => {
+    const ok = syncBaseCharacterFromCanvas(false);
+    if (ok) {
+      alert('Đã cập nhật hình ảnh nhân vật mới nhất từ Canvas thành công! Bạn có thể bấm "Chốt Mẫu Này & Sang Bước 3" để tạo hoạt cảnh.');
+    }
+  });
+
   btnStep2BackStep1?.addEventListener('click', () => {
     goToStep(1);
   });
@@ -4500,6 +4727,17 @@ function initAiPixelModal(): void {
 
   btnStep3ChangeChar?.addEventListener('click', () => {
     goToStep(2);
+  });
+
+  // Sự kiện nút Lấy từ Canvas trực tiếp tại Bước 3
+  btnStep3SyncCanvas?.addEventListener('click', () => {
+    const ok = syncBaseCharacterFromCanvas(false);
+    if (ok) {
+      ensureSkeletonRig();
+      renderCustomJointsLegend();
+      renderJointPinningView();
+      alert('Đã cập nhật hình ảnh mới nhất từ Canvas vào Khung xương Bước 3 thành công!');
+    }
   });
 
   // Khoi tao hoac dam bao co SkeletonRig hop le
@@ -7864,7 +8102,7 @@ function initTimelineContextMenu(): void {
   });
 }
 
-// 17. UI & Logic: Bang Quan Ly Tai Nguyen Du An Phong Cach Unity (Project & Asset Browser Dock)
+// 17. Giao diện & Xử lý: Quản lý Tài nguyên Dự án và Dòng thời gian đáy màn hình (Bottom Dock)
 function initProjectDock(): void {
   const bottomDock = document.getElementById('bottom-dock');
   const resizeHandle = document.getElementById('dock-resize-handle');
@@ -7872,18 +8110,8 @@ function initProjectDock(): void {
   const tabProject = document.getElementById('tab-mode-project');
   const panelTimeline = document.getElementById('dock-panel-timeline');
   const panelProject = document.getElementById('dock-panel-project');
-  const dockSplitterResizer = document.getElementById('dock-splitter-resizer');
   const projectTreeResizer = document.getElementById('project-tree-resizer');
   const sidebarTree = document.getElementById('project-sidebar-tree');
-  const hintText = document.getElementById('dock-mode-hint');
-
-  const dropOverlay = document.getElementById('dock-drop-overlay');
-  const dropZoneLeft = document.getElementById('dock-drop-left');
-  const dropZoneRight = document.getElementById('dock-drop-right');
-  const dropZoneTabs = document.getElementById('dock-drop-tabs');
-  const dragProxy = document.getElementById('dock-tab-drag-proxy');
-  const splitActions = document.getElementById('dock-split-actions');
-  const btnDockMerge = document.getElementById('btn-dock-merge');
 
   const btnBack = document.getElementById('btn-project-back') as HTMLButtonElement | null;
   const btnForward = document.getElementById('btn-project-forward') as HTMLButtonElement | null;
@@ -7894,39 +8122,15 @@ function initProjectDock(): void {
   const btnLoadTimeline = document.getElementById('btn-project-load-timeline');
   const zoomSlider = document.getElementById('project-zoom-slider') as HTMLInputElement | null;
 
-  type DockLayoutMode = 'timeline' | 'project' | 'split';
   type DockTabId = 'timeline' | 'project';
-  type DockLayout = 'tabbed' | 'split';
-  type SplitSide = 'left' | 'right';
-
-  let currentLayout: DockLayout = (localStorage.getItem('pixel_draw_dock_layout') as DockLayout) || 'tabbed';
   let activeTab: DockTabId = (localStorage.getItem('pixel_draw_dock_active_tab') as DockTabId) || 'timeline';
-  let projectSplitSide: SplitSide = (localStorage.getItem('pixel_draw_dock_split_side') as SplitSide) || 'left';
-
-  // Ho tro nguoi dung da luu trang thai cu
-  const savedMode = localStorage.getItem('pixel_draw_dock_mode');
-  if (savedMode === 'split') {
-    currentLayout = 'split';
-  } else if (savedMode === 'project') {
-    currentLayout = 'tabbed';
-    activeTab = 'project';
-  } else if (savedMode === 'timeline') {
-    currentLayout = 'tabbed';
-    activeTab = 'timeline';
-  }
-
-  let currentDockMode: DockLayoutMode = currentLayout === 'split' ? 'split' : activeTab;
   let savedTimelineHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_timeline') || '140', 10);
   let savedProjectHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_project') || '320', 10);
-  let savedSplitHeight = parseInt(localStorage.getItem('pixel_draw_dock_height_split') || '340', 10);
-  let savedSplitWidth = parseInt(localStorage.getItem('pixel_draw_dock_split_width') || '480', 10);
   let savedTreeWidth = parseInt(localStorage.getItem('pixel_draw_project_tree_width') || '220', 10);
 
-  // Dam bao cac gia tri kich thuoc hop le
+  // Đảm bảo các giá trị kích thước hợp lệ
   savedTimelineHeight = Math.max(110, Math.min(650, isNaN(savedTimelineHeight) ? 140 : savedTimelineHeight));
   savedProjectHeight = Math.max(180, Math.min(650, isNaN(savedProjectHeight) ? 320 : savedProjectHeight));
-  savedSplitHeight = Math.max(180, Math.min(650, isNaN(savedSplitHeight) ? 340 : savedSplitHeight));
-  savedSplitWidth = Math.max(280, Math.min(1000, isNaN(savedSplitWidth) ? 480 : savedSplitWidth));
   savedTreeWidth = Math.max(150, Math.min(450, isNaN(savedTreeWidth) ? 220 : savedTreeWidth));
 
   const applyDockHeight = (animate = false) => {
@@ -7936,224 +8140,68 @@ function initProjectDock(): void {
     } else {
       bottomDock.classList.remove('no-transition');
     }
-    let h = savedTimelineHeight;
-    if (currentLayout === 'split') h = savedSplitHeight;
-    else if (activeTab === 'project') h = savedProjectHeight;
+    const h = activeTab === 'project' ? savedProjectHeight : savedTimelineHeight;
     bottomDock.style.height = `${h}px`;
   };
 
-  // Khoi tao do rong cay thu muc
   if (sidebarTree) {
     sidebarTree.style.width = `${savedTreeWidth}px`;
   }
 
-  // Cap nhat bo cuc Dock dua tren currentLayout va activeTab
-  const updateDockLayout = (animateHeight = true) => {
-    currentDockMode = currentLayout === 'split' ? 'split' : activeTab;
+  // Hàm chuyển tab Dòng thời gian <-> Dự án & Thư mục
+  const switchDockTab = (tab: DockTabId, animate = true, overrideHeight?: number) => {
+    activeTab = tab;
     try {
-      localStorage.setItem('pixel_draw_dock_layout', currentLayout);
       localStorage.setItem('pixel_draw_dock_active_tab', activeTab);
-      localStorage.setItem('pixel_draw_dock_split_side', projectSplitSide);
-      localStorage.setItem('pixel_draw_dock_mode', currentDockMode);
     } catch (e) {}
 
-    applyDockHeight(animateHeight);
-
-    if (currentLayout === 'split') {
-      // Che do chia doi song song
-      bottomDock?.classList.add('dock-split-active');
-      bottomDock?.classList.add('dock-project-active');
-
-      if (projectSplitSide === 'right') {
-        bottomDock?.classList.add('dock-order-reversed');
+    if (overrideHeight !== undefined) {
+      if (tab === 'project') {
+        savedProjectHeight = overrideHeight;
       } else {
-        bottomDock?.classList.remove('dock-order-reversed');
+        savedTimelineHeight = overrideHeight;
       }
+    }
 
-      tabTimeline?.classList.add('active');
+    applyDockHeight(animate);
+
+    if (tab === 'project') {
+      bottomDock?.classList.add('dock-project-active');
       tabProject?.classList.add('active');
-
-      if (splitActions) splitActions.style.display = 'flex';
-      if (dockSplitterResizer) dockSplitterResizer.style.display = 'flex';
+      tabTimeline?.classList.remove('active');
 
       if (panelProject) {
         panelProject.style.display = 'flex';
-        panelProject.style.width = `${savedSplitWidth}px`;
+        panelProject.style.width = '100%';
       }
+      if (panelTimeline) panelTimeline.style.display = 'none';
+      if (sidebarTree) sidebarTree.style.width = `${savedTreeWidth}px`;
+
+      assetBrowser.fetchTree().then(() => renderProjectView());
+    } else {
+      bottomDock?.classList.remove('dock-project-active');
+      tabTimeline?.classList.add('active');
+      tabProject?.classList.remove('active');
+
+      if (panelProject) panelProject.style.display = 'none';
       if (panelTimeline) {
         panelTimeline.style.display = 'flex';
-        panelTimeline.style.width = '';
-      }
-      if (sidebarTree) sidebarTree.style.width = `${savedTreeWidth}px`;
-      if (hintText) {
-        hintText.innerText = 'Kéo thanh phân cách để chỉnh độ rộng. Kéo tab vào giữa để gộp lại hoặc bấm Gộp lại thành Tab.';
+        panelTimeline.style.width = '100%';
       }
 
       renderTimeline();
-      assetBrowser.fetchTree().then(() => renderProjectView());
-    } else {
-      // Che do tab don toan man hinh
-      bottomDock?.classList.remove('dock-split-active');
-      bottomDock?.classList.remove('dock-order-reversed');
-      if (splitActions) splitActions.style.display = 'none';
-      if (dockSplitterResizer) dockSplitterResizer.style.display = 'none';
-
-      if (activeTab === 'project') {
-        bottomDock?.classList.add('dock-project-active');
-        tabProject?.classList.add('active');
-        tabTimeline?.classList.remove('active');
-
-        if (panelProject) {
-          panelProject.style.display = 'flex';
-          panelProject.style.width = '100%';
-        }
-        if (panelTimeline) panelTimeline.style.display = 'none';
-        if (sidebarTree) sidebarTree.style.width = `${savedTreeWidth}px`;
-        if (hintText) {
-          hintText.innerText = 'Kéo tab sang nửa bên trái hoặc bên phải để chia đôi giao diện tự do';
-        }
-
-        assetBrowser.fetchTree().then(() => renderProjectView());
-      } else {
-        bottomDock?.classList.remove('dock-project-active');
-        tabTimeline?.classList.add('active');
-        tabProject?.classList.remove('active');
-
-        if (panelProject) panelProject.style.display = 'none';
-        if (panelTimeline) {
-          panelTimeline.style.display = 'flex';
-          panelTimeline.style.width = '100%';
-        }
-        if (hintText) {
-          hintText.innerText = 'Kéo tab sang nửa bên trái hoặc bên phải để chia đôi giao diện tự do';
-        }
-
-        renderTimeline();
-      }
     }
   };
 
-  // Ham chuyen doi de duy tri tinh tuong thich
-  const switchDockMode = (mode: DockLayoutMode) => {
-    if (mode === 'split') {
-      currentLayout = 'split';
-    } else {
-      currentLayout = 'tabbed';
-      activeTab = mode;
-    }
-    updateDockLayout();
-  };
+  globalSwitchDockTab = switchDockTab;
 
-  // Khoi tao che do ban dau
-  updateDockLayout(false);
+  tabTimeline?.addEventListener('click', () => switchDockTab('timeline'));
+  tabProject?.addEventListener('click', () => switchDockTab('project'));
 
-  // Thiet lap keo tha tab de chia bo cuc tu do
-  const setupTabDragAndDrop = (tabEl: HTMLElement | null, tabId: DockTabId, label: string) => {
-    if (!tabEl) return;
+  // Thiết lập chiều cao và tab ban đầu
+  switchDockTab(activeTab, false);
 
-    let startX = 0;
-    let startY = 0;
-    let isDragging = false;
-    let activeDropTarget: 'left' | 'right' | 'tabs' | null = null;
-
-    const onMouseMove = (e: MouseEvent) => {
-      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
-      if (!isDragging && dist > 5) {
-        isDragging = true;
-        tabEl.classList.add('is-tab-dragging');
-        if (dragProxy) {
-          dragProxy.innerText = label;
-          dragProxy.style.display = 'block';
-          dragProxy.style.left = `${e.clientX}px`;
-          dragProxy.style.top = `${e.clientY}px`;
-        }
-        if (dropOverlay) {
-          dropOverlay.style.display = 'flex';
-        }
-      }
-
-      if (isDragging) {
-        if (dragProxy) {
-          dragProxy.style.left = `${e.clientX}px`;
-          dragProxy.style.top = `${e.clientY}px`;
-        }
-
-        if (bottomDock) {
-          const dockRect = bottomDock.getBoundingClientRect();
-          if (e.clientY < dockRect.top + 45) {
-            activeDropTarget = 'tabs';
-          } else if (e.clientX < dockRect.left + dockRect.width * 0.5) {
-            activeDropTarget = 'left';
-          } else {
-            activeDropTarget = 'right';
-          }
-
-          dropZoneTabs?.classList.toggle('active-target', activeDropTarget === 'tabs');
-          dropZoneLeft?.classList.toggle('active-target', activeDropTarget === 'left');
-          dropZoneRight?.classList.toggle('active-target', activeDropTarget === 'right');
-        }
-      }
-    };
-
-    const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-
-      if (isDragging) {
-        tabEl.classList.remove('is-tab-dragging');
-        if (dragProxy) dragProxy.style.display = 'none';
-        if (dropOverlay) dropOverlay.style.display = 'none';
-        dropZoneTabs?.classList.remove('active-target');
-        dropZoneLeft?.classList.remove('active-target');
-        dropZoneRight?.classList.remove('active-target');
-
-        if (activeDropTarget === 'left') {
-          currentLayout = 'split';
-          projectSplitSide = tabId === 'project' ? 'left' : 'right';
-          updateDockLayout();
-        } else if (activeDropTarget === 'right') {
-          currentLayout = 'split';
-          projectSplitSide = tabId === 'project' ? 'right' : 'left';
-          updateDockLayout();
-        } else if (activeDropTarget === 'tabs') {
-          currentLayout = 'tabbed';
-          activeTab = tabId;
-          updateDockLayout();
-        }
-      } else {
-        // Nhap chuot binh thuong khong keo
-        if (currentLayout === 'split') {
-          currentLayout = 'tabbed';
-          activeTab = tabId;
-          updateDockLayout();
-        } else {
-          activeTab = tabId;
-          updateDockLayout();
-        }
-      }
-    };
-
-    tabEl.addEventListener('mousedown', (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      startX = e.clientX;
-      startY = e.clientY;
-      isDragging = false;
-      activeDropTarget = null;
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-  };
-
-  setupTabDragAndDrop(tabTimeline, 'timeline', 'Dòng thời gian (Timeline)');
-  setupTabDragAndDrop(tabProject, 'project', 'Dự án & Thư mục (Project)');
-
-  btnDockMerge?.addEventListener('click', () => {
-    currentLayout = 'tabbed';
-    updateDockLayout();
-  });
-
-  // 1. Co che keo chuot de tuy chinh chieu cao doc (Vertical Height Resizer)
+  // 1. Cơ chế kéo chuột để tùy chỉnh chiều cao Dock (Vertical Height Resizer)
   let isDraggingResize = false;
   let startY = 0;
   let startHeight = 0;
@@ -8162,10 +8210,7 @@ function initProjectDock(): void {
     e.preventDefault();
     isDraggingResize = true;
     startY = e.clientY;
-    const currentH = currentDockMode === 'split'
-      ? savedSplitHeight
-      : (currentDockMode === 'project' ? savedProjectHeight : savedTimelineHeight);
-    startHeight = bottomDock?.getBoundingClientRect().height || currentH;
+    startHeight = bottomDock?.getBoundingClientRect().height || (activeTab === 'project' ? savedProjectHeight : savedTimelineHeight);
 
     document.body.classList.add('dock-resizing');
     bottomDock?.classList.add('no-transition');
@@ -8179,15 +8224,13 @@ function initProjectDock(): void {
     const deltaY = startY - e.clientY;
     const newHeight = startHeight + deltaY;
 
-    const minH = currentDockMode === 'timeline' ? 110 : 180;
+    const minH = activeTab === 'timeline' ? 110 : 180;
     const maxH = Math.min(window.innerHeight - 100, 700);
     const clampedHeight = Math.max(minH, Math.min(maxH, newHeight));
 
     bottomDock.style.height = `${clampedHeight}px`;
 
-    if (currentDockMode === 'split') {
-      savedSplitHeight = clampedHeight;
-    } else if (currentDockMode === 'project') {
+    if (activeTab === 'project') {
       savedProjectHeight = clampedHeight;
     } else {
       savedTimelineHeight = clampedHeight;
@@ -8206,77 +8249,21 @@ function initProjectDock(): void {
     try {
       localStorage.setItem('pixel_draw_dock_height_timeline', savedTimelineHeight.toString());
       localStorage.setItem('pixel_draw_dock_height_project', savedProjectHeight.toString());
-      localStorage.setItem('pixel_draw_dock_height_split', savedSplitHeight.toString());
     } catch (err) {}
   };
 
   resizeHandle?.addEventListener('mousedown', handleResizeDown);
 
-  // Nhap dup vao thanh keo doc de chuyen nhanh giua cac muc chieu cao
+  // Nhấp đúp vào thanh kéo dọc để chuyển đổi nhanh giữa các mức chiều cao
   resizeHandle?.addEventListener('dblclick', () => {
-    if (currentDockMode === 'timeline') {
+    if (activeTab === 'timeline') {
       savedTimelineHeight = savedTimelineHeight > 180 ? 140 : 250;
       localStorage.setItem('pixel_draw_dock_height_timeline', savedTimelineHeight.toString());
-    } else if (currentDockMode === 'split') {
-      savedSplitHeight = savedSplitHeight > 380 ? 300 : 500;
-      localStorage.setItem('pixel_draw_dock_height_split', savedSplitHeight.toString());
     } else {
       savedProjectHeight = savedProjectHeight > 380 ? 300 : 500;
       localStorage.setItem('pixel_draw_dock_height_project', savedProjectHeight.toString());
     }
     applyDockHeight(true);
-  });
-
-  // 2. Co che keo ngang giua Project va Timeline trong che do Song song (Horizontal Splitter)
-  let isDraggingSplitter = false;
-  let startSplitX = 0;
-  let startProjectWidth = 0;
-
-  const handleSplitDown = (e: MouseEvent) => {
-    e.preventDefault();
-    isDraggingSplitter = true;
-    startSplitX = e.clientX;
-    startProjectWidth = panelProject?.getBoundingClientRect().width || savedSplitWidth;
-
-    document.body.classList.add('dock-horizontal-resizing');
-    window.addEventListener('mousemove', handleSplitMove);
-    window.addEventListener('mouseup', handleSplitUp);
-  };
-
-  const handleSplitMove = (e: MouseEvent) => {
-    if (!isDraggingSplitter || !panelProject || !bottomDock) return;
-    const deltaX = e.clientX - startSplitX;
-    const effectiveDelta = projectSplitSide === 'right' ? -deltaX : deltaX;
-    const newWidth = startProjectWidth + effectiveDelta;
-
-    const dockWidth = bottomDock.getBoundingClientRect().width;
-    const minW = 280;
-    const maxW = dockWidth - 320;
-    const clampedW = Math.max(minW, Math.min(maxW, newWidth));
-
-    panelProject.style.width = `${clampedW}px`;
-    savedSplitWidth = clampedW;
-  };
-
-  const handleSplitUp = () => {
-    if (!isDraggingSplitter) return;
-    isDraggingSplitter = false;
-    document.body.classList.remove('dock-horizontal-resizing');
-    window.removeEventListener('mousemove', handleSplitMove);
-    window.removeEventListener('mouseup', handleSplitUp);
-
-    try {
-      localStorage.setItem('pixel_draw_dock_split_width', savedSplitWidth.toString());
-    } catch (err) {}
-  };
-
-  dockSplitterResizer?.addEventListener('mousedown', handleSplitDown);
-
-  dockSplitterResizer?.addEventListener('dblclick', () => {
-    const dockWidth = bottomDock?.getBoundingClientRect().width || 1000;
-    savedSplitWidth = Math.round(dockWidth * 0.48);
-    if (panelProject) panelProject.style.width = `${savedSplitWidth}px`;
-    localStorage.setItem('pixel_draw_dock_split_width', savedSplitWidth.toString());
   });
 
   // 3. Co che keo ngang cay thu muc (Project Treeview Resizer)
@@ -8722,9 +8709,7 @@ function initProjectDock(): void {
       animController.setActiveClipById(newClip.id);
     }
 
-    if (currentDockMode !== 'split') {
-      switchDockMode('timeline');
-    }
+    switchDockTab('timeline');
     canvasEngine.rebuildBuffers();
     renderAll();
     syncProjectToServer();
@@ -9187,7 +9172,78 @@ function initProjectDock(): void {
   });
 }
 
-// 18. Khoi dong ung dung
+// 17.1. Chuyển đổi chế độ Không gian làm việc (Workspace Switcher & Quick Guide)
+export type WorkspaceMode = 'draw' | 'animate' | 'ai' | 'assets';
+
+export function setWorkspaceMode(mode: WorkspaceMode): void {
+  document.body.setAttribute('data-workspace-mode', mode);
+
+  // Cập nhật trạng thái nút bấm trong thanh chuyển chế độ
+  const buttons = document.querySelectorAll('#workspace-switcher .workspace-tab-btn');
+  buttons.forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+  });
+
+  const bottomDock = document.getElementById('bottom-dock');
+
+  if (mode === 'draw') {
+    if (globalSwitchDockTab) globalSwitchDockTab('timeline', true, 140);
+    renderAll();
+  } else if (mode === 'animate') {
+    if (globalSwitchDockTab) globalSwitchDockTab('timeline', true, 240);
+    renderTimeline();
+    previewPlayer.renderCurrent();
+  } else if (mode === 'ai') {
+    const aiModal = document.getElementById('ai-modal');
+    if (aiModal) {
+      aiModal.style.display = 'flex';
+    }
+  } else if (mode === 'assets') {
+    if (globalSwitchDockTab) globalSwitchDockTab('project', true, 340);
+    refreshProjectAssetView();
+  }
+}
+
+function initWorkspaceSwitcher(): void {
+  const buttons = document.querySelectorAll<HTMLButtonElement>('#workspace-switcher .workspace-tab-btn');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = (btn.getAttribute('data-mode') || 'draw') as WorkspaceMode;
+      setWorkspaceMode(mode);
+    });
+  });
+
+  // Hộp thoại Hướng Dẫn Nhanh (Quick Guide Modal)
+  const guideModal = document.getElementById('quick-guide-modal');
+  const btnOpenGuide = document.getElementById('btn-open-quick-guide');
+  const btnCloseGuide = document.getElementById('btn-close-quick-guide');
+  const btnCloseGuideFooter = document.getElementById('btn-close-quick-guide-footer');
+
+  const openGuide = () => {
+    if (guideModal) guideModal.style.display = 'flex';
+  };
+  const closeGuide = () => {
+    if (guideModal) guideModal.style.display = 'none';
+  };
+
+  btnOpenGuide?.addEventListener('click', openGuide);
+  btnCloseGuide?.addEventListener('click', closeGuide);
+  btnCloseGuideFooter?.addEventListener('click', closeGuide);
+
+  guideModal?.addEventListener('click', (e) => {
+    if (e.target === guideModal) {
+      closeGuide();
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && guideModal && guideModal.style.display === 'flex') {
+      closeGuide();
+    }
+  });
+}
+
+// 18. Khởi động ứng dụng
 loadPalette('endesga-32');
 renderAll();
 initAppMenuBar();
@@ -9200,4 +9256,7 @@ initImageImport();
 initExportModal();
 initTimelineContextMenu();
 initProjectDock();
+initWorkspaceSwitcher();
+setWorkspaceMode('draw');
+
 
