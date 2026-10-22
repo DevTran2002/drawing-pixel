@@ -159,6 +159,7 @@ export function exportLpcActionStrip(
     action: actionId,
     actionName: group.name,
     direction,
+    frameCount,
     fps: group.defaultFps,
     loop: group.loop,
     pivot: { x: LPC_GRID_CONFIG.pivotX, y: LPC_GRID_CONFIG.pivotY },

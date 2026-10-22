@@ -384,6 +384,7 @@ export interface AiAnimationOptions {
   removeBg?: boolean;
   basePixels?: PixelPoint[];
   initImage?: string;
+  conceptImage?: string;
   strength?: number;
   onProgress?: AiProgressCallback;
 }
@@ -467,6 +468,9 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
     }
     if (opts.seed !== undefined && opts.seed > 0) {
       args.push('--seed', `${opts.seed}`);
+    }
+    if (opts.conceptImage && fs.existsSync(opts.conceptImage)) {
+      args.push('--concept_image', opts.conceptImage);
     }
 
     console.log(`[AI Animation] Dang chay script tao chuoi hoat anh: ${pythonExe} ${args.join(' ')}`);
@@ -794,4 +798,153 @@ export function refineAnimationWithAi(opts: AiRefineAnimationOptions): Promise<A
     });
   });
 }
+
+// Định nghĩa giao diện tham số cho việc tạo Keyframe Concept
+export interface AiKeyframeConceptOptions {
+  initImage: string;
+  prompt: string;
+  strength?: number;
+  seed?: number;
+  checkpoint?: string;
+  loraPath?: string;
+  loraScale?: number;
+  steps?: number;
+  size?: number;
+  removeBg?: boolean;
+  onProgress?: AiProgressCallback;
+}
+
+// Kết quả trả về sau khi sinh ảnh Keyframe Concept
+export interface AiKeyframeConceptResult {
+  imageUrl: string;
+  outputPath: string;
+  seed: number;
+}
+
+// Hàm sinh ảnh mẫu Keyframe Concept nhanh trên một khung hình duy nhất
+export function generateKeyframeConcept(opts: AiKeyframeConceptOptions): Promise<AiKeyframeConceptResult> {
+  return new Promise((resolve, reject) => {
+    const projectRoot = getProjectRoot();
+    const pythonScript = path.join(projectRoot, 'scripts', 'generate_pixel_art.py');
+    const pythonExe = getPythonCommand();
+
+    const prompt = opts.prompt || 'pixel art, 16-bit RPG character, detailed glowing armor, sharp outline';
+    const strength = opts.strength !== undefined ? opts.strength : 0.58;
+    const checkpoint = opts.checkpoint ? (path.isAbsolute(opts.checkpoint) ? opts.checkpoint : path.join(projectRoot, opts.checkpoint)) : path.join(projectRoot, 'models', 'checkpoints', 'AOM3A1B_orangemixs.safetensors');
+    
+    // Ưu tiên sử dụng LoRA 2D Pixel Sprites 302MB chuyên dụng cho toàn thân nhân vật RPG
+    const toolkitLora = path.join(projectRoot, 'models', 'lora', '2d_pixel_sprites_64.safetensors');
+    const defaultLora = fs.existsSync(toolkitLora) ? toolkitLora : path.join(projectRoot, 'models', 'lora', 'pixel_f2.safetensors');
+    const loraPath = opts.loraPath ? (path.isAbsolute(opts.loraPath) ? opts.loraPath : path.join(projectRoot, opts.loraPath)) : defaultLora;
+    const isToolkit = loraPath.includes('2d_pixel_sprites');
+    const loraScale = opts.loraScale !== undefined ? opts.loraScale : (isToolkit ? 0.85 : 0.65);
+    const steps = opts.steps || (isToolkit ? 20 : 18);
+    const size = opts.size || 64;
+    const removeBg = opts.removeBg ?? true;
+    const chosenSeed = (opts.seed !== undefined && opts.seed > 0) ? opts.seed : Math.floor(Math.random() * 2147483647) + 1;
+
+    const timestamp = Date.now();
+    const outputPrefix = path.join(projectRoot, 'storage', 'outputs', `ai_concept_${timestamp}`);
+
+    const args = [
+      '-u',
+      pythonScript,
+      '--init_image', opts.initImage,
+      '--strength', `${strength}`,
+      '--checkpoint', checkpoint,
+      '--lora', loraPath,
+      '--prompt', prompt,
+      '--steps', `${steps}`,
+      '--lora_scale', `${loraScale}`,
+      '--size', `${size}`,
+      '--output_prefix', outputPrefix,
+      '--seed', `${chosenSeed}`
+    ];
+
+    if (removeBg) {
+      args.push('--remove_bg');
+    }
+
+    console.log(`[AI Keyframe Concept] Đang thực thi lệnh sinh mẫu: ${pythonExe} ${args.join(' ')}`);
+
+    const child = spawn(pythonExe, args, {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1'
+      }
+    });
+
+    let stdoutData = '';
+    let stderrData = '';
+
+    child.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+      const lines = data.toString().split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('AI_STEP:')) {
+          const parts = trimmed.split(':');
+          if (parts.length >= 6) {
+            const step = parseInt(parts[1], 10);
+            const totalSteps = parseInt(parts[2], 10);
+            const pct = parseInt(parts[3], 10);
+            const elapsed = parseFloat(parts[4]);
+            const eta = parseFloat(parts[5]);
+            opts.onProgress?.({
+              stage: 'denoising',
+              step,
+              totalSteps,
+              percent: pct,
+              elapsed,
+              eta,
+              message: `Đang sinh mẫu thử Keyframe bước ${step}/${totalSteps}...`
+            });
+          }
+        }
+      }
+    });
+
+    child.stderr.on('data', (data) => {
+      stderrData += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const cleanErr = cleanPythonErrorMessage(stderrData, stdoutData, code);
+        return reject(new Error(cleanErr));
+      }
+
+      const expectedPixelPath = `${outputPrefix}_pixel_${size}x${size}.png`;
+      if (fs.existsSync(expectedPixelPath)) {
+        const relativeUrl = `/storage/outputs/${path.basename(expectedPixelPath)}`;
+        return resolve({
+          imageUrl: relativeUrl,
+          outputPath: expectedPixelPath,
+          seed: chosenSeed
+        });
+      }
+
+      // Xử lý dự phòng nếu tệp mang tên khác
+      const outputDir = path.join(projectRoot, 'storage', 'outputs');
+      if (fs.existsSync(outputDir)) {
+        const fallbackFiles = fs.readdirSync(outputDir)
+          .filter(f => f.startsWith(`ai_concept_${timestamp}`) && f.endsWith('.png'));
+        if (fallbackFiles.length > 0) {
+          const chosenFile = fallbackFiles[fallbackFiles.length - 1];
+          const fullP = path.join(outputDir, chosenFile);
+          return resolve({
+            imageUrl: `/storage/outputs/${chosenFile}`,
+            outputPath: fullP,
+            seed: chosenSeed
+          });
+        }
+      }
+
+      reject(new Error('Không tìm thấy file ảnh concept kết quả sau khi AI xử lý.'));
+    });
+  });
+}
+
 

@@ -2,7 +2,7 @@
 // Bo cuc 3 cot: Chon Layer phu kien, Live Preview 4 huong kem dieu khien, va Cong cu dong bo Studio/AI
 
 import { LpcCompositor, LpcAssetItem } from './lpc-compositor';
-import { LpcDirection, LPC_ACTION_GROUPS } from './lpc-matrix';
+import { LpcDirection, LPC_ACTION_GROUPS, LPC_GRID_CONFIG } from './lpc-matrix';
 import {
   convertCanvasToLayerData,
   createAnimationClipFromLpc,
@@ -10,7 +10,15 @@ import {
   getAllActionFrames
 } from './lpc-studio-bridge';
 import { CanvasProject, AnimationClip, LayerData } from '@pixel-draw/shared-types';
-import { getPalettesByCategory, LPC_PALETTES, LpcPaletteCategory, PaletteRamp } from './lpc-palette';
+import {
+  getPalettesByCategory,
+  LPC_PALETTES,
+  LpcPaletteCategory,
+  PaletteRamp,
+  CHARACTER_THEMES,
+  CharacterPaletteTheme,
+  findThemeByPrompt
+} from './lpc-palette';
 
 // Metadata đi kèm batch frame khi chuyển sang AI Studio để AI biết hành động và nhịp phim
 export interface LpcBatchAiPayload {
@@ -82,6 +90,21 @@ export class LpcStudioModal {
   private callbacks: LpcModalCallbacks;
   private isInitialized = false;
 
+  // Trạng thái lưu trữ của Phương án 2: AI Keyframe Concept + Motion Transfer
+  private currentKeyframeConcept: { imageUrl: string; seed: number; outputPath: string; prompt?: string; strength?: number } | null = null;
+  private currentTransferFrames: any[] = [];
+  private transferPreviewInterval: any = null;
+  private transferCurrentFrameIndex = 0;
+
+  // Trạng thái lưu trữ của Phương án 1: AI Modular Re-skin & Trang Phục Chủ Đề (Chuẩn khớp giải phẫu 100%)
+  private currentReskinFrames: any[] = [];
+  private reskinPreviewInterval: any = null;
+  private reskinCurrentFrameIndex = 0;
+  private themePreviewCanvas: HTMLCanvasElement | null = null;
+  private themePreviewCtx: CanvasRenderingContext2D | null = null;
+  private currentSelectedThemeId = 'theme_paladin';
+
+
   constructor(callbacks: LpcModalCallbacks) {
     this.callbacks = callbacks;
     this.compositor = new LpcCompositor();
@@ -124,7 +147,7 @@ export class LpcStudioModal {
         category: 'legs',
         zIndex: 30,
         imageUrl: '/lpc_assets/pants_leather.png',
-        paletteId: 'pants_leather_brown',
+        paletteId: 'legs_leather_brown',
         enabled: true
       });
 
@@ -146,7 +169,7 @@ export class LpcStudioModal {
         category: 'torso',
         zIndex: 40,
         imageUrl: '/lpc_assets/armor_plate.png',
-        paletteId: 'armor_steel_blue',
+        paletteId: 'torso_steel_blue',
         enabled: true
       });
 
@@ -206,6 +229,14 @@ export class LpcStudioModal {
   // Dong Modal
   public close(): void {
     this.compositor.stopAnimation();
+    if (this.transferPreviewInterval) {
+      clearInterval(this.transferPreviewInterval);
+      this.transferPreviewInterval = null;
+    }
+    if (this.reskinPreviewInterval) {
+      clearInterval(this.reskinPreviewInterval);
+      this.reskinPreviewInterval = null;
+    }
     if (this.container) {
       this.container.classList.remove('active');
     }
@@ -307,16 +338,128 @@ export class LpcStudioModal {
               </button>
             </div>
 
-            <!-- Khoi AI Re-skin -->
-            <div class="lpc-ai-box">
-              <h5>AI Pose Re-skinning</h5>
-              <p class="lpc-subtext">Biến đổi khung xương hoạt cảnh này thành nhân vật phong cách mới bằng Stable Diffusion & LoRA:</p>
-              <input type="text" id="lpc-ai-prompt" class="lpc-input" placeholder="Ví dụ: cyberpunk android soldier, glowing visor, 16bit pixel art" />
-              <button id="lpc-btn-ai-reskin" class="lpc-btn-accent">
-                Chuyển Sang AI Studio
+            <!-- Bộ chuyển đổi Tab Phương Án AI -->
+            <div class="lpc-method-tabs">
+              <button type="button" class="lpc-tab-nav-btn active" data-tab="tab-p1">
+                Phương Án 1 (Chuẩn Khớp 100%)
+              </button>
+              <button type="button" class="lpc-tab-nav-btn tab-p2" data-tab="tab-p2">
+                Phương Án 2 (Keyframe Warp)
               </button>
             </div>
+
+            <!-- Tab 1: Trang Phục Chủ Đề & Palette Shading (Phương Án 1 - Chuẩn Khớp 100%, Không Biến Đổi Chi Tiết) -->
+            <div id="lpc-tab-p1" class="lpc-tab-pane active">
+              <div class="lpc-reskin-studio">
+                <div class="lpc-reskin-header">
+                  <h5>Trang Phục Chủ Đề & Bảng Màu (Paper Doll)</h5>
+                  <span class="lpc-badge" style="background:#2563eb;color:#ffffff;">Chuẩn 100% Khớp</span>
+                </div>
+                <p class="lpc-reskin-desc">
+                  Áp dụng dải màu bóng khối đồng nhất lên toàn bộ các Layer vẽ tay của LPC. Cầu vai, nếp áo, viền quần giữ nguyên 100% chi tiết trên mọi khung hình, không bị nhấp nháy hay biến dạng!
+                </p>
+
+                <!-- Các bộ trang phục chủ đề nhanh -->
+                <div class="lpc-reskin-tags" id="lpc-theme-tags">
+                  ${CHARACTER_THEMES.map(t => `
+                    <button type="button" class="lpc-reskin-tag-btn ${t.id === 'theme_paladin' ? 'active' : ''}" data-theme-id="${t.id}" title="${t.description}">
+                      ${t.name}
+                    </button>
+                  `).join('')}
+                </div>
+
+                <!-- Ô nhập Prompt thông minh tìm kiếm hoặc mô tả trang phục -->
+                <div style="display:flex;gap:6px;">
+                  <input type="text" id="lpc-reskin-prompt" class="lpc-input" style="flex:1;" placeholder="Nhập tên trang phục (ví dụ: paladin, rồng lửa, cyberpunk, ninja...)" value="Hiệp Sĩ Thánh Paladin" />
+                  <button id="lpc-btn-apply-theme" class="lpc-btn-primary" style="padding:6px 12px;white-space:nowrap;">
+                    Áp Dụng
+                  </button>
+                </div>
+
+                <div id="lpc-theme-applied-info" style="font-size:11px;color:#38bdf8;background:rgba(56,189,248,0.1);padding:6px 10px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);">
+                  Đang dùng: <b>Hiệp Sĩ Thánh Paladin (Vàng Kim)</b> - 100% đồng nhất tất cả khung hình.
+                </div>
+
+                <!-- Màn hình xem trước vòng lặp chuyển động trực tiếp của trang phục đã đổi màu -->
+                <div class="lpc-reskin-preview-area active" style="margin-top:4px;">
+                  <div style="font-size:11px;font-weight:600;color:#60a5fa;">Xem trước chuyển động đồng nhất 100%:</div>
+                  <div class="lpc-preview-canvas-box" style="box-shadow: 0 0 16px rgba(37, 99, 235, 0.4);">
+                    <canvas id="lpc-reskin-anim-canvas" width="128" height="128"></canvas>
+                  </div>
+                  <div style="display:flex;gap:6px;width:100%;margin-top:4px;">
+                    <button id="lpc-btn-load-theme-timeline" class="lpc-btn-primary" style="flex:1;">
+                      Nạp Hoạt Cảnh Vào Timeline
+                    </button>
+                    <button id="lpc-btn-export-theme-strip" class="lpc-btn-secondary" style="flex:1;">
+                      Xuất Spritesheet (PNG)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 2: AI Keyframe Studio (Phương Án 2: Sáng tạo theo khung mẫu) -->
+            <div id="lpc-tab-p2" class="lpc-tab-pane">
+              <div class="lpc-keyframe-studio">
+                <div class="lpc-keyframe-header">
+                  <h5>AI Keyframe Studio</h5>
+                  <span class="lpc-badge" style="background:#7c3aed;color:#ffffff;">Phương Án 2</span>
+                </div>
+                <p class="lpc-subtext">Sáng tạo trang phục mới trên 1 Frame mẫu, sau đó chuyển giao chuyển động sang toàn bộ hoạt cảnh:</p>
+
+                <!-- Các thẻ phong cách nhanh -->
+                <div class="lpc-keyframe-tags">
+                  <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, cyberpunk glowing armor, neon visor, futuristic battle suit, sharp outline">Cyberpunk</button>
+                  <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, flame dragon plate armor, molten gold trims, glowing runes, sharp outline">Giáp Rồng</button>
+                  <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, dark mystic wizard robes, void energy aura, glowing runes, sharp outline">Phù Thủy</button>
+                  <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, holy paladin royal plate armor, shining golden crest, sharp outline">Hiệp Sĩ</button>
+                </div>
+
+                <!-- Ô nhập Prompt sáng tạo -->
+                <input type="text" id="lpc-keyframe-prompt" class="lpc-input" placeholder="Mô tả ý tưởng trang phục sáng tạo..." />
+
+                <!-- Thanh trượt độ sáng tạo Strength -->
+                <div class="lpc-strength-row">
+                  <span>Độ sáng tạo:</span>
+                  <input type="range" id="lpc-keyframe-strength" min="35" max="75" value="58" />
+                  <b id="lpc-keyframe-strength-val" style="color:#c084fc;">0.58</b>
+                </div>
+
+                <!-- Nút sinh mẫu thử -->
+                <button id="lpc-btn-gen-keyframe" class="lpc-btn-accent" style="background:linear-gradient(135deg, #7c3aed, #a855f7);">
+                  Sinh Mẫu Thử Keyframe
+                </button>
+
+                <!-- Khung xem trước mẫu thử Keyframe đã sinh -->
+                <div class="lpc-keyframe-preview-area" id="lpc-keyframe-preview-area">
+                  <div class="lpc-preview-canvas-box">
+                    <canvas id="lpc-keyframe-preview-canvas" width="128" height="128"></canvas>
+                  </div>
+                  <div id="lpc-keyframe-seed-info" style="font-size:11px;color:#cbd5e1;">Seed: -</div>
+                  <div class="lpc-keyframe-actions-row">
+                    <button id="lpc-btn-reroll-keyframe" class="lpc-btn-secondary" title="Sinh lại mẫu khác với Seed ngẫu nhiên mới">Thử Khác</button>
+                    <button id="lpc-btn-apply-transfer" class="lpc-btn-accent" style="background:linear-gradient(135deg, #059669, #10b981);">Duyệt & Chuyển Giao</button>
+                  </div>
+                </div>
+
+                <!-- Trạng thái tiến trình & Khung xem trước hoạt cảnh chuyển giao -->
+                <div class="lpc-transfer-status" id="lpc-transfer-status">
+                  <div id="lpc-transfer-msg">Đang chuẩn bị...</div>
+                </div>
+
+                <div class="lpc-keyframe-preview-area" id="lpc-transfer-result-area" style="border-color:#10b981;">
+                  <div style="font-size:11px;font-weight:600;color:#34d399;">Hoạt cảnh hoàn chỉnh đã chuyển giao:</div>
+                  <div class="lpc-preview-canvas-box" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.3);">
+                    <canvas id="lpc-transfer-anim-canvas" width="128" height="128"></canvas>
+                  </div>
+                  <button id="lpc-btn-load-transfer-timeline" class="lpc-btn-primary" style="width:100%;margin-top:4px;">
+                    Nạp Hoạt Cảnh Vào Timeline
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
+
         </div>
       </div>
     `;
@@ -330,6 +473,15 @@ export class LpcStudioModal {
       this.previewCtx = this.previewCanvas.getContext('2d');
       if (this.previewCtx) {
         this.previewCtx.imageSmoothingEnabled = false;
+      }
+    }
+
+    // Khởi tạo Canvas xem trước Trang Phục Chủ Đề ở Cột 3
+    this.themePreviewCanvas = modal.querySelector('#lpc-reskin-anim-canvas') as HTMLCanvasElement;
+    if (this.themePreviewCanvas) {
+      this.themePreviewCtx = this.themePreviewCanvas.getContext('2d');
+      if (this.themePreviewCtx) {
+        this.themePreviewCtx.imageSmoothingEnabled = false;
       }
     }
 
@@ -536,11 +688,398 @@ export class LpcStudioModal {
       this.close();
       this.callbacks.onBatchAiReskin(payload);
     });
+
+    // 12. Chuyển đổi qua lại giữa Tab Phương Án 1 và Phương Án 2
+    const tabNavBtns = modal.querySelectorAll('.lpc-tab-nav-btn');
+    const tabPanes = modal.querySelectorAll('.lpc-tab-pane');
+    tabNavBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetTab = btn.getAttribute('data-tab');
+        tabNavBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        tabPanes.forEach((p) => {
+          if (p.id === `lpc-${targetTab}`) {
+            p.classList.add('active');
+          } else {
+            p.classList.remove('active');
+          }
+        });
+      });
+    });
+
+    // Cài đặt các sự kiện cho công cụ AI Modular Re-skin (Phương Án 1: Giữ nguyên 100% giải phẫu chuẩn LPC)
+    this.setupModularReskinListeners(modal);
+
+    // Cài đặt các sự kiện cho công cụ AI Keyframe Studio (Phương Án 2: Sáng tạo theo khung mẫu)
+    this.setupKeyframeStudioListeners(modal);
   }
 
+  // Cài đặt các sự kiện cho công cụ AI Keyframe Studio (Phương án 2: Sáng tạo theo khung mẫu)
+  private setupKeyframeStudioListeners(modal: HTMLElement): void {
+    const inputPrompt = modal.querySelector('#lpc-keyframe-prompt') as HTMLInputElement;
+    const strengthSlider = modal.querySelector('#lpc-keyframe-strength') as HTMLInputElement;
+    const strengthVal = modal.querySelector('#lpc-keyframe-strength-val');
+    const btnGenKeyframe = modal.querySelector('#lpc-btn-gen-keyframe') as HTMLButtonElement;
+    const previewArea = modal.querySelector('#lpc-keyframe-preview-area') as HTMLElement;
+    const previewCanvas = modal.querySelector('#lpc-keyframe-preview-canvas') as HTMLCanvasElement;
+    const seedInfo = modal.querySelector('#lpc-keyframe-seed-info');
+    const btnReroll = modal.querySelector('#lpc-btn-reroll-keyframe') as HTMLButtonElement;
+    const btnApplyTransfer = modal.querySelector('#lpc-btn-apply-transfer') as HTMLButtonElement;
+    const statusBox = modal.querySelector('#lpc-transfer-status') as HTMLElement;
+    const statusMsg = modal.querySelector('#lpc-transfer-msg') as HTMLElement;
+    const resultArea = modal.querySelector('#lpc-transfer-result-area') as HTMLElement;
+    const animCanvas = modal.querySelector('#lpc-transfer-anim-canvas') as HTMLCanvasElement;
+    const btnLoadTimeline = modal.querySelector('#lpc-btn-load-transfer-timeline') as HTMLButtonElement;
+
+    // 1. Thẻ phong cách nhanh
+    const tagButtons = modal.querySelectorAll('.lpc-tag-btn');
+    tagButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = btn.getAttribute('data-prompt');
+        if (p && inputPrompt) {
+          inputPrompt.value = p;
+        }
+      });
+    });
+
+    // 2. Thanh trượt độ sáng tạo Strength
+    strengthSlider?.addEventListener('input', () => {
+      const val = (parseInt(strengthSlider.value, 10) / 100).toFixed(2);
+      if (strengthVal) strengthVal.textContent = val;
+    });
+
+    // Hàm gọi sinh mẫu thử Keyframe
+    const runGenerateKeyframe = async (forceNewSeed = false) => {
+      const prompt = inputPrompt?.value.trim() || 'pixel art character, detailed glowing outfit';
+      const strength = parseFloat(strengthSlider?.value || '52') / 100;
+      const seed = forceNewSeed ? undefined : this.currentKeyframeConcept?.seed;
+
+      // Lấy khung hình hiện tại từ Compositor
+      const currentCanvas = this.compositor.getCompositeCanvas();
+      const keyframeBase64 = currentCanvas.toDataURL('image/png');
+
+      btnGenKeyframe.disabled = true;
+      btnGenKeyframe.textContent = 'Đang sinh mẫu thử...';
+      if (statusBox) {
+        statusBox.classList.add('active');
+        if (statusMsg) statusMsg.textContent = 'Đang gửi khung hình mẫu qua Model AI...';
+      }
+
+      try {
+        const response = await fetch('http://127.0.0.1:3055/api/ai/lpc-keyframe-concept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keyframeBase64,
+            prompt,
+            strength,
+            seed,
+            size: 64,
+            steps: 20
+          })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Lỗi sinh mẫu thử');
+        }
+
+        this.currentKeyframeConcept = {
+          imageUrl: data.imageUrl,
+          outputPath: data.outputPath,
+          seed: data.seed,
+          prompt,
+          strength
+        };
+
+        // Vẽ ảnh lên canvas xem trước 128x128
+        const img = new Image();
+        img.onload = () => {
+          const ctx = previewCanvas?.getContext('2d');
+          if (ctx && previewCanvas) {
+            ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+          }
+          if (previewArea) previewArea.classList.add('active');
+          if (seedInfo) seedInfo.textContent = `Seed: ${data.seed}`;
+          if (statusBox) statusBox.classList.remove('active');
+        };
+        img.onerror = () => {
+          console.warn('Lỗi tải ảnh từ URL, bật khu vực điều khiển mẫu thử với fallback...');
+          if (previewArea) previewArea.classList.add('active');
+          if (seedInfo) seedInfo.textContent = `Seed: ${data.seed}`;
+          if (statusBox) statusBox.classList.remove('active');
+        };
+        
+        // Ưu tiên nạp trực tiếp qua data URI Base64 trong bộ nhớ
+        const targetSrc = data.imageBase64 || (data.imageUrl?.startsWith('http') ? data.imageUrl : `http://127.0.0.1:3055${data.imageUrl}`);
+        img.src = targetSrc;
+      } catch (err: any) {
+        alert('Lỗi sinh mẫu thử Keyframe: ' + err.message);
+        if (statusBox) statusBox.classList.remove('active');
+      } finally {
+        btnGenKeyframe.disabled = false;
+        btnGenKeyframe.textContent = 'Sinh Mẫu Thử Keyframe';
+      }
+    };
+
+    btnGenKeyframe?.addEventListener('click', () => runGenerateKeyframe(true));
+    btnReroll?.addEventListener('click', () => runGenerateKeyframe(true));
+
+    // 3. Chuyển giao chuyển động sang toàn bộ hoạt cảnh
+    btnApplyTransfer?.addEventListener('click', async () => {
+      if (!this.currentKeyframeConcept) {
+        alert('Vui lòng sinh và duyệt mẫu thử Keyframe trước.');
+        return;
+      }
+
+      const actionId = this.compositor.getCurrentActionId();
+      const direction = this.compositor.getCurrentDirection();
+      const { canvas: stripCanvas, metadata } = exportLpcActionStrip(this.compositor, actionId, direction);
+      const frameCount = metadata.frameCount || Math.round(stripCanvas.width / LPC_GRID_CONFIG.frameWidth) || 6;
+      // Tái sử dụng chính xác prompt và seed đã duyệt từ mẫu Keyframe Concept
+      const prompt = this.currentKeyframeConcept.prompt || inputPrompt?.value.trim() || 'pixel art character';
+      const seed = this.currentKeyframeConcept.seed;
+      const conceptPath = this.currentKeyframeConcept.outputPath;
+      const conceptBase64 = this.currentKeyframeConcept.imageUrl;
+
+      btnApplyTransfer.disabled = true;
+      btnApplyTransfer.textContent = 'Đang chuyển giao...';
+      if (statusBox) {
+        statusBox.classList.add('active');
+        if (statusMsg) statusMsg.textContent = `Đang áp dụng kết cấu giáp và chuyển giao sang ${frameCount} khung hình...`;
+      }
+
+      try {
+        const response = await fetch('http://127.0.0.1:3055/api/ai/lpc-motion-transfer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stripBase64: stripCanvas.toDataURL('image/png'),
+            conceptPath,
+            conceptBase64,
+            frameCount,
+            action: actionId,
+            prompt,
+            seed,
+            strength: 0.24,
+            steps: 18,
+            size: 64
+          })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Lỗi chuyển giao hoạt cảnh');
+        }
+
+        this.currentTransferFrames = data.frames || [];
+        if (statusBox) {
+          statusBox.classList.add('active');
+          if (statusMsg) statusMsg.textContent = `Hoàn tất chuyển giao ${this.currentTransferFrames.length} khung hình!`;
+        }
+
+        if (resultArea) resultArea.classList.add('active');
+
+        // Bắt đầu phát vòng lặp hoạt cảnh xem trước
+        if (this.transferPreviewInterval) {
+          clearInterval(this.transferPreviewInterval);
+        }
+        this.transferCurrentFrameIndex = 0;
+        const animCtx = animCanvas?.getContext('2d');
+        if (animCtx) {
+          animCtx.imageSmoothingEnabled = false;
+        }
+
+        const loadedImgs: HTMLImageElement[] = [];
+        let loadedCount = 0;
+        this.currentTransferFrames.forEach((fr, idx) => {
+          const img = new Image();
+          img.onload = () => {
+            loadedCount++;
+            if (loadedCount === this.currentTransferFrames.length) {
+              // Phát hoạt cảnh ở 10 FPS
+              this.transferPreviewInterval = setInterval(() => {
+                if (!animCtx || !animCanvas) return;
+                const curImg = loadedImgs[this.transferCurrentFrameIndex];
+                if (curImg) {
+                  animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+                  animCtx.drawImage(curImg, 0, 0, animCanvas.width, animCanvas.height);
+                }
+                this.transferCurrentFrameIndex = (this.transferCurrentFrameIndex + 1) % loadedImgs.length;
+              }, 100);
+            }
+          };
+          // Ưu tiên nạp Base64 trực tiếp từ RAM
+          const p = fr.imageBase64 || (fr.imagePath ? `http://127.0.0.1:3055/storage/outputs/${fr.filename}` : fr.filename);
+          img.src = p;
+          loadedImgs[idx] = img;
+        });
+      } catch (err: any) {
+        alert('Lỗi chuyển giao chuyển động: ' + err.message);
+      } finally {
+        btnApplyTransfer.disabled = false;
+        btnApplyTransfer.textContent = 'Duyệt & Chuyển Giao';
+      }
+    });
+
+    // 4. Nạp hoạt cảnh hoàn chỉnh vào Timeline Studio
+    btnLoadTimeline?.addEventListener('click', () => {
+      if (!this.currentTransferFrames || this.currentTransferFrames.length === 0) {
+        alert('Chưa có dữ liệu hoạt cảnh chuyển giao để nạp.');
+        return;
+      }
+
+      const actionId = this.compositor.getCurrentActionId();
+      const direction = this.compositor.getCurrentDirection();
+      const group = this.compositor.getActionGroup(actionId);
+      const durationMs = Math.max(20, Math.floor(1000 / (group?.defaultFps ?? 10)));
+
+      // Chuyển danh sách frame của server thành AnimationClip cho Studio Timeline
+      const frames = this.currentTransferFrames.map((fr, idx) => {
+        const pixels: Record<string, any> = {};
+        if (Array.isArray(fr.pixels)) {
+          fr.pixels.forEach((p: any) => {
+            if (p.color) {
+              pixels[`${p.x},${p.y}`] = p.color;
+            }
+          });
+        }
+        return {
+          id: `frame_ai_transfer_${idx}_${Date.now()}`,
+          durationMs,
+          layers: [
+            {
+              id: `layer_ai_transfer_${idx}_${Date.now()}`,
+              name: `AI Concept Frame ${idx + 1}`,
+              visible: true,
+              locked: false,
+              opacity: 1.0,
+              pixels
+            }
+          ]
+        };
+      });
+
+      const clip = {
+        id: `clip_ai_transfer_${Date.now()}`,
+        name: `AI ${group?.name || actionId} (${direction})`,
+        frames,
+        fps: group?.defaultFps ?? 10,
+        loop: group?.loop ?? true
+      };
+
+      this.callbacks.onLoadClipToTimeline(clip as any);
+      this.close();
+    });
+  }
+
+  // Cài đặt các sự kiện cho công cụ Trang Phục Chủ Đề & Palette Shading (Phương Án 1: Chuẩn 100% Khớp, Không Biến Đổi Chi Tiết)
+  private setupModularReskinListeners(modal: HTMLElement): void {
+    const inputPrompt = modal.querySelector('#lpc-reskin-prompt') as HTMLInputElement;
+    const btnApplyTheme = modal.querySelector('#lpc-btn-apply-theme') as HTMLButtonElement;
+    const themeAppliedInfo = modal.querySelector('#lpc-theme-applied-info') as HTMLElement;
+    const btnLoadTimeline = modal.querySelector('#lpc-btn-load-theme-timeline') as HTMLButtonElement;
+    const btnExportStrip = modal.querySelector('#lpc-btn-export-theme-strip') as HTMLButtonElement;
+    const tagButtons = modal.querySelectorAll('#lpc-theme-tags .lpc-reskin-tag-btn');
+
+    // Hàm áp dụng một bộ Trang Phục Chủ Đề (Character Palette Theme)
+    const applyTheme = (theme: CharacterPaletteTheme) => {
+      this.currentSelectedThemeId = theme.id;
+
+      // 1. Cập nhật palette cho từng Layer tương ứng trong Compositor theo danh mục (category)
+      const currentLayers = this.compositor.getLayers();
+      currentLayers.forEach((lyr) => {
+        const cat = lyr.category as keyof typeof theme.palettes;
+        const targetPaletteId = theme.palettes[cat];
+        if (targetPaletteId) {
+          this.compositor.setLayerPalette(lyr.id, targetPaletteId);
+        }
+      });
+
+      // 2. Xóa cache và vẽ lại toàn bộ các màn hình hiển thị
+      this.compositor.clearAllPaletteCaches();
+      this.renderLayerList();
+      this.drawPreview();
+      this.updateFrameCounter();
+
+      // 3. Cập nhật trạng thái hiển thị
+      tagButtons.forEach((b) => {
+        if (b.getAttribute('data-theme-id') === theme.id) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+
+      if (themeAppliedInfo) {
+        themeAppliedInfo.innerHTML = `Đang dùng: <b>${theme.name}</b> - 100% đồng nhất tất cả khung hình.`;
+      }
+      if (inputPrompt) {
+        inputPrompt.value = theme.name;
+      }
+    };
+
+    // 1. Sự kiện click vào các thẻ bộ trang phục nhanh
+    tagButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const themeId = btn.getAttribute('data-theme-id');
+        const theme = CHARACTER_THEMES.find((t) => t.id === themeId);
+        if (theme) {
+          applyTheme(theme);
+        }
+      });
+    });
+
+    // 2. Sự kiện bấm nút Áp Dụng theo Prompt thông minh
+    btnApplyTheme?.addEventListener('click', () => {
+      const promptText = inputPrompt?.value.trim() || '';
+      if (!promptText) return;
+      const matchedTheme = findThemeByPrompt(promptText) || CHARACTER_THEMES[0];
+      if (matchedTheme) {
+        applyTheme(matchedTheme);
+      }
+    });
+
+    // Cho phép ấn Enter trong ô nhập prompt để áp dụng theme
+    inputPrompt?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        btnApplyTheme?.click();
+      }
+    });
+
+    // 3. Nạp toàn bộ hoạt cảnh đã đổi bảng màu vào Timeline của Studio
+    btnLoadTimeline?.addEventListener('click', () => {
+      const actionId = this.compositor.getCurrentActionId();
+      const direction = this.compositor.getCurrentDirection();
+      const clip = createAnimationClipFromLpc(this.compositor, actionId, direction);
+      this.callbacks.onLoadClipToTimeline(clip);
+      this.close();
+    });
+
+    // 4. Xuất dải Spritesheet Strip (PNG)
+    btnExportStrip?.addEventListener('click', () => {
+      const actionId = this.compositor.getCurrentActionId();
+      const direction = this.compositor.getCurrentDirection();
+      const { canvas } = exportLpcActionStrip(this.compositor, actionId, direction);
+
+      const linkPng = document.createElement('a');
+      linkPng.download = `lpc_${actionId}_${direction}_${this.currentSelectedThemeId}.png`;
+      linkPng.href = canvas.toDataURL('image/png');
+      linkPng.click();
+    });
+
+    // Áp dụng theme mặc định Paladin khi vừa mở modal
+    const defaultTheme = CHARACTER_THEMES.find((t) => t.id === 'theme_paladin');
+    if (defaultTheme) {
+      applyTheme(defaultTheme);
+    }
+  }
 
   // Cập nhật danh sách layer hiển thị ở cột 1 kèm bộ chọn bảng màu (Palette Shading)
   private renderLayerList(): void {
+
     if (!this.container) return;
     const listContainer = this.container.querySelector('#lpc-layer-list');
     if (!listContainer) return;
@@ -718,8 +1257,12 @@ export class LpcStudioModal {
 
   // Ve khung hinh len canvas xem truoc
   private drawPreview(): void {
-    if (!this.previewCtx) return;
-    this.compositor.renderCurrentFrame(this.previewCtx, 256, 256);
+    if (this.previewCtx) {
+      this.compositor.renderCurrentFrame(this.previewCtx, 256, 256);
+    }
+    if (this.themePreviewCtx) {
+      this.compositor.renderCurrentFrame(this.themePreviewCtx, 128, 128);
+    }
   }
 
   // Cap nhat bo dem khung hinh (Frame X / N)

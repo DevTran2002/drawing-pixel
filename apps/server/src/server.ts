@@ -7,7 +7,7 @@ import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload, CanvasProject } from '@pixel-draw/shared-types';
-import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, refineAnimationWithAi, getProjectRoot } from './ai-helper';
+import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, refineAnimationWithAi, generateKeyframeConcept, getProjectRoot } from './ai-helper';
 import { generateTemplateAnimation, savePixelsToPng } from './template-animator';
 import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
@@ -62,6 +62,28 @@ const server = http.createServer(async (req, res) => {
     }));
     return;
   }
+
+  // Phục vụ tệp tĩnh trong thư mục storage (ảnh output, animations, spritesheet)
+  if (url.pathname.startsWith('/storage/') && req.method === 'GET') {
+    const projectRoot = getProjectRoot();
+    const relativePath = url.pathname.replace(/^\/+/, '');
+    const fullPath = path.join(projectRoot, relativePath);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      const ext = path.extname(fullPath).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.json' ? 'application/json' : 'application/octet-stream';
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*'
+      });
+      fs.createReadStream(fullPath).pipe(res);
+      return;
+    }
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('File not found');
+    return;
+  }
+
 
   // API Lay ket qua sinh anh AI gan nhat (ho tro phuc hoi khi fetch bi ngat socket)
   if (url.pathname === '/api/ai/last-result' && req.method === 'GET') {
@@ -714,6 +736,312 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
+
+  // API Sinh mẫu thử Keyframe Concept trên một khung hình duy nhất
+  if (url.pathname === '/api/ai/lpc-keyframe-concept' && req.method === 'POST') {
+    req.setTimeout(0);
+    res.setTimeout(0);
+
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(body);
+        const {
+          keyframeBase64,
+          prompt = 'pixel art character, detailed outfit',
+          strength = 0.52,
+          seed,
+          steps = 14,
+          size = 64
+        } = payload;
+
+        if (!keyframeBase64) {
+          throw new Error('Thiếu dữ liệu ảnh keyframeBase64');
+        }
+
+        const timestamp = Date.now();
+        const projectRoot = getProjectRoot();
+        const outputDir = path.join(projectRoot, 'storage', 'outputs');
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        const tempKeyframePath = path.join(outputDir, `temp_keyframe_${timestamp}.png`);
+        const b64 = keyframeBase64.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(tempKeyframePath, Buffer.from(b64, 'base64'));
+
+        broadcastToStudio({
+          type: 'AI_PROGRESS',
+          stage: 'denoising',
+          percent: 20,
+          message: 'Đang dùng Model AI sinh mẫu thử Keyframe Concept...'
+        } as any);
+
+        const onProgress = (prog: any) => {
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            ...prog
+          } as any);
+        };
+
+        const conceptResult = await generateKeyframeConcept({
+          initImage: tempKeyframePath,
+          prompt,
+          strength: typeof strength === 'number' ? strength : parseFloat(strength),
+          seed: seed ? parseInt(seed, 10) : undefined,
+          steps: parseInt(steps, 10) || 14,
+          size: parseInt(size, 10) || 64,
+          onProgress
+        });
+
+        broadcastToStudio({
+          type: 'AI_PROGRESS',
+          stage: 'completed',
+          percent: 100,
+          message: 'Đã tạo thành công mẫu thử Keyframe Concept!'
+        } as any);
+
+        let imageBase64 = '';
+        if (fs.existsSync(conceptResult.outputPath)) {
+          imageBase64 = `data:image/png;base64,${fs.readFileSync(conceptResult.outputPath).toString('base64')}`;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          imageBase64,
+          imageUrl: conceptResult.imageUrl,
+          outputPath: conceptResult.outputPath,
+          seed: conceptResult.seed
+        }));
+      } catch (err: any) {
+        console.error('[API lpc-keyframe-concept] Lỗi:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Chuyển giao chuyển động từ Keyframe đã duyệt sang toàn bộ chuỗi frame hoạt cảnh
+  if (url.pathname === '/api/ai/lpc-motion-transfer' && req.method === 'POST') {
+    req.setTimeout(0);
+    res.setTimeout(0);
+
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(body);
+        const {
+          stripBase64,
+          conceptBase64,
+          conceptPath,
+          frameCount = 9,
+          action = 'walk',
+          prompt = 'pixel art character',
+          seed,
+          strength = 0.24,
+          steps = 18,
+          size = 64
+        } = payload;
+
+        if (!stripBase64) {
+          throw new Error('Thiếu dữ liệu dải hoạt cảnh stripBase64');
+        }
+
+        const timestamp = Date.now();
+        const projectRoot = getProjectRoot();
+        const outputDir = path.join(projectRoot, 'storage', 'outputs');
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        const tempStripPath = path.join(outputDir, `motion_transfer_strip_${timestamp}.png`);
+        const b64 = stripBase64.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(tempStripPath, Buffer.from(b64, 'base64'));
+
+        let finalConceptPath: string | undefined = undefined;
+        if (conceptPath && fs.existsSync(conceptPath)) {
+          finalConceptPath = conceptPath;
+        } else if (conceptBase64) {
+          const tempConceptPath = path.join(outputDir, `temp_concept_${timestamp}.png`);
+          const cb64 = conceptBase64.replace(/^data:image\/\w+;base64,/, '');
+          fs.writeFileSync(tempConceptPath, Buffer.from(cb64, 'base64'));
+          finalConceptPath = tempConceptPath;
+        }
+
+        const numFrames = parseInt(frameCount, 10) || 9;
+        const targetSize = parseInt(size, 10) || 64;
+
+        broadcastToStudio({
+          type: 'AI_PROGRESS',
+          stage: 'refining',
+          percent: 15,
+          message: `Đang chuyển giao chuyển động sang ${numFrames} khung hình với Seed ${seed}...`
+        } as any);
+
+        const onProgress = (prog: any) => {
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            ...prog
+          } as any);
+        };
+
+        const animResult = await generateSpriteAnimation({
+          initImage: tempStripPath,
+          conceptImage: finalConceptPath,
+          basePrompt: prompt,
+          action,
+          frameCount: numFrames,
+          seed: seed ? parseInt(seed, 10) : undefined,
+          strength: typeof strength === 'number' ? strength : parseFloat(strength),
+          steps: parseInt(steps, 10) || 18,
+          size: targetSize,
+          removeBg: true,
+          onProgress
+        });
+
+        broadcastToStudio({
+          type: 'AI_PROGRESS',
+          stage: 'completed',
+          percent: 100,
+          message: `Đã hoàn tất chuyển giao chuyển động cho ${animResult.frameCount} khung hình!`
+        } as any);
+
+        const enrichedFrames = animResult.frames.map((fr: any) => {
+          let b64 = '';
+          if (fr.imagePath && fs.existsSync(fr.imagePath)) {
+            b64 = `data:image/png;base64,${fs.readFileSync(fr.imagePath).toString('base64')}`;
+          }
+          return {
+            ...fr,
+            imageBase64: b64
+          };
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          action: animResult.action,
+          frameCount: animResult.frameCount,
+          frames: enrichedFrames,
+          metaPath: animResult.metaPath
+        }));
+      } catch (err: any) {
+        console.error('[API lpc-motion-transfer] Lỗi:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API AI Modular Re-skin (Phương Án 1: Giữ nguyên khung chuyển động chuẩn LPC 100%, AI chỉ Re-skin chất liệu)
+  if (url.pathname === '/api/ai/lpc-modular-reskin' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(body);
+        const {
+          stripBase64,
+          frameCount = 6,
+          action = 'slash',
+          prompt = 'pixel art character, 16bit clean outline',
+          seed,
+          strength = 0.35,
+          steps = 20,
+          size = 64
+        } = payload;
+
+        if (!stripBase64) {
+          throw new Error('Thiếu dữ liệu dải hoạt cảnh stripBase64');
+        }
+
+        const timestamp = Date.now();
+        const projectRoot = getProjectRoot();
+        const outputDir = path.join(projectRoot, 'storage', 'outputs');
+        if (!fs.existsSync(outputDir)) {
+          fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        // Lưu dải strip composite thành file tạm
+        const tempStripPath = path.join(outputDir, `modular_reskin_strip_${timestamp}.png`);
+        const b64 = stripBase64.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(tempStripPath, Buffer.from(b64, 'base64'));
+
+        const numFrames = parseInt(frameCount, 10) || 6;
+        const targetSize = parseInt(size, 10) || 64;
+        const actualStrength = typeof strength === 'number' ? strength : parseFloat(strength);
+
+        broadcastToStudio({
+          type: 'AI_PROGRESS',
+          stage: 'refining',
+          percent: 15,
+          message: `Đang thực hiện AI Modular Re-skin trên ${numFrames} khung hình chuẩn LPC...`
+        } as any);
+
+        const onProgress = (prog: any) => {
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            ...prog
+          } as any);
+        };
+
+        // Gọi generateSpriteAnimation với conceptImage = undefined để chạy Phương án 1 (Re-skin trực tiếp dải strip)
+        const animResult = await generateSpriteAnimation({
+          initImage: tempStripPath,
+          conceptImage: undefined,
+          basePrompt: prompt,
+          action,
+          frameCount: numFrames,
+          seed: seed ? parseInt(seed, 10) : undefined,
+          strength: actualStrength,
+          steps: parseInt(steps, 10) || 20,
+          size: targetSize,
+          removeBg: true,
+          onProgress
+        });
+
+        broadcastToStudio({
+          type: 'AI_PROGRESS',
+          stage: 'completed',
+          percent: 100,
+          message: `Đã hoàn tất AI Modular Re-skin cho ${animResult.frameCount} khung hình!`
+        } as any);
+
+        const enrichedFrames = animResult.frames.map((fr: any) => {
+          let b64Data = '';
+          if (fr.imagePath && fs.existsSync(fr.imagePath)) {
+            b64Data = `data:image/png;base64,${fs.readFileSync(fr.imagePath).toString('base64')}`;
+          }
+          return {
+            ...fr,
+            imageBase64: b64Data
+          };
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          action: animResult.action,
+          frameCount: animResult.frameCount,
+          seed: animResult.seed,
+          frames: enrichedFrames,
+          metaPath: animResult.metaPath
+        }));
+      } catch (err: any) {
+        console.error('[API lpc-modular-reskin] Lỗi:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+
 
   // API Thay doi kich thuoc Canvas va can le
   if (url.pathname === '/api/canvas/resize' && req.method === 'POST') {

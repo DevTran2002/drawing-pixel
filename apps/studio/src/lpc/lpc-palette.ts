@@ -19,8 +19,8 @@ export const DEFAULT_SOURCE_RAMPS = {
   torso: ['#1d131e', '#4d4a5d', '#726b7e', '#867e7f', '#c4b59f', '#ffffff'],
   // Dải màu quần vải chuẩn LPC gốc
   legs: ['#281820', '#4d4a5d', '#958080', '#c4b59f', '#e5e6c7'],
-  // Dải màu ủng da chuẩn LPC gốc
-  feet: ['#211812', '#362419', '#543926', '#7a5538', '#a87850'],
+  // Dải màu ủng chuẩn LPC gốc (boots_leather và boots_fold dùng dải xám tím này)
+  feet: ['#281820', '#4d4a5d', '#958080', '#c4b59f', '#e5e6c7'],
   // Dải màu mũ sắt chuẩn LPC gốc
   hat: ['#1d131e', '#4d4a5d', '#726b7e', '#867e7f', '#c4b59f', '#ffffff'],
   // Dải màu đuôi thú chuẩn LPC gốc
@@ -111,6 +111,24 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
       name: 'Vải Trắng Tinh',
       category: 'torso',
       colors: ['#474b54', '#6c7280', '#99a1b3', '#cdd4e3', '#f3f6fc']
+    },
+    {
+      id: 'torso_dragon_flame',
+      name: 'Giáp Rồng Lửa Nham Thạch',
+      category: 'torso',
+      colors: ['#2e0a0a', '#5c1414', '#991b1b', '#dc2626', '#f97316', '#fef08a']
+    },
+    {
+      id: 'torso_cyber_neon',
+      name: 'Thép Xanh Cyberpunk Neon',
+      category: 'torso',
+      colors: ['#0f172a', '#0369a1', '#0284c7', '#38bdf8', '#67e8f9']
+    },
+    {
+      id: 'torso_void_purple',
+      name: 'Áo Choàng Tím Hư Không',
+      category: 'torso',
+      colors: ['#1e102d', '#3b1d5c', '#6b21a8', '#a855f7', '#e9d5ff']
     }
   ],
   legs: [
@@ -137,6 +155,18 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
       name: 'Vàng Kaki',
       category: 'legs',
       colors: ['#2e291b', '#4d442c', '#756743', '#a3905e', '#cfbb84']
+    },
+    {
+      id: 'legs_dragon_scale',
+      name: 'Quần Vảy Rồng Lửa',
+      category: 'legs',
+      colors: ['#1f1414', '#3d1b1b', '#6b2121', '#991b1b', '#c2410c']
+    },
+    {
+      id: 'legs_cyber_black',
+      name: 'Quần Chiến Binh Cyberpunk',
+      category: 'legs',
+      colors: ['#090d16', '#111827', '#1e293b', '#38bdf8', '#7dd3fc']
     }
   ],
   feet: [
@@ -163,6 +193,18 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
       name: 'Ủng Bọc Sắt Xám',
       category: 'feet',
       colors: ['#1d2126', '#303740', '#4c5663', '#6f7c8c', '#98a6b8']
+    },
+    {
+      id: 'feet_dragon',
+      name: 'Ủng Giáp Rồng Lửa',
+      category: 'feet',
+      colors: ['#260d0d', '#4d1414', '#7f1d1d', '#b91c1c', '#f59e0b']
+    },
+    {
+      id: 'feet_cyber',
+      name: 'Ủng Thép Cyberpunk',
+      category: 'feet',
+      colors: ['#0f172a', '#1e293b', '#334155', '#0284c7', '#38bdf8']
     }
   ],
   hat: [
@@ -189,6 +231,18 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
       name: 'Mũ Đỏ Chiến Binh',
       category: 'hat',
       colors: ['#360f15', '#5e1722', '#8c2434', '#bd3549', '#e05369']
+    },
+    {
+      id: 'hat_dragon',
+      name: 'Mũ Sừng Rồng Lửa',
+      category: 'hat',
+      colors: ['#2e0a0a', '#5c1414', '#991b1b', '#dc2626', '#f97316', '#fef08a']
+    },
+    {
+      id: 'hat_cyber',
+      name: 'Mũ Kính Cyberpunk Neon',
+      category: 'hat',
+      colors: ['#0f172a', '#0369a1', '#0284c7', '#38bdf8', '#67e8f9']
     }
   ],
   tails: [
@@ -394,4 +448,129 @@ export function getPalettesByCategory(category: string): PaletteRamp[] {
   }
   return [];
 }
+
+// Cấu trúc định nghĩa một Bộ Phối Màu Trang Phục Hoàn Chỉnh (Character Costume Theme)
+export interface CharacterPaletteTheme {
+  id: string;
+  name: string;
+  description: string;
+  keywords: string[];
+  palettes: {
+    torso?: string;
+    legs?: string;
+    feet?: string;
+    hat?: string;
+    hair?: string;
+    body?: string;
+  };
+}
+
+// Danh sách các bộ Trang Phục Chủ Đề chuẩn mực (100% đồng nhất chi tiết trên toàn bộ các khung hình)
+export const CHARACTER_THEMES: CharacterPaletteTheme[] = [
+  {
+    id: 'theme_paladin',
+    name: 'Hiệp Sĩ Thánh Paladin (Vàng Kim)',
+    description: 'Giáp vàng kim hoàng gia rực sáng, quần sắt xám tối, ủng bọc sắt và tóc vàng hoe chuẩn mực.',
+    keywords: ['paladin', 'thánh', 'hoàng gia', 'vàng kim', 'holy', 'royal', 'gold'],
+    palettes: {
+      torso: 'torso_golden',
+      legs: 'legs_dark_iron',
+      feet: 'feet_iron',
+      hat: 'hat_gold',
+      hair: 'hair_blonde'
+    }
+  },
+  {
+    id: 'theme_dragon',
+    name: 'Chiến Binh Giáp Rồng Lửa (Flame Dragon)',
+    description: 'Giáp đỏ thẫm viền lửa nham thạch, quần vảy rồng, ủng giáp rồng và tóc đỏ rực lửa.',
+    keywords: ['rồng', 'dragon', 'lửa', 'flame', 'lava', 'đỏ', 'fire'],
+    palettes: {
+      torso: 'torso_dragon_flame',
+      legs: 'legs_dragon_scale',
+      feet: 'feet_dragon',
+      hat: 'hat_dragon',
+      hair: 'hair_red'
+    }
+  },
+  {
+    id: 'theme_cyberpunk',
+    name: 'Chiến Binh Cyberpunk Neon',
+    description: 'Giáp thép xanh neon công nghệ cao, quần chàm tối và tóc xanh anime tương lai.',
+    keywords: ['cyber', 'cyberpunk', 'neon', 'công nghệ', 'tương lai', 'futuristic'],
+    palettes: {
+      torso: 'torso_cyber_neon',
+      legs: 'legs_cyber_black',
+      feet: 'feet_cyber',
+      hat: 'hat_cyber',
+      hair: 'hair_blue'
+    }
+  },
+  {
+    id: 'theme_void_wizard',
+    name: 'Phù Thủy Hư Không (Void Mystic)',
+    description: 'Áo choàng tím huyền bí, quần sắt đen, ủng da đen và tóc bạch kim.',
+    keywords: ['phù thủy', 'wizard', 'mystic', 'hư không', 'void', 'tím', 'purple', 'magic'],
+    palettes: {
+      torso: 'torso_void_purple',
+      legs: 'legs_dark_iron',
+      feet: 'feet_black',
+      hat: 'hat_dark',
+      hair: 'hair_silver'
+    }
+  },
+  {
+    id: 'theme_shadow_assassin',
+    name: 'Sát Thủ Bóng Đêm (Shadow Assassin)',
+    description: 'Giáp sắt đen huyền tàng hình, quần tối màu, ủng da đen và tóc đen tuyền.',
+    keywords: ['sát thủ', 'ninja', 'bóng đêm', 'shadow', 'assassin', 'đen', 'dark', 'black'],
+    palettes: {
+      torso: 'torso_iron_black',
+      legs: 'legs_dark_iron',
+      feet: 'feet_black',
+      hat: 'hat_dark',
+      hair: 'hair_raven'
+    }
+  },
+  {
+    id: 'theme_royal_knight',
+    name: 'Hiệp Sĩ Thép Xanh Hoàng Gia',
+    description: 'Bộ giáp thép xanh hiệp sĩ cổ điển, quần da nâu và tóc nâu tự nhiên.',
+    keywords: ['hiệp sĩ', 'knight', 'thép xanh', 'steel', 'blue'],
+    palettes: {
+      torso: 'torso_steel_blue',
+      legs: 'legs_leather_brown',
+      feet: 'feet_brown',
+      hat: 'hat_steel',
+      hair: 'hair_brown'
+    }
+  },
+  {
+    id: 'theme_emerald_ranger',
+    name: 'Kiếm Sĩ Ngọc Lục Bảo (Emerald Ranger)',
+    description: 'Giáp ngọc lục bảo rừng sâu, quần kaki và tóc bạch kim.',
+    keywords: ['ngọc', 'lục bảo', 'emerald', 'xanh lá', 'green', 'ranger', 'rừng'],
+    palettes: {
+      torso: 'torso_emerald',
+      legs: 'legs_khaki',
+      feet: 'feet_brown',
+      hat: 'hat_dark',
+      hair: 'hair_silver'
+    }
+  }
+];
+
+// Hàm tìm Theme phù hợp nhất dựa trên Prompt văn bản của người dùng
+export function findThemeByPrompt(prompt: string): CharacterPaletteTheme | null {
+  const cleanPrompt = prompt.toLowerCase();
+  for (const theme of CHARACTER_THEMES) {
+    for (const kw of theme.keywords) {
+      if (cleanPrompt.includes(kw.toLowerCase())) {
+        return theme;
+      }
+    }
+  }
+  return null;
+}
+
 

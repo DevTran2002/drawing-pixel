@@ -3527,4 +3527,275 @@ body.tree-resizing * {
   border-color: #8b5cf6;
 }
 
+/* ==========================================================================
+   AI KEYFRAME STUDIO (PHƯƠNG ÁN 2: SÁNG TẠO THEO KHUNG MẪU)
+   ========================================================================== */
+.lpc-keyframe-studio {
+  background: #111827;
+  border: 1px solid #3b4252;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.lpc-keyframe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lpc-keyframe-header h5 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c084fc;
+}
+
+.lpc-keyframe-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lpc-tag-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lpc-tag-btn:hover {
+  background: #334155;
+  color: #f8fafc;
+  border-color: #c084fc;
+}
+
+.lpc-strength-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.lpc-strength-row input[type="range"] {
+  flex: 1;
+  accent-color: #c084fc;
+}
+
+.lpc-keyframe-preview-area {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #0b0f19;
+  border: 1px solid #4c1d95;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.lpc-keyframe-preview-area.active {
+  display: flex;
+}
+
+.lpc-preview-canvas-box {
+  width: 128px;
+  height: 128px;
+  background: #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(192, 132, 252, 0.25);
+}
+
+.lpc-preview-canvas-box canvas {
+  width: 128px;
+  height: 128px;
+  image-rendering: pixelated;
+}
+
+.lpc-keyframe-actions-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.lpc-keyframe-actions-row button {
+  flex: 1;
+}
+
+.lpc-transfer-status {
+  display: none;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid #7c3aed;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  color: #e9d5ff;
+  text-align: center;
+}
+
+.lpc-transfer-status.active {
+  display: block;
+}
+
+/* ==========================================================================
+   TABS CHUYỂN ĐỔI PHƯƠNG ÁN AI (PHƯƠNG ÁN 1 & PHƯƠNG ÁN 2)
+   ========================================================================== */
+.lpc-method-tabs {
+  display: flex;
+  gap: 6px;
+  background: #0f172a;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  margin-top: 10px;
+}
+
+.lpc-tab-nav-btn {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.lpc-tab-nav-btn:hover {
+  color: #f8fafc;
+  background: #1e293b;
+}
+
+.lpc-tab-nav-btn.active {
+  color: #ffffff;
+  background: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.lpc-tab-nav-btn.active.tab-p2 {
+  background: #7c3aed;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+}
+
+.lpc-tab-pane {
+  display: none;
+}
+
+.lpc-tab-pane.active {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ==========================================================================
+   AI MODULAR RE-SKIN (PHƯƠNG ÁN 1: GIỮ 100% KHUNG CHUẨN GIẢI PHẪU LPC)
+   ========================================================================== */
+.lpc-reskin-studio {
+  background: #111827;
+  border: 1px solid #1e3a8a;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.6);
+}
+
+.lpc-reskin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lpc-reskin-header h5 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #60a5fa;
+}
+
+.lpc-reskin-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.lpc-reskin-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lpc-reskin-tag-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lpc-reskin-tag-btn:hover {
+  background: #1e3a8a;
+  color: #bfdbfe;
+  border-color: #3b82f6;
+}
+
+.lpc-reskin-tag-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #60a5fa;
+  font-weight: 600;
+}
+
+.lpc-reskin-status {
+  display: none;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  color: #bfdbfe;
+  text-align: center;
+}
+
+.lpc-reskin-status.active {
+  display: block;
+}
+
+.lpc-reskin-preview-area {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #0b0f19;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.lpc-reskin-preview-area.active {
+  display: flex;
+}
+
+
+
 
