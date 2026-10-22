@@ -3037,4 +3037,450 @@ body.tree-resizing * {
   border-radius: 6px;
 }
 
+/* ==========================================================================
+   LPC CHARACTER STUDIO MODAL (Dark Mode Theme)
+   ========================================================================== */
+.lpc-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(10, 15, 29, 0.82);
+  backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.lpc-modal-backdrop.active {
+  display: flex;
+  opacity: 1;
+}
+
+.lpc-modal-dialog {
+  width: 1020px;
+  max-width: 95vw;
+  height: 680px;
+  max-height: 92vh;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lpc-modal-header {
+  padding: 14px 20px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lpc-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lpc-header-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.lpc-badge {
+  background: linear-gradient(135deg, #0284c7, #38bdf8);
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.lpc-btn-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.lpc-btn-close:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.lpc-modal-body {
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lpc-col {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lpc-col-layers {
+  background: #0f172a;
+  border-right: 1px solid #1e293b;
+}
+
+.lpc-col-preview {
+  background: #111827;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow-y: auto;
+}
+
+.lpc-col-tools {
+  background: #0f172a;
+  border-left: 1px solid #1e293b;
+  overflow-y: auto;
+}
+
+.lpc-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.lpc-panel-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lpc-btn-upload {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.lpc-btn-upload:hover {
+  background: #334155;
+}
+
+.lpc-layer-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lpc-layer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.lpc-layer-item.active {
+  border-color: #0284c7;
+  background: rgba(2, 132, 199, 0.12);
+}
+
+.lpc-layer-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.lpc-layer-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lpc-z-badge {
+  font-size: 10px;
+  color: #94a3b8;
+  background: #0f172a;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.lpc-btn-remove-layer {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+.lpc-hint-box {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+/* Cot xem truoc */
+.lpc-preview-box {
+  width: 256px;
+  height: 256px;
+  background-color: #1e293b;
+  background-image: 
+    linear-gradient(45deg, #273549 25%, transparent 25%), 
+    linear-gradient(-45deg, #273549 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #273549 75%), 
+    linear-gradient(-45deg, transparent 75%, #273549 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  border: 2px solid #334155;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+#lpc-preview-canvas {
+  width: 256px;
+  height: 256px;
+  image-rendering: pixelated;
+}
+
+.lpc-direction-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.lpc-control-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.lpc-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.lpc-dpad-mid {
+  display: flex;
+  gap: 4px;
+}
+
+.lpc-dpad-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lpc-dpad-btn:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.lpc-dpad-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+  font-weight: 600;
+}
+
+.lpc-action-controls {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lpc-form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lpc-form-row label {
+  font-size: 12px;
+  color: #94a3b8;
+  width: 70px;
+}
+
+.lpc-select {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.lpc-playback-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lpc-fps-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.lpc-fps-box input[type="range"] {
+  width: 70px;
+  accent-color: #38bdf8;
+}
+
+.lpc-frame-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+/* Cot 3: Cong cu */
+.lpc-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.lpc-btn-primary {
+  background: #0284c7;
+  border: 1px solid #0369a1;
+  color: #ffffff;
+  padding: 9px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lpc-btn-primary:hover {
+  background: #0369a1;
+  box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
+}
+
+.lpc-btn-secondary {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lpc-btn-secondary:hover {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.lpc-btn-accent {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  border: none;
+  color: #ffffff;
+  padding: 9px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lpc-btn-accent:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.4);
+}
+
+.lpc-ai-box {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lpc-ai-box h5 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c084fc;
+}
+
+.lpc-subtext {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.lpc-input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.lpc-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
 

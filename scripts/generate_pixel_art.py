@@ -12,6 +12,7 @@
 # ///
 
 import os
+import sys
 import time
 import inspect
 import argparse
@@ -20,6 +21,16 @@ import numpy as np
 from PIL import Image
 import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, DPMSolverMultistepScheduler
+
+# Đảm bảo mã hóa UTF-8 cho luồng xuất chuẩn trên hệ điều hành Windows tránh lỗi UnicodeEncodeError
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
+import warnings
+warnings.filterwarnings('ignore')
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # Ham tach nen an toan: chi loai bo mau nen phia ngoai, khong xam pham vao co the nhan vat
 def remove_background_safe(image, tolerance=22):
@@ -74,6 +85,20 @@ def remove_background_safe(image, tolerance=22):
     arr[bg_mask, 3] = 0
     return Image.fromarray(arr, "RGBA")
 
+# Hàm khử hoa văn nền caro giả lập độ trong suốt từ các phôi spritesheet
+def remove_checkerboard_artifacts(pil_img):
+    img = pil_img.convert("RGBA")
+    arr = np.array(img)
+    # Kiểm tra màu caro xám (153, 153, 153) và (204, 204, 204)
+    is_c1 = (np.abs(arr[:, :, 0].astype(int) - 153) <= 4) & (np.abs(arr[:, :, 1].astype(int) - 153) <= 4) & (np.abs(arr[:, :, 2].astype(int) - 153) <= 4)
+    is_c2 = (np.abs(arr[:, :, 0].astype(int) - 204) <= 4) & (np.abs(arr[:, :, 1].astype(int) - 204) <= 4) & (np.abs(arr[:, :, 2].astype(int) - 204) <= 4)
+    checker_mask = is_c1 | is_c2
+    if np.sum(checker_mask) > 100:
+        arr[checker_mask, 3] = 0
+        arr[checker_mask, :3] = 0
+        return Image.fromarray(arr, "RGBA")
+    return img
+
 def generate_pixel_art(
     lora_path="models/lora/pixel_portrait_lora.safetensors",
     checkpoint="models/checkpoints/AOM3A1B_orangemixs.safetensors",
@@ -102,57 +127,38 @@ def generate_pixel_art(
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    # Chuan hoa va uu tien dua boi canh len dau cau prompt
-    tags = [t.strip() for t in prompt.split(",") if t.strip()]
-    if not any("pixel" in t.lower() for t in tags):
-        tags.insert(0, "pixel art")
+    # Chuẩn hóa tags và ưu tiên tuyệt đối nội dung mô tả nhân vật của người dùng
+    user_tags = [t.strip() for t in prompt.split(",") if t.strip()]
 
-    # Tu dong phat hien va uu tien LoRA 2D Pixel Toolkit chuyen dung cho game animation
+    # Tự động phát hiện và ưu tiên LoRA 2D Pixel Toolkit chuyên dụng
     toolkit_lora = "models/lora/2d_pixel_sprites_64.safetensors"
     if animation_mode and os.path.exists(toolkit_lora):
         if not lora_path or "portrait" in lora_path:
             lora_path = toolkit_lora
             lora_scale = 0.85
 
-    # Neu o che do sinh hoat anh SpriteSheet, bo sung cac tag dan huong chuyen dong chuan 2D Pixel Toolkit
+    # Xây dựng prompt tinh gọn dưới 60 tokens để không bị CLIP cắt cụt mô tả của người dùng
+    core_triggers = ["pixel art", "16-bit sprite", "masterpiece"]
     if animation_mode:
-        action_clean = action.lower().strip()
-        tags.insert(0, "pixel, pixel art, pixelart, xiangsu, xiang su")
-        tags.insert(1, "((Side view)), full body, solid white background, clean outline")
-        tags.insert(2, f"horizontal sprite sheet sequence, {frame_count} side by side sub-frames, same character")
-        if "walk" in action_clean:
-            tags.insert(3, "(in-place walk cycle animation:1.3), (smooth walking stride, alternating legs, swinging arms:1.2)")
-        elif "attack" in action_clean or "slash" in action_clean:
-            tags.insert(3, "(dynamic slashing sword attack combo:1.3), (bright weapon slash arc trail:1.3), (anticipation to strike follow-through:1.2)")
-        elif "jump" in action_clean:
-            tags.insert(3, "(jumping animation sequence:1.3), (anticipation crouch, midair leap apex, landing impact:1.3)")
-        elif "run" in action_clean:
-            tags.insert(3, "(running sprint cycle:1.3), (fast stride, forward leaning body:1.2)")
-        elif "idle" in action_clean:
-            tags.insert(3, "(idle breathing animation:1.2), (subtle standing stance:1.1)")
-        elif "sit" in action_clean:
-            tags.insert(3, "(sitting rest sequence:1.3), (resting on ground:1.2)")
-        elif "defeated" in action_clean:
-            tags.insert(3, "(falling down knockdown sequence:1.3), (lying on floor defeated:1.2)")
-        else:
-            tags.insert(3, f"({action_clean} animation:1.2)")
+        core_triggers.append("character sprite sheet")
 
-    # Phan loai va dua tag boi canh len dau ngay sau trigger pixel art
-    bg_keywords = ["background", "white background", "simple background", "flat background", "transparent background"]
-    bg_tags = [t for t in tags if any(k in t.lower() for k in bg_keywords)]
-    other_tags = [t for t in tags if not any(k in t.lower() for k in bg_keywords)]
+    # Giữ nguyên mô tả người dùng ngay sau trigger chính
+    combined_tags = core_triggers + user_tags + ["clean outline", "crisp details", "clear legs and feet", "solid white background"]
+    
+    # Loại bỏ các tag trùng lặp
+    seen = set()
+    final_tags = []
+    for t in combined_tags:
+        t_clean = t.strip()
+        t_lower = t_clean.lower()
+        if t_lower and t_lower not in seen:
+            seen.add(t_lower)
+            final_tags.append(t_clean)
 
-    # Xep lai: [pixel art triggers, boi canh uu tien nhat, cac tag con lai]
-    trigger_tags = [t for t in other_tags if "pixel" in t.lower() or "portrait" in t.lower() or "chibi" in t.lower() or "sprite" in t.lower()]
-    detail_tags = [t for t in other_tags if t not in trigger_tags]
+    enriched_prompt = ", ".join(final_tags)
 
-    sorted_tags = trigger_tags + bg_tags + detail_tags
-    enriched_prompt = ", ".join(sorted_tags)
-
-    # Neu co yeu cau nen don gian hoac animation mode, loai bo cay coi dao bay moc da
-    has_simple_bg = any("simple" in t.lower() or "white" in t.lower() or "flat" in t.lower() for t in bg_tags)
-    if (has_simple_bg or animation_mode) and "tree" not in negative_prompt.lower():
-        negative_prompt = f"{negative_prompt}, 3d, photorealistic, realistic, render, blurry, smooth, noisy, distorted, disfigured, malformed, bad anatomy, merged frames, cut off body, displaced, tree, trees, floating island, rock, rocks, ground, grass, scenery, nature, outdoors, mountains, clouds, floating pixels"
+    # Bổ sung các từ khóa âm tính chặn dính chân, biến dạng chân và nhòe chi tiết
+    negative_prompt = f"{negative_prompt}, fused legs, merged legs, deformed feet, missing feet, bad anatomy, blurry, smooth, noisy, 3d, photorealistic, realistic, clutter, messy background, distorted limbs"
 
     # Xu ly che do Hybrid AI Refinement: Khau lien vet rach va lam muot chuyen dong khung xuong
     if refine_meta and os.path.exists(refine_meta):
@@ -271,32 +277,130 @@ def generate_pixel_art(
 
         cross_attention_kwargs = {"scale": lora_scale} if lora_scale is not None else None
         
-        sub_frame_size = 256
-        if animation_mode and frame_count > 1:
-            print(f"AI_STAGE:REFINE_ANIM:Khoi tao dai anh tham chieu tu nhan vat mau ({frame_count} frames)...", flush=True)
-            strip_w = sub_frame_size * frame_count
-            strip_h = sub_frame_size
-            init_strip = Image.new("RGB", (strip_w, strip_h), (255, 255, 255))
+        is_grid_mode = False
+        grid_cols = 1
+        grid_rows = 1
+        cell_size = 512
 
+        if animation_mode and frame_count > 1:
+            import math
             char_pil = Image.open(init_image)
             if char_pil.mode != "RGBA":
                 char_pil = char_pil.convert("RGBA")
+            # Tự động loại bỏ bất kỳ tàn dư nền caro giả lập trong suốt
+            char_pil = remove_checkerboard_artifacts(char_pil)
 
-            char_h_target = int(strip_h * 0.78)
-            char_w_target = int(char_pil.width * (char_h_target / max(1, char_pil.height)))
-            char_resized = char_pil.resize((char_w_target, char_h_target), Image.Resampling.NEAREST)
+            # Tự động tính số cột và số dòng để phân bổ đều các khung hình vào Lưới vuông (Grid Layout)
+            grid_cols = math.ceil(math.sqrt(frame_count))
+            grid_rows = math.ceil(frame_count / grid_cols)
+            is_grid_mode = True
 
-            for i in range(frame_count):
-                x_offset = i * sub_frame_size + (sub_frame_size - char_w_target) // 2
-                y_offset = (sub_frame_size - char_h_target) // 2
-                init_strip.paste(char_resized, (x_offset, y_offset), mask=char_resized.split()[3])
+            # Chuẩn hóa kích thước lưới vuông cố định 512x512 (bội số 64) chuẩn cho Stable Diffusion 1.5
+            grid_w = 512
+            grid_h = 512
+            grid_canvas = Image.new("RGB", (grid_w, grid_h), (255, 255, 255))
+            cell_w = grid_w / grid_cols
+            cell_h = grid_h / grid_rows
 
-            input_sd_image = init_strip
-            actual_strength = strength if (strength is not None and strength > 0.45) else 0.62
+            # Trường hợp 1: Ảnh đầu vào là dải strip chứa N tư thế chuyển động LPC
+            if char_pil.width >= char_pil.height * 1.5:
+                print(f"AI_STAGE:REFINE_ANIM:Bắt đầu sinh nhân vật chuẩn 512x512 trên từng khung hình LPC ({frame_count} frames) với Fixed Seed...", flush=True)
+                orig_fw = char_pil.width // frame_count
+                orig_fh = char_pil.height
+                frame_files = []
+
+                if seed is None or seed <= 0:
+                    seed = int(torch.randint(1, 2147483647, (1,)).item())
+
+                # Số bước tối ưu cho DPMSolver: 12 bước, tốc độ cao và độ sắc nét tối đa
+                effective_steps = min(steps, 14) if steps else 12
+                # Giữ độ mạnh 0.35 để bảo toàn 100% dáng bước chân, tay, đầu của phôi LPC
+                actual_strength = strength if (strength is not None and strength <= 0.45) else 0.35
+
+                for i in range(frame_count):
+                    print(f"AI_STAGE:REFINE_FRAME:Đang sinh hoạt cảnh khung hình {i + 1}/{frame_count}...", flush=True)
+                    f_crop = char_pil.crop((i * orig_fw, 0, (i + 1) * orig_fw, orig_fh))
+                    bg_white = Image.new("RGB", (orig_fw, orig_fh), (255, 255, 255))
+                    bg_white.paste(f_crop, mask=f_crop.split()[3])
+
+                    # Phóng to khung hình lên 512x512 bằng NEAREST để tận dụng tối đa độ phân giải mô hình
+                    init_512 = bg_white.resize((512, 512), Image.Resampling.NEAREST)
+
+                    # DÙNG CÙNG 1 SEED CỐ ĐỊNH CHO TẤT CẢ KHUNG HÌNH ĐỂ ĐỒNG BỘ 100% DIỆN MẠO
+                    generator = torch.Generator(device).manual_seed(int(seed))
+
+                    res = pipe(
+                        prompt=enriched_prompt,
+                        negative_prompt=negative_prompt,
+                        image=init_512,
+                        strength=actual_strength,
+                        num_inference_steps=effective_steps,
+                        guidance_scale=guidance_scale,
+                        generator=generator,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                    )
+                    raw_sub = res.images[0]
+
+                    # Tách nền an toàn
+                    processed_sub = raw_sub
+                    if remove_bg:
+                        processed_sub = remove_background_safe(raw_sub, tolerance=24)
+
+                    sub_pixel = processed_sub.resize((target_pixel_size, target_pixel_size), Image.Resampling.NEAREST)
+                    frame_path = f"{output_prefix}_frame_{i}.png"
+                    sub_pixel.save(frame_path)
+                    frame_files.append(frame_path)
+                    print(f"AI_FRAME_PROGRESS:{i + 1}:{frame_count}:{frame_path}", flush=True)
+
+                # Ghép toàn bộ N frame vào dải sprite để lưu trữ và xem trước
+                strip_out_w = target_pixel_size * frame_count
+                strip_out = Image.new("RGBA", (strip_out_w, target_pixel_size), (0, 0, 0, 0))
+                for i, f_p in enumerate(frame_files):
+                    f_img = Image.open(f_p)
+                    strip_out.paste(f_img, (i * target_pixel_size, 0))
+                raw_out = f"{output_prefix}_raw_{strip_out_w}x{target_pixel_size}.png"
+                strip_out.save(raw_out)
+
+                meta_data = {
+                    "frameCount": frame_count,
+                    "action": action,
+                    "engine": "ai",
+                    "seed": int(seed),
+                    "prompt": enriched_prompt,
+                    "frameFiles": frame_files,
+                    "spriteSheetRaw": raw_out
+                }
+                meta_path = f"{output_prefix}_anim_meta.json"
+                import json
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(meta_data, f, ensure_ascii=False, indent=2)
+
+                print(f"AI_ANIM_RESULT:{meta_path}", flush=True)
+                print(f"AI_STAGE:DONE:Đã tạo thành công {frame_count} frames hoạt ảnh cho hành động {action}!", flush=True)
+                return frame_files[0]
+            else:
+                # Trường hợp 2: Nhân vật mẫu tĩnh đơn lẻ
+                print(f"AI_STAGE:REFINE_ANIM:Khởi tạo dải tham chiếu từ nhân vật mẫu ({frame_count} frames)...", flush=True)
+                strip_w = 256 * frame_count
+                strip_h = 256
+                init_strip = Image.new("RGB", (strip_w, strip_h), (255, 255, 255))
+                target_char_h = int(strip_h * 0.84)
+                target_char_w = int(char_pil.width * (target_char_h / max(1, char_pil.height)))
+                char_resized = char_pil.resize((target_char_w, target_char_h), Image.Resampling.NEAREST)
+
+                for i in range(frame_count):
+                    x_pos = i * 256 + (256 - target_char_w) // 2
+                    y_pos = (256 - target_char_h) // 2
+                    init_strip.paste(char_resized, (x_pos, y_pos), mask=char_resized.split()[3])
+
+                input_sd_image = init_strip
+                actual_strength = strength if (strength is not None and strength > 0.45) else 0.62
+
         else:
             init_pil = Image.open(init_image)
             if init_pil.mode != "RGBA":
                 init_pil = init_pil.convert("RGBA")
+            init_pil = remove_checkerboard_artifacts(init_pil)
             bg_white = Image.new("RGB", init_pil.size, (255, 255, 255))
             bg_white.paste(init_pil, mask=init_pil.split()[3])
             input_sd_image = bg_white.resize((512, 512), Image.Resampling.NEAREST)
@@ -318,23 +422,21 @@ def generate_pixel_art(
         )
         raw_img = res.images[0]
 
-        # 1. Luu ban anh goc SpriteSheet hoac anh don
+        # 1. Lưu bản ảnh gốc SpriteSheet hoặc ảnh đơn
         total_w, total_h = raw_img.size
         raw_out = f"{output_prefix}_raw_{total_w}x{total_h}.png"
         raw_img.save(raw_out)
 
-        # 2. Xu ly cat frame neu o che do SpriteSheet
+        # 2. Xử lý cắt frame nếu ở chế độ Hoạt cảnh (Animation)
         if animation_mode and frame_count > 1:
-            print(f"AI_STAGE:SLICE:Dang tu dong cat {frame_count} frames chuyen dong tu SpriteSheet...", flush=True)
-            slice_w = total_w // frame_count
             frame_files = []
             import json
-
+            slice_w = total_w // frame_count
             for i in range(frame_count):
                 crop_box = (i * slice_w, 0, (i + 1) * slice_w, total_h)
                 sub_img = raw_img.crop(crop_box)
                 if remove_bg:
-                    sub_img = remove_background_safe(sub_img, tolerance=22)
+                    sub_img = remove_background_safe(sub_img, tolerance=24)
                 sub_pixel = sub_img.resize((target_pixel_size, target_pixel_size), Image.Resampling.NEAREST)
                 frame_path = f"{output_prefix}_frame_{i}.png"
                 sub_pixel.save(frame_path)
@@ -352,7 +454,7 @@ def generate_pixel_art(
                 json.dump(meta_data, f, ensure_ascii=False, indent=2)
 
             print(f"AI_ANIM_RESULT:{meta_path}", flush=True)
-            print(f"AI_STAGE:DONE:Da tao thanh cong {frame_count} frames hoat anh cho hanh dong {action}!", flush=True)
+            print(f"AI_STAGE:DONE:Đã tạo thành công {frame_count} frames hoạt ảnh cho hành động {action}!", flush=True)
             return frame_files[0]
 
         # 3. Xu ly anh don le

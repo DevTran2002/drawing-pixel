@@ -40,6 +40,7 @@ import { TAG_CATEGORIES } from './data/tags-dictionary';
 import { downloadProjectFile, importFromPxDraw, exportToPxDraw } from './core/project-file';
 import { applyColorAdjustment, ColorAdjustmentOptions, invertHexColor } from './tools/color-adjustments';
 import { AssetBrowserController } from './core/asset-browser-controller';
+import { LpcStudioModal, LpcBatchAiPayload } from './lpc/lpc-studio-modal';
 
 // 1. Khởi tạo trạng thái toàn cục của Studio
 const project: CanvasProject = createDefaultProject(24, 24, 'HeroSprite');
@@ -48,6 +49,7 @@ const animController = new AnimationController(project);
 const selectionManager = new SelectionManager();
 const assetBrowser = new AssetBrowserController('http://127.0.0.1:3055');
 let globalOpenAiWizardWithBaseChar: ((pixels: PixelPoint[], w: number, h: number, name: string) => void) | null = null;
+let globalStartLpcAiReskin: ((payload: LpcBatchAiPayload) => void) | null = null;
 let globalSelectAndLoadCharacter: ((idOrSlug: string) => Promise<void>) | null = null;
 let currentEditingCoreCharacter: { id: string; slug: string; name: string } | null = null;
 let globalRenderProjectView: (() => void) | null = null;
@@ -2782,7 +2784,7 @@ function initAiPixelModal(): void {
         height: number;
         pixels: PixelPoint[];
       }[] | null;
-      engine?: 'hybrid' | 'template' | 'ai';
+      engine?: 'hybrid' | 'template' | 'ai' | 'lpc_reskin';
       refineStrength?: number;
     };
     skeletonRig?: SkeletonRig;
@@ -2926,7 +2928,7 @@ function initAiPixelModal(): void {
     frameCount: 4,
     frameSize: 64,
     removeBg: true,
-    engine: 'template' as 'hybrid' | 'template' | 'ai',
+    engine: 'template' as 'hybrid' | 'template' | 'ai' | 'lpc_reskin',
     refineStrength: 0.62,
     slashVfxType: 'cyan' as 'none' | 'cyan' | 'fire' | 'silver' | 'purple',
     frames: [] as {
@@ -2936,6 +2938,10 @@ function initAiPixelModal(): void {
       pixels: PixelPoint[];
     }[]
   };
+
+  // Mảng lưu dữ liệu ảnh PNG của toàn bộ N khung hình phôi LPC khi chuyển sang AI
+  let currentLpcFrames: Array<{ base64Png: string }> = [];
+
 
   // Biến quản lý vòng lặp xem trước chuyển động (Live Animation Player)
   let livePlayerTimer: any = null;
@@ -3074,6 +3080,19 @@ function initAiPixelModal(): void {
   const btnWizardChangeAction = document.getElementById('btn-wizard-change-action');
   const btnWizardFinish = document.getElementById('btn-wizard-finish');
   const btnWizardReset = document.getElementById('btn-wizard-reset');
+  const btnWizardRenderLpcSync = document.getElementById('btn-wizard-render-lpc-sync');
+  const lpcWizardBanner = document.getElementById('lpc-wizard-banner');
+  const lpcWizardActionName = document.getElementById('lpc-wizard-action-name');
+  const btnCancelLpcMode = document.getElementById('btn-cancel-lpc-mode');
+  const lpcStrengthSlider = document.getElementById('lpc-strength-slider') as HTMLInputElement | null;
+  const lpcStrengthVal = document.getElementById('lpc-strength-val');
+  const btnUnlockLpcSeed = document.getElementById('btn-unlock-lpc-seed');
+
+  // Biến lưu trữ dữ liệu dải SpriteStrip LPC khi chuyển từ LPC Character Studio sang
+  let currentLpcPayload: LpcBatchAiPayload | null = null;
+  // Biến khóa định danh nhân vật (Character Seed Lock): Giúp sinh nhiều hành động khác nhau (Walk, Slash, Hurt...) cho cùng 1 nhân vật
+  let activeCharacterSeed: number | null = null;
+  let activeCharacterPrompt: string = '';
 
   // Các phần tử tại Bước 2 (Xem trước & Chốt mẫu)
   const animBaseImg = document.getElementById('anim-base-preview-img') as HTMLImageElement | null;
@@ -3219,12 +3238,32 @@ function initAiPixelModal(): void {
       btnWizardUploadBase.innerText = validStep === 2 ? 'Tải mẫu khác từ máy' : 'Tải Mẫu Từ Máy Tính';
     }
 
+    const hasLpcMode = Boolean(currentLpcPayload);
+    if (lpcWizardBanner) {
+      lpcWizardBanner.style.display = (validStep === 1 && hasLpcMode) ? 'flex' : 'none';
+      if (lpcWizardActionName && currentLpcPayload) {
+        const lockedSeed = currentLpcPayload.seed !== undefined ? currentLpcPayload.seed : activeCharacterSeed;
+        const seedNotice = lockedSeed !== null && lockedSeed !== undefined ? ` [Khóa Nhân Vật Seed: #${lockedSeed}]` : ' [Seed Ngẫu Nhiên]';
+        lpcWizardActionName.innerText = `${currentLpcPayload.actionId} (${currentLpcPayload.direction}, ${currentLpcPayload.frames.length} frames)${seedNotice}`;
+        if (btnUnlockLpcSeed) {
+          btnUnlockLpcSeed.style.display = (lockedSeed !== null && lockedSeed !== undefined) ? 'inline-block' : 'none';
+        }
+      }
+    }
+    if (btnWizardRenderLpcSync) {
+      btnWizardRenderLpcSync.style.display = (validStep === 1 && hasLpcMode) ? 'inline-flex' : 'none';
+      if (currentLpcPayload) {
+        btnWizardRenderLpcSync.innerText = `Sinh Hoạt Cảnh Đồng Bộ (${currentLpcPayload.frames.length} frames)`;
+      }
+    }
+
     if (btnWizardDrawStatic) {
-      btnWizardDrawStatic.style.display = validStep === 1 ? 'inline-flex' : 'none';
+      btnWizardDrawStatic.style.display = (validStep === 1 && !hasLpcMode) ? 'inline-flex' : 'none';
     }
     if (btnWizardDrawBase) {
-      btnWizardDrawBase.style.display = validStep === 1 ? 'inline-flex' : 'none';
+      btnWizardDrawBase.style.display = (validStep === 1 && !hasLpcMode) ? 'inline-flex' : 'none';
     }
+
 
     if (btnWizardStep2UseStatic) {
       btnWizardStep2UseStatic.style.display = validStep === 2 && !!baseCharState.dataUrl ? 'inline-flex' : 'none';
@@ -5641,10 +5680,12 @@ function initAiPixelModal(): void {
     // Chuyển sang Bước 4 hiển thị tiến trình
     goToStep(4);
 
+    const isLpcReskin = animSetupState.engine === 'lpc_reskin';
     const isHybrid = animSetupState.engine === 'hybrid';
     const isTemplate = animSetupState.engine === 'template';
     let engineLabel = '2D Pixel Toolkit (AI Sprite Sheet)';
-    if (isHybrid) engineLabel = 'Khung Xương + AI Vá Nứt';
+    if (isLpcReskin) engineLabel = 'Model AI Re-skin (SD1.5 & LoRA)';
+    else if (isHybrid) engineLabel = 'Khung Xương + AI Vá Nứt';
     else if (isTemplate) engineLabel = 'Khung Xương Thuần';
 
     const barFill = document.getElementById('ai-progress-bar-fill');
@@ -5654,12 +5695,14 @@ function initAiPixelModal(): void {
     const timeEta = document.getElementById('ai-time-eta');
 
     if (statusMsg) statusMsg.style.display = 'block';
-    if (statusText) statusText.innerText = `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}" bằng ${engineLabel}...`;
-    if (barFill) barFill.style.width = isTemplate ? '80%' : (isHybrid ? '15%' : '0%');
-    if (percentText) percentText.innerText = isTemplate ? '80%' : (isHybrid ? '15%' : '0%');
-    if (stepsBadge) stepsBadge.innerText = isTemplate ? 'Template Engine' : (isHybrid ? 'Hybrid Refiner' : `2D Pixel Toolkit (LoRA)`);
+    if (statusText) statusText.innerText = isLpcReskin
+      ? `Đang dùng Model AI render nhân vật trên ${animSetupState.frameCount} khung hình LPC...`
+      : `Đang tạo chuỗi ${animSetupState.frameCount} frames cho hành động "${animSetupState.action}" bằng ${engineLabel}...`;
+    if (barFill) barFill.style.width = isTemplate ? '80%' : (isHybrid ? '15%' : (isLpcReskin ? '10%' : '0%'));
+    if (percentText) percentText.innerText = isTemplate ? '80%' : (isHybrid ? '15%' : (isLpcReskin ? '10%' : '0%'));
+    if (stepsBadge) stepsBadge.innerText = isLpcReskin ? 'Model AI Re-skin' : (isTemplate ? 'Template Engine' : (isHybrid ? 'Hybrid Refiner' : `2D Pixel Toolkit (LoRA)`));
     if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
-    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : (isHybrid ? 'Ước tính: ~25s' : 'Ước tính: ~18s');
+    if (timeEta) timeEta.innerText = isTemplate ? 'Xử lý: Tức thì (<1s)' : (isHybrid ? 'Ước tính: ~25s' : (isLpcReskin ? 'Ước tính: ~30s' : 'Ước tính: ~18s'));
     if (btnWizardGenerateAnim) (btnWizardGenerateAnim as HTMLButtonElement).disabled = true;
 
     const startTime = Date.now();
@@ -5669,7 +5712,9 @@ function initAiPixelModal(): void {
     }, 1000);
 
     try {
-      ensureSkeletonRig();
+      if (!isLpcReskin) {
+        ensureSkeletonRig();
+      }
       const res = await fetch('http://127.0.0.1:3055/api/ai/generate-animation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5682,7 +5727,8 @@ function initAiPixelModal(): void {
           size: animSetupState.frameSize,
           removeBg: animSetupState.removeBg,
           basePixels: baseCharState.pixels,
-          skeletonRig: activeSkeletonRig,
+          lpcFrames: isLpcReskin ? currentLpcFrames : undefined,
+          skeletonRig: isLpcReskin ? undefined : activeSkeletonRig,
           strength: animSetupState.refineStrength,
           slashVfxType: animSetupState.slashVfxType
         })
@@ -5693,12 +5739,12 @@ function initAiPixelModal(): void {
         throw new Error(data.error || 'Không thể tạo chuỗi hoạt ảnh');
       }
 
-      if (isTemplate || isHybrid) {
+      if (isTemplate || isHybrid || isLpcReskin) {
         if (barFill) barFill.style.width = '100%';
         if (percentText) percentText.innerText = '100%';
         if (stepsBadge) stepsBadge.innerText = 'Hoàn tất';
         if (timeEta) timeEta.innerText = 'Đã xong';
-        if (statusText) statusText.innerText = `Hoàn tất tạo ${data.frames.length} frames bằng ${engineLabel}!`;
+        if (statusText) statusText.innerText = `Hoàn tất render ${data.frames.length} frames bằng ${engineLabel}!`;
       }
 
       animSetupState.frames = data.frames;
@@ -5998,7 +6044,164 @@ function initAiPixelModal(): void {
   btnOpen.addEventListener('click', () => {
     restoreCheckpointSession();
   });
+
+  // Bộ điều khiển tiếp nhận luồng Sprite hoạt cảnh từ LPC Character Studio sang AI Studio
+  // Tự động bỏ qua Bước 1 (vẽ nhân vật) và Bước 3 (gán khớp xương thủ công)
+  // Nhảy thẳng sang Bước 4 hiển thị giao diện render, tiến trình và xem trước hoạt ảnh trực tiếp
+  // Sinh hoạt cảnh đồng bộ trên cùng 1 dải sprite strip LPC (1 pass duy nhất bằng Model AI)
+  // Đảm bảo 100% diện mạo nhân vật (mặt, tóc, trang phục) đồng nhất trên tất cả khung hình
+  const handleGenerateLpcSyncAnimation = async () => {
+    if (!currentLpcPayload) {
+      alert('Chưa có dữ liệu dải sprite LPC!');
+      return;
+    }
+
+    const defaultPrompt = '1girl, cute anime, brown hair, white shirt, blue pants, pixel art, 16-bit sprite';
+    const promptText = promptInput?.value.trim() || currentLpcPayload.prompt || defaultPrompt;
+    const actionName = (currentLpcPayload.actionId || 'walk').toLowerCase();
+    const frameCount = currentLpcPayload.frames.length;
+
+    const seedToSend = currentLpcPayload.seed !== undefined ? currentLpcPayload.seed : (activeCharacterSeed !== null ? activeCharacterSeed : undefined);
+    const selectedStrength = lpcStrengthSlider ? (parseFloat(lpcStrengthSlider.value) || 0.48) : 0.48;
+
+    // Nhảy thẳng sang Bước 4 (BỎ QUA BƯỚC 2 VÀ 3)
+    goToStep(4);
+
+    const barFill = document.getElementById('ai-progress-bar-fill');
+    const stepsBadge = document.getElementById('ai-steps-badge');
+    const timeElapsed = document.getElementById('ai-time-elapsed');
+    const percentText = document.getElementById('ai-percent-text');
+    const timeEta = document.getElementById('ai-time-eta');
+
+    if (statusMsg) statusMsg.style.display = 'block';
+    const seedInfoText = seedToSend !== undefined ? ` [Khóa Seed: #${seedToSend}]` : ' [Tạo nhân vật mới]';
+    if (statusText) statusText.innerText = `Đang dùng Model AI sinh nhân vật đồng bộ trên dải sprite ${frameCount} frames...${seedInfoText} (Strength: ${selectedStrength.toFixed(2)})`;
+    if (barFill) barFill.style.width = '15%';
+    if (percentText) percentText.innerText = '15%';
+    if (stepsBadge) stepsBadge.innerText = 'SpriteStrip Model';
+    if (timeElapsed) timeElapsed.innerText = 'Đã chạy: 00:00';
+    if (timeEta) timeEta.innerText = 'Ước tính: ~25s';
+    if (btnWizardRenderLpcSync) (btnWizardRenderLpcSync as HTMLButtonElement).disabled = true;
+
+    const startTime = Date.now();
+    const lpcTimer = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      if (timeElapsed) timeElapsed.innerText = `Đã chạy: ${formatTimeSec(sec)}`;
+    }, 1000);
+
+    try {
+      const res = await fetch('http://127.0.0.1:3055/api/ai/generate-animation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engine: 'lpc_strip',
+          stripBase64: currentLpcPayload.stripBase64,
+          basePrompt: promptText,
+          action: actionName,
+          frameCount,
+          strength: selectedStrength,
+          seed: seedToSend,
+          size: 64,
+          removeBg: true
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.frames)) {
+        throw new Error(data.error || 'Máy chủ không thể tạo hoạt cảnh đồng bộ từ dải sprite');
+      }
+
+      // Lưu mã Seed nhân vật để tự động đồng nhất cho các hành động khác (Walk, Slash, Hurt...)
+      if (data.seed !== undefined) {
+        activeCharacterSeed = data.seed;
+        activeCharacterPrompt = promptText;
+        if (currentLpcPayload) currentLpcPayload.seed = data.seed;
+      }
+
+      if (barFill) barFill.style.width = '100%';
+      if (percentText) percentText.innerText = '100%';
+      if (stepsBadge) stepsBadge.innerText = 'Hoàn tất';
+      if (timeEta) timeEta.innerText = 'Đã xong';
+      const finalSeed = data.seed || activeCharacterSeed || 'Cố định';
+      if (statusText) statusText.innerText = `Hoàn tất sinh đồng bộ ${data.frames.length} frames! Nhân vật đã được khóa mã Seed: #${finalSeed} để tái sử dụng cho các tư thế khác.`;
+
+      animSetupState.frames = data.frames;
+      livePlayerIndex = 0;
+      startLivePlayer();
+
+      if (btnWizardFinish) btnWizardFinish.style.display = 'inline-flex';
+      if (btnWizardChangeAction) btnWizardChangeAction.style.display = 'inline-flex';
+
+      saveWizardCheckpoint();
+    } catch (err: any) {
+      alert('Lỗi tạo hoạt cảnh đồng bộ: ' + err.message);
+    } finally {
+      clearInterval(lpcTimer);
+      if (btnWizardRenderLpcSync) (btnWizardRenderLpcSync as HTMLButtonElement).disabled = false;
+    }
+  };
+
+  btnWizardRenderLpcSync?.addEventListener('click', handleGenerateLpcSyncAnimation);
+  btnCancelLpcMode?.addEventListener('click', () => {
+    currentLpcPayload = null;
+    goToStep(1);
+  });
+
+  // Lắng nghe thay đổi thanh trượt Strength trên banner LPC
+  lpcStrengthSlider?.addEventListener('input', () => {
+    const val = parseFloat(lpcStrengthSlider.value) || 0.48;
+    if (lpcStrengthVal) {
+      let desc = 'Vẽ thêm trang phục & tóc mới';
+      if (val < 0.35) desc = 'Bám sát phôi gốc (khi đã có đủ đồ/tóc)';
+      else if (val > 0.58) desc = 'Biến đổi mạnh theo Prompt';
+      lpcStrengthVal.innerText = `${val.toFixed(2)} (${desc})`;
+    }
+  });
+
+  // Nút mở khóa Seed để tạo nhân vật hoàn toàn mới ngẫu nhiên
+  btnUnlockLpcSeed?.addEventListener('click', () => {
+    activeCharacterSeed = null;
+    if (currentLpcPayload) currentLpcPayload.seed = undefined;
+    if (btnUnlockLpcSeed) btnUnlockLpcSeed.style.display = 'none';
+    if (lpcWizardActionName && currentLpcPayload) {
+      lpcWizardActionName.innerText = `${currentLpcPayload.actionId} (${currentLpcPayload.direction}, ${currentLpcPayload.frames.length} frames) [Seed Ngẫu Nhiên]`;
+    }
+    alert('Đã mở khóa Seed! Lần render tiếp theo sẽ tạo một nhân vật hoàn toàn mới ngẫu nhiên.');
+  });
+
+  // Tiếp nhận luồng Sprite từ LPC Character Studio sang AI Studio
+  // Mở thẳng Bước 1 (Thiết kế nhân vật) như người dùng yêu cầu, bỏ qua Bước 2 & 3
+  globalStartLpcAiReskin = (payload: LpcBatchAiPayload) => {
+    // 1. Tự động kế thừa mã Seed và Prompt của nhân vật đã render trước đó nếu có
+    if (activeCharacterSeed !== null && payload.seed === undefined) {
+      payload.seed = activeCharacterSeed;
+    }
+    if (activeCharacterPrompt && (!payload.prompt || payload.prompt.includes('pixel art character'))) {
+      payload.prompt = activeCharacterPrompt;
+    }
+
+    // 2. Lưu payload dải sprite LPC để dùng khi bấm sinh hoạt cảnh đồng bộ
+    currentLpcPayload = payload;
+
+    // 3. Mở Modal AI Studio
+    modal.style.display = 'flex';
+
+    // 4. Nạp Prompt từ LPC Studio vào ô nhập
+    if (promptInput) {
+      promptInput.value = payload.prompt || '';
+      syncTagChips();
+    }
+
+    baseCharState.prompt = payload.prompt || 'pixel art character, 16bit clean outline';
+
+    // 5. Đưa người dùng về Bước 1 (Thiết kế nhân vật) ngay lập tức
+    // Nút "Sinh Hoạt Cảnh Đồng Bộ" sẽ hiển thị nổi bật ở chân trang để bấm sinh luôn
+    goToStep(1);
+  };
 }
+
+
+
 
 // 10. Khoi tao Modal va ket noi Kho Luu Tru Anh (Gallery 2.0)
 function initGalleryModal(): void {
@@ -8619,8 +8822,9 @@ function initProjectDock(): void {
     canvasEngine.rebuildBuffers();
     renderAll();
     syncProjectToServer();
-    if (currentDockMode !== 'split') {
-      switchDockMode('timeline');
+    // Chuyển sang tab timeline nếu có hàm điều khiển dock
+    if (globalSwitchDockTab) {
+      globalSwitchDockTab('timeline');
     }
   };
 
@@ -8650,8 +8854,9 @@ function initProjectDock(): void {
     canvasEngine.rebuildBuffers();
     renderAll();
     syncProjectToServer();
-    if (currentDockMode !== 'split') {
-      switchDockMode('timeline');
+    // Chuyển sang tab timeline nếu có hàm điều khiển dock
+    if (globalSwitchDockTab) {
+      globalSwitchDockTab('timeline');
     }
   };
 
@@ -9243,6 +9448,125 @@ function initWorkspaceSwitcher(): void {
   });
 }
 
+// 17.2. Khởi tạo phân hệ LPC Character Studio & Motion Rig
+function initLpcStudioModal(): void {
+  const lpcModal = new LpcStudioModal({
+    onLoadFrameToCanvas: (layer: LayerData) => {
+      // Nếu kích thước Canvas nhỏ hơn 64x64, điều chỉnh về chuẩn 64x64 của LPC
+      if (project.width < 64 || project.height < 64) {
+        project.width = 64;
+        project.height = 64;
+        project.pivot = { x: 32, y: 63 };
+      }
+
+      const currentFrame = project.frames[project.activeFrameIndex] || project.frames[0];
+      if (currentFrame) {
+        currentFrame.layers.push(layer);
+        project.activeLayerId = layer.id;
+        canvasEngine.rebuildBuffers();
+        renderAll();
+        syncProjectToServer();
+      }
+    },
+    onLoadClipToTimeline: (clip: AnimationClip) => {
+      // Đồng bộ kích thước dự án với chuẩn LPC
+      if (project.width < 64 || project.height < 64) {
+        project.width = 64;
+        project.height = 64;
+        project.pivot = { x: 32, y: 63 };
+      }
+
+      project.clips.push(clip);
+      animController.setActiveClipById(clip.id);
+      canvasEngine.rebuildBuffers();
+      renderAll();
+      if (globalSwitchDockTab) {
+        globalSwitchDockTab('timeline', true, 220);
+      }
+      syncProjectToServer();
+    },
+
+    // Nhận TOÀN BỘ N frame phôi LPC — tự động nạp clip vào Timeline và
+    // kích hoạt ngay giao diện AI Studio để render nhân vật xoay quanh các tư thế đó
+    onBatchAiReskin: (payload) => {
+      const { frames, prompt, actionId, direction, fps, loop } = payload;
+
+      // Đồng bộ kích thước dự án với chuẩn LPC 64x64
+      if (project.width < 64 || project.height < 64) {
+        project.width = 64;
+        project.height = 64;
+        project.pivot = { x: 32, y: 63 };
+      }
+
+      // Chuyển từng canvas frame LPC thành LayerData (pixel record)
+      const buildLayerFromCanvas = (canvas: HTMLCanvasElement, idx: number): LayerData => {
+        const ctx = canvas.getContext('2d');
+        const pixels: Record<string, string> = {};
+        if (ctx) {
+          const w = canvas.width;
+          const h = canvas.height;
+          const imgData = ctx.getImageData(0, 0, w, h);
+          const d = imgData.data;
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const i = (y * w + x) * 4;
+              if (d[i + 3] > 0) {
+                const hex = `#${((1 << 24) + (d[i] << 16) + (d[i + 1] << 8) + d[i + 2])
+                  .toString(16).slice(1)}`;
+                pixels[`${x},${y}`] = hex;
+              }
+            }
+          }
+        }
+        return {
+          id: `lpc_layer_${actionId}_${idx}_${Date.now()}`,
+          name: `LPC Frame ${idx + 1}`,
+          visible: true,
+          locked: false,
+          opacity: 1.0,
+          pixels
+        };
+      };
+
+      // Tạo AnimationClip trực tiếp từ N frame LPC — mỗi frame phôi = 1 FrameData
+      const durationMs = Math.max(60, Math.round(1000 / fps));
+      const newClip: AnimationClip = {
+        id: `lpc_clip_${actionId}_${direction}_${Date.now()}`,
+        name: `LPC ${actionId} (${direction})`,
+        fps,
+        loop,
+        startFrame: 0,
+        endFrame: frames.length - 1,
+        frames: frames.map((canvas, idx) => ({
+          id: `lpc_frame_${actionId}_${idx}_${Date.now() + idx}`,
+          durationMs,
+          layers: [buildLayerFromCanvas(canvas, idx)]
+        }))
+      };
+
+      // Nạp clip vào Timeline
+      project.clips.push(newClip);
+      animController.setActiveClipById(newClip.id);
+      canvasEngine.rebuildBuffers();
+      renderAll();
+      syncProjectToServer();
+
+      // Mở ngay màn hình AI Studio và bắt đầu tiến trình render nhân vật (Bước 4)
+      if (globalStartLpcAiReskin) {
+        globalStartLpcAiReskin(payload);
+      } else {
+        alert('Đã nạp chuỗi khung hình vào Timeline. Bộ điều khiển AI đang khởi động.');
+      }
+    }
+  });
+
+  const btnOpenLpc = document.getElementById('btn-open-lpc-studio');
+  btnOpenLpc?.addEventListener('click', () => {
+    lpcModal.open('/sprites.png');
+  });
+}
+
+
 // 18. Khởi động ứng dụng
 loadPalette('endesga-32');
 renderAll();
@@ -9257,6 +9581,8 @@ initExportModal();
 initTimelineContextMenu();
 initProjectDock();
 initWorkspaceSwitcher();
+initLpcStudioModal();
 setWorkspaceMode('draw');
+
 
 

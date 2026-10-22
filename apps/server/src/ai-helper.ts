@@ -132,6 +132,31 @@ function getPythonCommand(): string {
   return 'python';
 }
 
+// Trích xuất thông điệp lỗi thực sự từ Python, loại bỏ các dòng cảnh báo không nguy hại
+function cleanPythonErrorMessage(stderr: string, stdout: string, exitCode: number | null): string {
+  const combined = (stderr + '\n' + stdout).trim();
+  const lines = combined.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  const tbIndex = lines.findIndex((l) => l.includes('Traceback (most recent call last):'));
+  if (tbIndex !== -1) {
+    return lines.slice(tbIndex).join('\n');
+  }
+
+  const clean = lines.filter(
+    (l) =>
+      !l.includes('requires torchvision') &&
+      !l.includes('falling back to') &&
+      !l.includes('Loading pipeline components') &&
+      !l.includes('AutoencoderKL that should be kept in float32') &&
+      !l.includes('UNet2DConditionModel that should be kept in float32') &&
+      !l.includes('safety_checker') &&
+      !l.includes('Fetching 11 files') &&
+      !l.includes('Loading weights')
+  );
+
+  return clean.slice(-6).join('\n') || `Tiến trình Python kết thúc với mã lỗi ${exitCode}`;
+}
+
 // Goi script Python de sinh anh pixel art moi bang mo hinh Checkpoint va LoRA
 export function generatePixelArt(
   opts: AiGenerateOptions | string,
@@ -215,7 +240,14 @@ export function generatePixelArt(
       message: 'Đang khởi động tiến trình AI...'
     });
 
-    const child = spawn(pythonExe, args, { cwd: projectRoot });
+    const child = spawn(pythonExe, args, {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1'
+      }
+    });
 
     let stdoutData = '';
     let stderrData = '';
@@ -320,8 +352,9 @@ export function generatePixelArt(
       if (stderrBuffer) handleLine(stderrBuffer);
 
       if (code !== 0) {
-        console.error(`[AI Engine] Tien trinh thoat voi ma loi ${code}:`, stderrData || stdoutData);
-        return reject(new Error(stderrData || stdoutData || `Tiến trình Python thoát với mã lỗi ${code}`));
+        const cleanErr = cleanPythonErrorMessage(stderrData, stdoutData, code);
+        console.error(`[AI Engine] Tien trinh thoat voi ma loi ${code}:`, cleanErr);
+        return reject(new Error(cleanErr));
       }
 
       console.log('[AI Engine] Ket qua sinh anh hoan tat.');
@@ -369,6 +402,7 @@ export interface AiAnimationResult {
   action: string;
   frames: AnimationFrameResult[];
   metaPath: string;
+  seed?: number;
 }
 
 // Sinh chuoi hoat anh SpriteSheet dong bo va cat thanh cac frames
@@ -450,7 +484,14 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
         : `Đang khởi tạo chu kỳ ${action} (${frameCount} frames)...`
     });
 
-    const child = spawn(pythonExe, args, { cwd: projectRoot });
+    const child = spawn(pythonExe, args, {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1'
+      }
+    });
 
     let stdoutData = '';
     let stderrData = '';
@@ -519,8 +560,9 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
       if (stderrBuffer) handleLine(stderrBuffer);
 
       if (code !== 0) {
-        console.error(`[AI Animation] Tien trinh thoat voi ma loi ${code}:`, stderrData || stdoutData);
-        return reject(new Error(stderrData || stdoutData || `Tiến trình Python thoát với mã lỗi ${code}`));
+        const cleanErr = cleanPythonErrorMessage(stderrData, stdoutData, code);
+        console.error(`[AI Animation] Tien trinh thoat voi ma loi ${code}:`, cleanErr);
+        return reject(new Error(cleanErr));
       }
 
       const metaPath = metaPathResult || `${outputPrefix}_anim_meta.json`;
@@ -555,7 +597,8 @@ export function generateSpriteAnimation(opts: AiAnimationOptions): Promise<AiAni
           frameCount: frames.length,
           action,
           frames,
-          metaPath
+          metaPath,
+          seed: meta.seed || opts.seed
         });
       } catch (err: any) {
         reject(new Error(`Lỗi đọc dữ liệu frames hoạt cảnh: ${err.message}`));
@@ -634,7 +677,14 @@ export function refineAnimationWithAi(opts: AiRefineAnimationOptions): Promise<A
       message: `Đang nạp Model AI để khâu liền vết nứt pixel...`
     });
 
-    const child = spawn(pythonExe, args, { cwd: projectRoot });
+    const child = spawn(pythonExe, args, {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1'
+      }
+    });
 
     let stdoutData = '';
     let stderrData = '';
@@ -699,8 +749,9 @@ export function refineAnimationWithAi(opts: AiRefineAnimationOptions): Promise<A
       if (stderrBuffer) handleLine(stderrBuffer);
 
       if (code !== 0) {
-        console.error(`[Hybrid AI] Tien trinh thoat voi ma loi ${code}:`, stderrData || stdoutData);
-        return reject(new Error(stderrData || stdoutData || `Tiến trình Python thoát với mã lỗi ${code}`));
+        const cleanErr = cleanPythonErrorMessage(stderrData, stdoutData, code);
+        console.error(`[Hybrid AI] Tien trinh thoat voi ma loi ${code}:`, cleanErr);
+        return reject(new Error(cleanErr));
       }
 
       const metaPath = metaPathResult || `${outputPrefix}_anim_meta.json`;

@@ -2,12 +2,13 @@
 // WebSocket Bridge va Local Hub Service tai cong 3055
 
 import http from 'http';
+import fs from 'fs';
 import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { StateStore } from './state-store';
 import { McpDrawPayload, CanvasProject } from '@pixel-draw/shared-types';
 import { loadPngToPixels, generatePixelArt, generateSpriteAnimation, refineAnimationWithAi, getProjectRoot } from './ai-helper';
-import { generateTemplateAnimation } from './template-animator';
+import { generateTemplateAnimation, savePixelsToPng } from './template-animator';
 import { expandPromptWithGemini } from './gemini-helper';
 import { GalleryManager } from './gallery-manager';
 import { ProjectAssetManager } from './asset-manager';
@@ -381,6 +382,163 @@ const server = http.createServer(async (req, res) => {
           strength = 0.38,
           slashVfxType = 'cyan'
         } = payload;
+
+        // 0A. Chế độ LPC SpriteStrip Đồng Bộ: Dùng dải ảnh ngang chứa cả N khung hình phôi LPC
+        // Sinh toàn bộ hoạt cảnh trong 1 lượt sinh AI duy nhất trên cùng 1 dải sprite
+        // Đảm bảo 100% diện mạo nhân vật (mặt, tóc, trang phục, màu sắc) đồng nhất trên tất cả khung hình
+        if (payload.stripBase64 || engine === 'lpc_strip') {
+          const timestamp = Date.now();
+          const projectRoot = getProjectRoot();
+          const outputDir = path.join(projectRoot, 'storage', 'outputs');
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+          }
+
+          const stripPath = path.join(outputDir, `lpc_strip_${timestamp}.png`);
+          if (payload.stripBase64) {
+            const b64 = payload.stripBase64.replace(/^data:image\/\w+;base64,/, '');
+            fs.writeFileSync(stripPath, Buffer.from(b64, 'base64'));
+          }
+
+          const numFrames = parseInt(frameCount, 10) || 4;
+          const targetSize = parseInt(size, 10) || 64;
+
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            stage: 'refining',
+            percent: 15,
+            message: `Đang dùng Model AI sinh nhân vật đồng bộ trên dải sprite ${numFrames} frames...`
+          } as any);
+
+          const onProgress = (progress: any) => {
+            broadcastToStudio({
+              type: 'AI_PROGRESS',
+              ...progress
+            } as any);
+          };
+
+          const animResult = await generateSpriteAnimation({
+            basePrompt: basePrompt || payload.prompt || 'pixel art character, 16bit clean outline',
+            action,
+            frameCount: numFrames,
+            initImage: stripPath,
+            strength: typeof strength === 'number' ? strength : (strength ? parseFloat(strength) : 0.35),
+            seed: seed ? parseInt(seed, 10) : undefined,
+            checkpoint,
+            loraPath,
+            loraScale: loraScale !== undefined ? parseFloat(loraScale) : 0.65,
+            steps: steps ? parseInt(steps, 10) : 16,
+            size: targetSize,
+            removeBg: removeBg ?? true,
+            onProgress
+          });
+
+          lastAiResult = {
+            id: animGenId,
+            type: 'animation',
+            status: 'completed',
+            timestamp: Date.now(),
+            frames: animResult.frames
+          };
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            engine: 'lpc_strip',
+            action: animResult.action,
+            frameCount: animResult.frameCount,
+            frames: animResult.frames,
+            seed: animResult.seed
+          }));
+          return;
+        }
+
+        // 0B. Chế độ LPC Re-skin / Batch Img2Img: Render Model AI (SD1.5 + LoRA) trực tiếp trên từng khung hình LPC
+        // Tuyệt đối KHÔNG dùng khung xương biến dạng (Puppet Rigging), giữ nguyên 100% chuyển động của phôi LPC
+        if (engine === 'lpc_reskin' || (Array.isArray(payload.lpcFrames) && payload.lpcFrames.length > 0)) {
+          const timestamp = Date.now();
+          const projectRoot = getProjectRoot();
+          const outputDir = path.join(projectRoot, 'storage', 'outputs', `lpc_reskin_${timestamp}`);
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+          }
+
+
+          const rawFrames = payload.lpcFrames || [];
+          const frameFiles: string[] = [];
+          const targetSize = parseInt(size, 10) || 64;
+
+          for (let i = 0; i < rawFrames.length; i++) {
+            const framePath = path.join(outputDir, `frame_${i}.png`);
+            const item = rawFrames[i];
+            if (item.base64Png) {
+              const b64 = item.base64Png.replace(/^data:image\/\w+;base64,/, '');
+              fs.writeFileSync(framePath, Buffer.from(b64, 'base64'));
+              frameFiles.push(framePath);
+            } else if (Array.isArray(item.pixels)) {
+              savePixelsToPng(item.pixels, targetSize, targetSize, framePath);
+              frameFiles.push(framePath);
+            }
+          }
+
+          if (frameFiles.length === 0) {
+            throw new Error('Không có khung hình phôi nào được gửi lên để AI render.');
+          }
+
+          const metaPath = path.join(outputDir, 'anim_meta.json');
+          fs.writeFileSync(metaPath, JSON.stringify({
+            action,
+            frameCount: frameFiles.length,
+            frameFiles
+          }, null, 2));
+
+          broadcastToStudio({
+            type: 'AI_PROGRESS',
+            stage: 'refining',
+            percent: 15,
+            message: `Đang dùng Model AI render nhân vật trên ${frameFiles.length} khung hình LPC...`
+          } as any);
+
+          const onProgress = (progress: any) => {
+            broadcastToStudio({
+              type: 'AI_PROGRESS',
+              ...progress
+            } as any);
+          };
+
+          const refinedResult = await refineAnimationWithAi({
+            metaPath,
+            basePrompt: basePrompt || payload.prompt || 'pixel art character, 16bit clean outline',
+            action,
+            strength: typeof strength === 'number' ? strength : 0.52,
+            seed: seed ? parseInt(seed, 10) : undefined,
+            checkpoint,
+            loraPath,
+            loraScale: loraScale !== undefined ? parseFloat(loraScale) : 0.65,
+            steps: steps ? parseInt(steps, 10) : 14,
+            size: targetSize,
+            removeBg: removeBg ?? true,
+            onProgress
+          });
+
+          lastAiResult = {
+            id: animGenId,
+            type: 'animation',
+            status: 'completed',
+            timestamp: Date.now(),
+            frames: refinedResult.frames
+          };
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            engine: 'lpc_reskin',
+            action: refinedResult.action,
+            frameCount: refinedResult.frameCount,
+            frames: refinedResult.frames
+          }));
+          return;
+        }
 
         // 1. Che do 1: Khung xuong bien doi diem anh (Template Engine - Nhanh tuc thi <10ms va on dinh 100%)
         if (engine === 'template') {

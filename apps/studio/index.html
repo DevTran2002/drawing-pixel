@@ -177,6 +177,12 @@
           AI Studio
         </button>
 
+        <!-- LPC Studio -->
+        <button class="btn btn-lpc" id="btn-open-lpc-studio" title="LPC Character Studio & Motion Rig (54 hàng động tác)">
+          <svg class="btn-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          LPC Studio
+        </button>
+
         <!-- Export -->
         <button class="btn btn-primary" id="btn-export" title="Xuất file ảnh PNG hoặc SpriteSheet">
           <svg class="btn-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
@@ -566,6 +572,30 @@
         <div class="modal-body" style="padding: 12px 16px;">
           <!-- BUOC 1: THIET KE NHAN VAT (BANG NHAT TAG + GEMINI + PRESETS + PROMPT) -->
           <div id="wizard-panel-1" class="wizard-step-panel active">
+            <!-- Banner thong bao khi chuyen tu LPC sang de bo qua Buoc 2 & 3 -->
+            <div id="lpc-wizard-banner" style="display: none; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; flex-direction: column; gap: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-size: 11px; font-weight: 700; color: #c084fc; text-transform: uppercase;">Dải Chuyển Động LPC:</span>
+                  <span id="lpc-wizard-action-name" style="font-size: 11px; color: #fff; font-weight: 600;">Walk (9 frames)</span>
+                  <span style="font-size: 10.5px; color: #38bdf8;">(Sinh đồng bộ toàn bộ khung hình trên cùng một dải sprite)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <button type="button" class="btn btn-tiny" id="btn-unlock-lpc-seed" style="display: none; font-size: 10px; padding: 2px 8px; color: #f59e0b; border-color: rgba(245, 158, 11, 0.4);" title="Xóa mã Seed hiện tại để tạo nhân vật hoàn toàn mới ngẫu nhiên">Đổi nhân vật mới (Seed mới)</button>
+                  <button type="button" class="btn btn-tiny" id="btn-cancel-lpc-mode" style="font-size: 10px; padding: 2px 6px;">Hủy dùng dải</button>
+                </div>
+              </div>
+              <!-- Thanh trượt điều chỉnh độ biến đổi Strength -->
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.25); padding: 6px 12px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); gap: 12px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 240px;">
+                  <span style="font-size: 11px; color: #e2e8f0; font-weight: 600;">Độ biến đổi (Strength):</span>
+                  <span id="lpc-strength-val" style="font-size: 11px; font-weight: 700; color: #38bdf8;">0.48 (Vẽ thêm trang phục &amp; tóc)</span>
+                </div>
+                <input type="range" id="lpc-strength-slider" min="0.25" max="0.75" step="0.02" value="0.48" style="flex: 1; min-width: 200px; max-width: 320px; cursor: pointer;" />
+                <span style="font-size: 10px; color: var(--text-muted);">&lt; 0.35: giữ nét phôi | 0.45 - 0.55: vẽ thêm đồ/tóc mới theo Prompt</span>
+              </div>
+            </div>
+
             <div class="ai-modal-layout-2col">
               <!-- COT TRAI: BANG NHAT TAG THEO CHU DE (TAG PICKER) -->
               <div class="ai-tag-picker-panel">
@@ -1203,6 +1233,7 @@
           </div>
           <div style="display: flex; gap: 10px; align-items: center;">
             <!-- Cac nut dong ung voi tung buoc -->
+            <button class="btn btn-ai" id="btn-wizard-render-lpc-sync" style="display: none; background: linear-gradient(135deg, #a855f7, #6366f1); border-color: #a855f7; font-weight: 600; box-shadow: 0 2px 10px rgba(168, 85, 247, 0.35);" title="Sinh nhân vật đồng bộ trên toàn bộ dải sprite LPC (Bỏ qua Bước 2 & 3)">Sinh Hoạt Cảnh Đồng Bộ Trên Dải Sprite</button>
             <button class="btn btn-ai" id="btn-wizard-draw-static" style="background: linear-gradient(135deg, #0284c7, #2563eb); border-color: #38bdf8;" title="Vẽ và nạp trực tiếp ảnh tĩnh vào Canvas không qua các bước tiếp">Vẽ &amp; Nạp Vào Canvas (Ảnh Tĩnh)</button>
             <button class="btn btn-ai" id="btn-wizard-draw-base" title="Vẽ nhân vật chuẩn và chuyển sang Bước 2 để tạo hoạt ảnh">Vẽ Mẫu &amp; Tiếp Tục Hoạt Ảnh</button>
             <button class="btn btn-small" id="btn-wizard-step2-use-static" style="display: none; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.6); color: #38bdf8; padding: 6px 14px;" title="Nạp ngay ảnh mẫu này vào Canvas chính">Nạp Vào Canvas (Ảnh Tĩnh)</button>
