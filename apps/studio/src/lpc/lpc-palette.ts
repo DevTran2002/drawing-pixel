@@ -2,7 +2,7 @@
 // Module định nghĩa các bảng màu dải bậc (Palette Color Ramps) chuẩn LPC
 // và thuật toán ánh xạ màu giữ nguyên bóng khối (Palette Recolor & Shading)
 
-export type LpcPaletteCategory = 'hair' | 'torso' | 'legs' | 'feet' | 'hat' | 'body';
+export type LpcPaletteCategory = 'hair' | 'torso' | 'legs' | 'feet' | 'hat' | 'tails' | 'ears' | 'body';
 
 export interface PaletteRamp {
   id: string;
@@ -23,9 +23,14 @@ export const DEFAULT_SOURCE_RAMPS = {
   feet: ['#211812', '#362419', '#543926', '#7a5538', '#a87850'],
   // Dải màu mũ sắt chuẩn LPC gốc
   hat: ['#1d131e', '#4d4a5d', '#726b7e', '#867e7f', '#c4b59f', '#ffffff'],
+  // Dải màu đuôi thú chuẩn LPC gốc
+  tails: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00'],
+  // Dải màu tai thú chuẩn LPC gốc
+  ears: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00'],
   // Dải màu da sáng cơ bản
   body: ['#8f563b', '#c28569', '#e0a98b', '#f2cbb3', '#ffe4d4']
 };
+
 
 // Danh mục các bảng màu tùy chọn cho từng bộ phận
 export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
@@ -186,7 +191,60 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
       colors: ['#360f15', '#5e1722', '#8c2434', '#bd3549', '#e05369']
     }
   ],
+  tails: [
+    {
+      id: 'fur_orange',
+      name: 'Lông Cam Tự Nhiên',
+      category: 'tails',
+      colors: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00']
+    },
+    {
+      id: 'fur_black',
+      name: 'Lông Đen Tuyền',
+      category: 'tails',
+      colors: ['#121417', '#1f2429', '#313840', '#49525c', '#697482']
+    },
+    {
+      id: 'fur_white',
+      name: 'Lông Bạch Tuyết',
+      category: 'tails',
+      colors: ['#3a3e47', '#5f6675', '#8a94a6', '#bdc7d8', '#f0f4fa']
+    },
+    {
+      id: 'fur_brown',
+      name: 'Lông Nâu Đất',
+      category: 'tails',
+      colors: ['#211812', '#362419', '#543926', '#7a5538', '#a87850']
+    }
+  ],
+  ears: [
+    {
+      id: 'ear_orange',
+      name: 'Tai Cam Tự Nhiên',
+      category: 'ears',
+      colors: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00']
+    },
+    {
+      id: 'ear_black',
+      name: 'Tai Đen Tuyền',
+      category: 'ears',
+      colors: ['#121417', '#1f2429', '#313840', '#49525c', '#697482']
+    },
+    {
+      id: 'ear_white',
+      name: 'Tai Bạch Tuyết',
+      category: 'ears',
+      colors: ['#3a3e47', '#5f6675', '#8a94a6', '#bdc7d8', '#f0f4fa']
+    },
+    {
+      id: 'ear_brown',
+      name: 'Tai Nâu Đất',
+      category: 'ears',
+      colors: ['#211812', '#362419', '#543926', '#7a5538', '#a87850']
+    }
+  ],
   body: [
+
     {
       id: 'body_fair',
       name: 'Da Sáng Tự Nhiên',

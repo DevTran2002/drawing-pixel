@@ -61,6 +61,16 @@ export const LPC_PRESET_STYLES: Record<string, LpcPresetStyle[]> = {
   ],
   hat: [
     { id: 'helmet_greathelm', name: 'Mũ Sắt Hiệp Sĩ (Greathelm)', imageUrl: '/lpc_assets/hat_helmet.png' }
+  ],
+  tails: [
+    { id: 'tail_cat', name: 'Đuôi Mèo (Cat)', imageUrl: '/lpc_assets/tail_cat.png' },
+    { id: 'tail_wolf', name: 'Đuôi Sói (Wolf)', imageUrl: '/lpc_assets/tail_wolf.png' },
+    { id: 'tail_fluffy', name: 'Đuôi Cáo Xù (Fluffy)', imageUrl: '/lpc_assets/tail_fluffy.png' }
+  ],
+  ears: [
+    { id: 'ears_cat', name: 'Tai Mèo (Cat)', imageUrl: '/lpc_assets/ears_cat.png' },
+    { id: 'ears_wolf', name: 'Tai Sói (Wolf)', imageUrl: '/lpc_assets/ears_wolf.png' },
+    { id: 'ears_lykon', name: 'Tai Thú Lykon (Lykon)', imageUrl: '/lpc_assets/ears_lykon.png' }
   ]
 };
 
@@ -84,7 +94,19 @@ export class LpcStudioModal {
     }
 
     if (!this.isInitialized) {
-      // Nạp bộ phôi hoàn chỉnh gồm 6 Layer chuẩn Paper Doll với Asset vẽ tay tinh xảo từ Universal LPC
+      // Nạp bộ phôi hoàn chỉnh gồm các Layer chuẩn Paper Doll với Asset vẽ tay tinh xảo từ Universal LPC
+      // 1. Đuôi thú (Z: 12 - nằm sau lưng thân người)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_tails',
+        name: 'Đuôi Thú (Tail)',
+        category: 'tails',
+        zIndex: 12,
+        imageUrl: '/lpc_assets/tail_cat.png',
+        paletteId: 'fur_orange',
+        enabled: false // Mặc định tắt, người dùng có thể bật khi muốn tạo nhân vật thú/furry
+      });
+
+      // 2. Thân người (Z: 20)
       await this.compositor.addOrUpdateLayer({
         id: 'layer_base_body',
         name: 'Phôi cơ thể (Base Body)',
@@ -95,6 +117,7 @@ export class LpcStudioModal {
         enabled: true
       });
 
+      // 3. Quần dài (Z: 30)
       await this.compositor.addOrUpdateLayer({
         id: 'layer_pants',
         name: 'Quần Dài Chiến Binh (Pants)',
@@ -105,6 +128,7 @@ export class LpcStudioModal {
         enabled: true
       });
 
+      // 4. Ủng da (Z: 35)
       await this.compositor.addOrUpdateLayer({
         id: 'layer_feet',
         name: 'Ủng Da Hiệp Sĩ (Boots)',
@@ -115,6 +139,7 @@ export class LpcStudioModal {
         enabled: true
       });
 
+      // 5. Giáp ngực (Z: 40)
       await this.compositor.addOrUpdateLayer({
         id: 'layer_armor',
         name: 'Giáp Sắt Hiệp Sĩ (Plate)',
@@ -125,6 +150,7 @@ export class LpcStudioModal {
         enabled: true
       });
 
+      // 6. Mái tóc (Z: 50)
       await this.compositor.addOrUpdateLayer({
         id: 'layer_hair',
         name: 'Tóc Xù Lãng Tử (Messy)',
@@ -135,6 +161,18 @@ export class LpcStudioModal {
         enabled: true
       });
 
+      // 7. Tai thú (Z: 52 - nằm trên tóc)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_ears',
+        name: 'Tai Thú (Ears)',
+        category: 'ears',
+        zIndex: 52,
+        imageUrl: '/lpc_assets/ears_cat.png',
+        paletteId: 'ear_orange',
+        enabled: false // Mặc định tắt, người dùng có thể bật khi muốn tạo nhân vật thú/furry
+      });
+
+      // 8. Mũ sắt (Z: 55)
       await this.compositor.addOrUpdateLayer({
         id: 'layer_hat',
         name: 'Mũ Sắt Hiệp Sĩ (Greathelm)',
@@ -144,6 +182,7 @@ export class LpcStudioModal {
         paletteId: 'hat_steel',
         enabled: false // Mặc định tắt để thấy tóc, người dùng có thể tick chọn để đội mũ
       });
+
 
 
 
@@ -666,6 +705,10 @@ export class LpcStudioModal {
       } else if (layer.category === 'hat') {
         if (layer.paletteId?.includes('gold')) descriptors.push('golden knight greathelm');
         else descriptors.push('steel knight greathelm');
+      } else if (layer.category === 'tails') {
+        descriptors.push('furry animal tail');
+      } else if (layer.category === 'ears') {
+        descriptors.push('cute beastly ears');
       }
     });
 

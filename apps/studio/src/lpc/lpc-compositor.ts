@@ -24,7 +24,10 @@ export type LpcLayerCategory =
   | 'feet'
   | 'hat'
   | 'hair'
+  | 'tails'
+  | 'ears'
   | 'weapons';
+
 
 
 export interface LpcAssetItem {
