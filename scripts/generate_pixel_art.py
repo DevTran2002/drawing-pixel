@@ -314,8 +314,8 @@ def generate_pixel_art(
 
                 # Số bước tối ưu cho DPMSolver: 12 bước, tốc độ cao và độ sắc nét tối đa
                 effective_steps = min(steps, 14) if steps else 12
-                # Giữ độ mạnh 0.35 để bảo toàn 100% dáng bước chân, tay, đầu của phôi LPC
-                actual_strength = strength if (strength is not None and strength <= 0.45) else 0.35
+                # Tôn trọng giá trị strength do người dùng tùy chỉnh từ giao diện (mặc định 0.35)
+                actual_strength = strength if strength is not None else 0.35
 
                 for i in range(frame_count):
                     print(f"AI_STAGE:REFINE_FRAME:Đang sinh hoạt cảnh khung hình {i + 1}/{frame_count}...", flush=True)

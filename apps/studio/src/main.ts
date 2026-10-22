@@ -6183,10 +6183,27 @@ function initAiPixelModal(): void {
     // 2. Lưu payload dải sprite LPC để dùng khi bấm sinh hoạt cảnh đồng bộ
     currentLpcPayload = payload;
 
-    // 3. Mở Modal AI Studio
+    // 3. Thiết lập thanh trượt Strength về 0.32 tối ưu cho dải phôi đã có đầy đủ phụ kiện & Palette Shading
+    if (lpcStrengthSlider) {
+      lpcStrengthSlider.value = '0.32';
+    }
+    if (lpcStrengthVal) {
+      lpcStrengthVal.innerText = '0.32 (Shading sắc nét & bám sát phôi đồ)';
+    }
+
+    // 4. Mở Modal AI Studio
     modal.style.display = 'flex';
 
-    // 4. Nạp Prompt từ LPC Studio vào ô nhập
+    // 5. Cập nhật tên hành động trên banner LPC
+    if (lpcWizardActionName) {
+      const seedLabel = payload.seed !== undefined ? ` [Khóa Seed: #${payload.seed}]` : '';
+      lpcWizardActionName.innerText = `${payload.actionId.toUpperCase()} (${payload.direction.toUpperCase()}, ${payload.frames.length} frames)${seedLabel}`;
+    }
+    if (lpcWizardBanner) {
+      lpcWizardBanner.style.display = 'flex';
+    }
+
+    // 6. Nạp Prompt từ LPC Studio vào ô nhập
     if (promptInput) {
       promptInput.value = payload.prompt || '';
       syncTagChips();
@@ -6194,7 +6211,7 @@ function initAiPixelModal(): void {
 
     baseCharState.prompt = payload.prompt || 'pixel art character, 16bit clean outline';
 
-    // 5. Đưa người dùng về Bước 1 (Thiết kế nhân vật) ngay lập tức
+    // 7. Đưa người dùng về Bước 1 (Thiết kế nhân vật) ngay lập tức
     // Nút "Sinh Hoạt Cảnh Đồng Bộ" sẽ hiển thị nổi bật ở chân trang để bấm sinh luôn
     goToStep(1);
   };

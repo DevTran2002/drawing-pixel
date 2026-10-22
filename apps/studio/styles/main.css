@@ -3199,14 +3199,58 @@ body.tree-resizing * {
 
 .lpc-layer-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 10px;
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 6px;
   transition: all 0.15s ease;
 }
+
+.lpc-layer-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lpc-layer-palette-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.lpc-palette-label {
+  font-size: 10px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.lpc-palette-select,
+.lpc-style-select {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+.lpc-palette-select:hover,
+.lpc-style-select:hover {
+  border-color: #0284c7;
+}
+
+.lpc-palette-select:focus,
+.lpc-style-select:focus {
+  border-color: #38bdf8;
+}
+
+
 
 .lpc-layer-item.active {
   border-color: #0284c7;

@@ -8,6 +8,12 @@ import {
   LPC_ACTION_GROUPS,
   getLpcFrameRect
 } from './lpc-matrix';
+import {
+  recolorCanvasByPalette,
+  DEFAULT_SOURCE_RAMPS,
+  LPC_PALETTES,
+  LpcPaletteCategory
+} from './lpc-palette';
 
 export type LpcLayerCategory =
   | 'shadow'
@@ -15,8 +21,11 @@ export type LpcLayerCategory =
   | 'head'
   | 'torso'
   | 'legs'
+  | 'feet'
+  | 'hat'
   | 'hair'
   | 'weapons';
+
 
 export interface LpcAssetItem {
   id: string;
@@ -26,6 +35,8 @@ export interface LpcAssetItem {
   imageUrl: string;
   imageElement?: HTMLImageElement;
   tintColor?: string;
+  paletteId?: string; // ID bảng màu đang kích hoạt (ví dụ: 'hair_blonde', 'torso_golden')
+  cachedRecolorCanvas?: HTMLCanvasElement | null; // Bộ nhớ đệm canvas toàn sheet đã đổi màu
   enabled: boolean;
 }
 
@@ -75,12 +86,81 @@ export class LpcCompositor {
     this.layers = this.layers.filter((l) => l.id !== layerId);
   }
 
-  // Bat hoac tat mot layer
+  // Bật hoặc tắt một layer
   public setLayerEnabled(layerId: string, enabled: boolean): void {
     const layer = this.layers.find((l) => l.id === layerId);
     if (layer) {
       layer.enabled = enabled;
     }
+  }
+
+  // Thay đổi tệp ảnh nguồn của layer (ví dụ đổi kiểu tóc, kiểu giáp)
+  public async changeLayerImage(layerId: string, newImageUrl: string, newName?: string): Promise<void> {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (layer) {
+      layer.imageUrl = newImageUrl;
+      if (newName) layer.name = newName;
+      layer.imageElement = await this.loadImage(newImageUrl);
+      layer.cachedRecolorCanvas = null;
+    }
+  }
+
+
+  // Cài đặt hoặc đổi bảng màu cho một layer
+  public setLayerPalette(layerId: string, paletteId?: string): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (layer) {
+      layer.paletteId = paletteId || undefined;
+      // Xóa cache cũ để lần vẽ tiếp theo tự động recolor lại với bảng màu mới
+      layer.cachedRecolorCanvas = null;
+    }
+  }
+
+  // Xóa toàn bộ cache đổi màu
+  public clearAllPaletteCaches(): void {
+    for (const l of this.layers) {
+      l.cachedRecolorCanvas = null;
+    }
+  }
+
+  // Lấy nguồn ảnh để vẽ (tự động recolor theo Palette Shading nếu layer có paletteId)
+  public getLayerRenderSource(layer: LpcAssetItem): CanvasImageSource | null {
+    if (!layer.imageElement) return null;
+
+    // Nếu không cấu hình bảng màu hoặc không thuộc các nhóm có dải màu, dùng ảnh gốc
+    if (!layer.paletteId) {
+      return layer.imageElement;
+    }
+
+    // Nếu đã có cache recolor toàn sheet, trả về ngay lập tức để đạt 60 FPS
+    if (layer.cachedRecolorCanvas) {
+      return layer.cachedRecolorCanvas;
+    }
+
+    // Tiến hành recolor toàn bộ sprite sheet phụ kiện theo dải màu
+    const cat = layer.category as LpcPaletteCategory;
+    const sourceRamp = DEFAULT_SOURCE_RAMPS[cat];
+    const targetPalettes = LPC_PALETTES[cat];
+    const targetPalette = targetPalettes?.find(p => p.id === layer.paletteId);
+
+
+    if (!sourceRamp || !targetPalette) {
+      return layer.imageElement;
+    }
+
+    // Tạo canvas tạm chứa toàn bộ sheet ảnh
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = layer.imageElement.width;
+    tempCanvas.height = layer.imageElement.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return layer.imageElement;
+
+    tempCtx.drawImage(layer.imageElement, 0, 0);
+
+    // Ánh xạ dải màu giữ nguyên bóng khối
+    const recolored = recolorCanvasByPalette(tempCanvas, sourceRamp, targetPalette.colors);
+    layer.cachedRecolorCanvas = recolored;
+    return recolored;
   }
 
   // Lay danh sach cac layer hien co
@@ -226,10 +306,12 @@ export class LpcCompositor {
 
     // 2. Ve cac layer da kich hoat theo thu tu Z-Order
     for (const layer of this.layers) {
-      if (!layer.enabled || !layer.imageElement) continue;
+      if (!layer.enabled) continue;
+      const src = this.getLayerRenderSource(layer);
+      if (!src) continue;
 
       this.offscreenCtx.drawImage(
-        layer.imageElement,
+        src,
         rect.x,
         rect.y,
         rect.width,
@@ -269,10 +351,12 @@ export class LpcCompositor {
     const rect = getLpcFrameRect(col, row);
 
     for (const layer of this.layers) {
-      if (!layer.enabled || !layer.imageElement) continue;
+      if (!layer.enabled) continue;
+      const src = this.getLayerRenderSource(layer);
+      if (!src) continue;
 
       this.offscreenCtx.drawImage(
-        layer.imageElement,
+        src,
         rect.x,
         rect.y,
         rect.width,
@@ -308,9 +392,12 @@ export class LpcCompositor {
     const rect = getLpcFrameRect(col, row);
 
     for (const layer of this.layers) {
-      if (!layer.enabled || !layer.imageElement) continue;
+      if (!layer.enabled) continue;
+      const src = this.getLayerRenderSource(layer);
+      if (!src) continue;
+
       ctx.drawImage(
-        layer.imageElement,
+        src,
         rect.x,
         rect.y,
         rect.width,

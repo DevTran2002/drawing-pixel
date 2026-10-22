@@ -10,6 +10,7 @@ import {
   getAllActionFrames
 } from './lpc-studio-bridge';
 import { CanvasProject, AnimationClip, LayerData } from '@pixel-draw/shared-types';
+import { getPalettesByCategory, LPC_PALETTES, LpcPaletteCategory, PaletteRamp } from './lpc-palette';
 
 // Metadata đi kèm batch frame khi chuyển sang AI Studio để AI biết hành động và nhịp phim
 export interface LpcBatchAiPayload {
@@ -31,6 +32,38 @@ export interface LpcModalCallbacks {
   onBatchAiReskin?: (payload: LpcBatchAiPayload) => void;
 }
 
+// Danh mục các mẫu kiểu dáng phụ kiện chuẩn Universal LPC vẽ tay tinh xảo
+export interface LpcPresetStyle {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
+export const LPC_PRESET_STYLES: Record<string, LpcPresetStyle[]> = {
+  hair: [
+    { id: 'hair_messy', name: 'Tóc Xù Lãng Tử (Messy)', imageUrl: '/lpc_assets/hair_messy.png' },
+    { id: 'hair_spiked', name: 'Tóc Gai Chiến Binh (Spiked)', imageUrl: '/lpc_assets/hair_spiked.png' },
+    { id: 'hair_curtains', name: 'Tóc Rẽ Ngôi Quý Tộc (Curtains)', imageUrl: '/lpc_assets/hair_curtains.png' },
+    { id: 'hair_bob', name: 'Tóc Bob Hiện Đại (Bob)', imageUrl: '/lpc_assets/hair_bob.png' },
+    { id: 'hair_pixie', name: 'Tóc Ngắn Cá Tính (Pixie)', imageUrl: '/lpc_assets/hair_pixie.png' }
+  ],
+  torso: [
+    { id: 'armor_plate', name: 'Giáp Sắt Hiệp Sĩ (Plate)', imageUrl: '/lpc_assets/armor_plate.png' },
+    { id: 'armor_leather', name: 'Giáp Da Thợ Săn (Leather)', imageUrl: '/lpc_assets/armor_leather.png' },
+    { id: 'armor_legion', name: 'Giáp Quân Đoàn La Mã (Legion)', imageUrl: '/lpc_assets/armor_legion.png' }
+  ],
+  legs: [
+    { id: 'pants_leather', name: 'Quần Dài Chiến Binh (Pants)', imageUrl: '/lpc_assets/pants_leather.png' }
+  ],
+  feet: [
+    { id: 'boots_basic', name: 'Ủng Da Hiệp Sĩ (Basic)', imageUrl: '/lpc_assets/boots_leather.png' },
+    { id: 'boots_fold', name: 'Ủng Gấp Cổ Cao (Fold)', imageUrl: '/lpc_assets/boots_fold.png' }
+  ],
+  hat: [
+    { id: 'helmet_greathelm', name: 'Mũ Sắt Hiệp Sĩ (Greathelm)', imageUrl: '/lpc_assets/hat_helmet.png' }
+  ]
+};
+
 export class LpcStudioModal {
   private container: HTMLDivElement | null = null;
   private compositor: LpcCompositor;
@@ -44,25 +77,81 @@ export class LpcStudioModal {
     this.compositor = new LpcCompositor();
   }
 
-  // Khoi tao va mo Modal
+  // Khởi tạo và mở Modal
   public async open(defaultBodyUrl = '/sprites.png'): Promise<void> {
     if (!this.container) {
       this.createDom();
     }
 
     if (!this.isInitialized) {
-      // Nap phoi co the mac dinh ban dau
+      // Nạp bộ phôi hoàn chỉnh gồm 6 Layer chuẩn Paper Doll với Asset vẽ tay tinh xảo từ Universal LPC
       await this.compositor.addOrUpdateLayer({
         id: 'layer_base_body',
         name: 'Phôi cơ thể (Base Body)',
         category: 'body',
         zIndex: 20,
         imageUrl: defaultBodyUrl,
+        paletteId: 'body_fair',
         enabled: true
       });
+
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_pants',
+        name: 'Quần Dài Chiến Binh (Pants)',
+        category: 'legs',
+        zIndex: 30,
+        imageUrl: '/lpc_assets/pants_leather.png',
+        paletteId: 'pants_leather_brown',
+        enabled: true
+      });
+
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_feet',
+        name: 'Ủng Da Hiệp Sĩ (Boots)',
+        category: 'feet',
+        zIndex: 35,
+        imageUrl: '/lpc_assets/boots_leather.png',
+        paletteId: 'feet_brown',
+        enabled: true
+      });
+
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_armor',
+        name: 'Giáp Sắt Hiệp Sĩ (Plate)',
+        category: 'torso',
+        zIndex: 40,
+        imageUrl: '/lpc_assets/armor_plate.png',
+        paletteId: 'armor_steel_blue',
+        enabled: true
+      });
+
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_hair',
+        name: 'Tóc Xù Lãng Tử (Messy)',
+        category: 'hair',
+        zIndex: 50,
+        imageUrl: '/lpc_assets/hair_messy.png',
+        paletteId: 'hair_brown',
+        enabled: true
+      });
+
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_hat',
+        name: 'Mũ Sắt Hiệp Sĩ (Greathelm)',
+        category: 'hat',
+        zIndex: 55,
+        imageUrl: '/lpc_assets/hat_helmet.png',
+        paletteId: 'hat_steel',
+        enabled: false // Mặc định tắt để thấy tóc, người dùng có thể tick chọn để đội mũ
+      });
+
+
+
       this.isInitialized = true;
       this.renderLayerList();
+      this.updateAiPromptSuggestion();
     }
+
 
     if (this.container) {
       this.container.classList.add('active');
@@ -411,7 +500,7 @@ export class LpcStudioModal {
   }
 
 
-  // Cap nhat danh sach layer hien thi o cot 1
+  // Cập nhật danh sách layer hiển thị ở cột 1 kèm bộ chọn bảng màu (Palette Shading)
   private renderLayerList(): void {
     if (!this.container) return;
     const listContainer = this.container.querySelector('#lpc-layer-list');
@@ -428,40 +517,160 @@ export class LpcStudioModal {
     layers.forEach((layer) => {
       const itemRow = document.createElement('div');
       itemRow.className = `lpc-layer-item ${layer.enabled ? 'active' : ''}`;
+
+      // Lấy danh sách mẫu kiểu dáng có sẵn cho danh mục layer này
+      const availableStyles = LPC_PRESET_STYLES[layer.category] || [];
+      const hasStyles = availableStyles.length > 1;
+
+      // Lấy danh sách bảng màu phù hợp cho danh mục layer này
+      const availablePalettes = getPalettesByCategory(layer.category);
+      const hasPalettes = availablePalettes.length > 0;
+
+      const styleOptionsHtml = hasStyles
+        ? availableStyles
+            .map(
+              (s: LpcPresetStyle) =>
+                `<option value="${s.imageUrl}" ${layer.imageUrl === s.imageUrl ? 'selected' : ''}>${s.name}</option>`
+            )
+            .join('')
+        : '';
+
+      const paletteOptionsHtml = hasPalettes
+        ? availablePalettes
+            .map(
+              (p: PaletteRamp) =>
+                `<option value="${p.id}" ${layer.paletteId === p.id ? 'selected' : ''}>${p.name}</option>`
+            )
+            .join('')
+        : '';
+
       itemRow.innerHTML = `
-        <label class="lpc-layer-checkbox">
-          <input type="checkbox" ${layer.enabled ? 'checked' : ''} />
-          <span class="lpc-layer-name">${layer.name}</span>
-        </label>
-        <div class="lpc-layer-badges">
-          <span class="lpc-z-badge">Z:${layer.zIndex}</span>
-          ${
-            layer.category !== 'body'
-              ? `<button class="lpc-btn-remove-layer" title="Xóa layer">&times;</button>`
-              : ''
-          }
+        <div class="lpc-layer-item-header">
+          <label class="lpc-layer-checkbox">
+            <input type="checkbox" ${layer.enabled ? 'checked' : ''} />
+            <span class="lpc-layer-name">${layer.name}</span>
+          </label>
+          <div class="lpc-layer-badges">
+            <span class="lpc-z-badge">Z:${layer.zIndex}</span>
+            ${
+              layer.category !== 'body'
+                ? `<button class="lpc-btn-remove-layer" title="Xóa layer">&times;</button>`
+                : ''
+            }
+          </div>
         </div>
+        ${
+          hasStyles
+            ? `
+          <div class="lpc-layer-palette-row">
+            <span class="lpc-palette-label">Kiểu:</span>
+            <select class="lpc-style-select" data-layer-id="${layer.id}">
+              ${styleOptionsHtml}
+            </select>
+          </div>
+        `
+            : ''
+        }
+        ${
+          hasPalettes
+            ? `
+          <div class="lpc-layer-palette-row">
+            <span class="lpc-palette-label">Màu:</span>
+            <select class="lpc-palette-select" data-layer-id="${layer.id}">
+              <option value="" ${!layer.paletteId ? 'selected' : ''}>Màu gốc (Original)</option>
+              ${paletteOptionsHtml}
+            </select>
+          </div>
+        `
+            : ''
+        }
       `;
 
-      // Checkbox bat/tat layer
+      // Checkbox bật/tắt layer
       const checkbox = itemRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
       checkbox?.addEventListener('change', () => {
         this.compositor.setLayerEnabled(layer.id, checkbox.checked);
         itemRow.classList.toggle('active', checkbox.checked);
         this.drawPreview();
+        this.updateAiPromptSuggestion();
       });
 
-      // Nut xoa layer (ngoai tru layer goc)
+      // Bắt sự kiện đổi kiểu dáng phụ kiện
+      const styleSelect = itemRow.querySelector('.lpc-style-select') as HTMLSelectElement;
+      styleSelect?.addEventListener('change', async () => {
+        const selectedStyle = availableStyles.find((s) => s.imageUrl === styleSelect.value);
+        if (selectedStyle) {
+          await this.compositor.changeLayerImage(layer.id, selectedStyle.imageUrl, selectedStyle.name);
+          const nameSpan = itemRow.querySelector('.lpc-layer-name');
+          if (nameSpan) nameSpan.textContent = selectedStyle.name;
+          this.drawPreview();
+          this.updateAiPromptSuggestion();
+        }
+      });
+
+      // Bắt sự kiện đổi bảng màu
+      const paletteSelect = itemRow.querySelector('.lpc-palette-select') as HTMLSelectElement;
+      paletteSelect?.addEventListener('change', () => {
+        this.compositor.setLayerPalette(layer.id, paletteSelect.value || undefined);
+        this.drawPreview();
+        this.updateAiPromptSuggestion();
+      });
+
+      // Nút xóa layer (ngoại trừ layer gốc)
       const btnRemove = itemRow.querySelector('.lpc-btn-remove-layer');
       btnRemove?.addEventListener('click', (e) => {
         e.stopPropagation();
         this.compositor.removeLayer(layer.id);
         this.renderLayerList();
         this.drawPreview();
+        this.updateAiPromptSuggestion();
       });
 
       listContainer.appendChild(itemRow);
     });
+  }
+
+  // Tự động tạo gợi ý prompt cho AI dựa trên các phụ kiện và màu sắc đang được bật
+  private updateAiPromptSuggestion(): void {
+    if (!this.container) return;
+    const inputAiPrompt = this.container.querySelector('#lpc-ai-prompt') as HTMLInputElement;
+    if (!inputAiPrompt) return;
+
+    const layers = this.compositor.getLayers().filter((l) => l.enabled);
+    const descriptors: string[] = ['warrior character'];
+
+    layers.forEach((layer) => {
+      if (layer.category === 'hair' && layer.paletteId) {
+        if (layer.paletteId.includes('blonde')) descriptors.push('blonde hair');
+        else if (layer.paletteId.includes('red')) descriptors.push('red hair');
+        else if (layer.paletteId.includes('black')) descriptors.push('black hair');
+        else if (layer.paletteId.includes('platinum')) descriptors.push('platinum silver hair');
+        else if (layer.paletteId.includes('blue')) descriptors.push('blue hair');
+        else descriptors.push('brown hair');
+      } else if (layer.category === 'torso' && layer.paletteId) {
+        if (layer.paletteId.includes('gold')) descriptors.push('golden plate armor');
+        else if (layer.paletteId.includes('crimson')) descriptors.push('crimson armor');
+        else if (layer.paletteId.includes('emerald')) descriptors.push('emerald armor');
+        else if (layer.paletteId.includes('dark_iron')) descriptors.push('dark iron armor');
+        else if (layer.paletteId.includes('white_cloth')) descriptors.push('white cloth tunic');
+        else descriptors.push('steel blue armor');
+      } else if (layer.category === 'legs' && layer.paletteId) {
+        if (layer.paletteId.includes('iron_gray')) descriptors.push('iron gray pants');
+        else if (layer.paletteId.includes('denim_blue')) descriptors.push('indigo blue pants');
+        else if (layer.paletteId.includes('khaki')) descriptors.push('khaki pants');
+        else descriptors.push('leather brown pants');
+      } else if (layer.category === 'feet') {
+        if (layer.paletteId?.includes('black')) descriptors.push('black leather boots');
+        else if (layer.paletteId?.includes('iron')) descriptors.push('iron armored boots');
+        else descriptors.push('brown leather boots');
+      } else if (layer.category === 'hat') {
+        if (layer.paletteId?.includes('gold')) descriptors.push('golden knight greathelm');
+        else descriptors.push('steel knight greathelm');
+      }
+    });
+
+    descriptors.push('16bit pixel art', 'clean outline', 'high detail sprite', 'rpg game asset');
+    inputAiPrompt.value = descriptors.join(', ');
   }
 
   // Ve khung hinh len canvas xem truoc
