@@ -44,7 +44,7 @@ export const LPC_GRID_CONFIG = {
   pivotY: 63
 } as const;
 
-// Danh muc cac nhom hoat canh chinh trong LPC 54 hang
+// Danh muc cac nhom hoat canh chinh trong LPC 54 hang theo chuan Universal LPC
 export const LPC_ACTION_GROUPS: LpcActionGroup[] = [
   {
     id: 'walk',
@@ -114,7 +114,7 @@ export const LPC_ACTION_GROUPS: LpcActionGroup[] = [
   {
     id: 'hurt',
     name: 'Chịu đòn (Hurt / Fall)',
-    description: 'Bị sát thương văng ra sau và ngã quỵ xuống đất',
+    description: 'Bị sát thương văng ra sau và ngã quỵ xuống đất (chuẩn LPC chỉ có 1 hàng đơn)',
     directions: {
       up: { rowIndex: 20, frameCount: 6 },
       left: { rowIndex: 20, frameCount: 6 },
@@ -127,54 +127,119 @@ export const LPC_ACTION_GROUPS: LpcActionGroup[] = [
   {
     id: 'climb',
     name: 'Leo trèo (Climb)',
-    description: 'Động tác trèo thang hoặc leo tường',
+    description: 'Động tác leo trèo thang nhìn từ sau lưng (chuẩn LPC chỉ có 1 hàng đơn Row 21)',
     directions: {
       up: { rowIndex: 21, frameCount: 6 },
-      left: { rowIndex: 22, frameCount: 6 },
-      down: { rowIndex: 23, frameCount: 6 },
-      right: { rowIndex: 24, frameCount: 6 }
+      left: { rowIndex: 21, frameCount: 6 },
+      down: { rowIndex: 21, frameCount: 6 },
+      right: { rowIndex: 21, frameCount: 6 }
     },
     defaultFps: 8,
     loop: true
+  },
+  {
+    id: 'idle',
+    name: 'Đứng thở (Idle)',
+    description: 'Đứng yên thở nhẹ nhàng theo 4 hướng',
+    directions: {
+      up: { rowIndex: 22, frameCount: 2 },
+      left: { rowIndex: 23, frameCount: 2 },
+      down: { rowIndex: 24, frameCount: 2 },
+      right: { rowIndex: 25, frameCount: 2 }
+    },
+    defaultFps: 4,
+    loop: true
+  },
+  {
+    id: 'jump',
+    name: 'Bật nhảy (Jump)',
+    description: 'Động tác bật nhảy cao lên không trung theo 4 hướng',
+    directions: {
+      up: { rowIndex: 26, frameCount: 5 },
+      left: { rowIndex: 27, frameCount: 5 },
+      down: { rowIndex: 28, frameCount: 5 },
+      right: { rowIndex: 29, frameCount: 5 }
+    },
+    defaultFps: 8,
+    loop: false
   },
   {
     id: 'sit',
     name: 'Ngồi nghỉ (Sit)',
     description: 'Tư thế ngồi nghỉ ngơi hoặc ngồi ghế theo 4 hướng',
     directions: {
-      up: { rowIndex: 25, frameCount: 3 },
-      left: { rowIndex: 26, frameCount: 3 },
-      down: { rowIndex: 27, frameCount: 3 },
-      right: { rowIndex: 28, frameCount: 3 }
+      up: { rowIndex: 30, frameCount: 3 },
+      left: { rowIndex: 31, frameCount: 3 },
+      down: { rowIndex: 32, frameCount: 3 },
+      right: { rowIndex: 33, frameCount: 3 }
     },
     defaultFps: 4,
     loop: true
   },
   {
+    id: 'emote',
+    name: 'Biểu cảm (Emote)',
+    description: 'Hành động biểu cảm giơ tay chào hoặc hoan hô theo 4 hướng',
+    directions: {
+      up: { rowIndex: 34, frameCount: 3 },
+      left: { rowIndex: 35, frameCount: 3 },
+      down: { rowIndex: 36, frameCount: 3 },
+      right: { rowIndex: 37, frameCount: 3 }
+    },
+    defaultFps: 6,
+    loop: true
+  },
+  {
     id: 'run',
     name: 'Chạy nhanh (Run)',
-    description: 'Chạy nước rút sải chân dài',
+    description: 'Chạy nước rút sải chân dài theo 4 hướng',
     directions: {
-      up: { rowIndex: 33, frameCount: 8 },
-      left: { rowIndex: 34, frameCount: 8 },
-      down: { rowIndex: 35, frameCount: 8 },
-      right: { rowIndex: 36, frameCount: 8 }
+      up: { rowIndex: 38, frameCount: 8 },
+      left: { rowIndex: 39, frameCount: 8 },
+      down: { rowIndex: 40, frameCount: 8 },
+      right: { rowIndex: 41, frameCount: 8 }
     },
-    defaultFps: 14,
+    defaultFps: 12,
     loop: true
   },
   {
     id: 'combat_idle',
     name: 'Thủ thế chiến đấu (Combat Idle)',
-    description: 'Tư thế nhún nhẹ thủ thế chuẩn bị giao tranh',
+    description: 'Tư thế nhún người thủ thế chuẩn bị giao tranh theo 4 hướng',
     directions: {
-      up: { rowIndex: 37, frameCount: 4 },
-      left: { rowIndex: 38, frameCount: 4 },
-      down: { rowIndex: 39, frameCount: 4 },
-      right: { rowIndex: 40, frameCount: 4 }
+      up: { rowIndex: 42, frameCount: 2 },
+      left: { rowIndex: 43, frameCount: 2 },
+      down: { rowIndex: 44, frameCount: 2 },
+      right: { rowIndex: 45, frameCount: 2 }
     },
-    defaultFps: 6,
+    defaultFps: 4,
     loop: true
+  },
+  {
+    id: 'backslash',
+    name: 'Chém ngược (Backslash)',
+    description: 'Vung kiếm chém ngược cực mạnh (13 frames)',
+    directions: {
+      up: { rowIndex: 46, frameCount: 13 },
+      left: { rowIndex: 47, frameCount: 13 },
+      down: { rowIndex: 48, frameCount: 13 },
+      right: { rowIndex: 49, frameCount: 13 }
+    },
+    defaultFps: 12,
+    loop: false
+  },
+  {
+    id: 'halfslash',
+    name: 'Chém nửa vòng (Halfslash)',
+    description: 'Chém kiếm nhanh nửa vòng tròn (6 frames)',
+    directions: {
+      up: { rowIndex: 50, frameCount: 6 },
+      left: { rowIndex: 51, frameCount: 6 },
+      down: { rowIndex: 52, frameCount: 6 },
+      right: { rowIndex: 53, frameCount: 6 }
+    },
+    defaultFps: 10,
+    loop: false
   }
 ];
 
@@ -217,3 +282,149 @@ export function extractLpcFrameToCanvas(
   );
   return canvas;
 }
+
+// Bảng ma trận độ lệch chuyển động khung xương (Motion Rig Offsets) cho 9 hành động mở rộng
+// Đo đạc chuẩn xác từng pixel theo chu kỳ cử động của phôi thân người trong sprites.png
+// Giúp toàn bộ phụ kiện cổ điển (tai, đuôi, tóc, mũ, áo, quần, ủng, khiên, kiếm...)
+// tự động uốn lượn, nhún người, nhảy lên, hạ thấp trọng tâm ôm khít 100% vào cơ thể.
+export const LPC_MOTION_RIG_OFFSETS: Record<string, Partial<Record<LpcDirection, Array<{ dx: number; dy: number }>>>> = {
+  // 1. Leo trèo (Climb - 6 frames, góc nhìn từ sau lưng)
+  climb: {
+    up: [
+      { dx: 1, dy: -3 }, { dx: 1, dy: -2 }, { dx: 0, dy: -4 },
+      { dx: -1, dy: -3 }, { dx: -1, dy: -2 }, { dx: 0, dy: -4 }
+    ],
+    left: [
+      { dx: 1, dy: -3 }, { dx: 1, dy: -2 }, { dx: 0, dy: -4 },
+      { dx: -1, dy: -3 }, { dx: -1, dy: -2 }, { dx: 0, dy: -4 }
+    ],
+    down: [
+      { dx: 1, dy: -3 }, { dx: 1, dy: -2 }, { dx: 0, dy: -4 },
+      { dx: -1, dy: -3 }, { dx: -1, dy: -2 }, { dx: 0, dy: -4 }
+    ],
+    right: [
+      { dx: 1, dy: -3 }, { dx: 1, dy: -2 }, { dx: 0, dy: -4 },
+      { dx: -1, dy: -3 }, { dx: -1, dy: -2 }, { dx: 0, dy: -4 }
+    ]
+  },
+
+  // 2. Đứng thở (Idle - 2 frames)
+  idle: {
+    up: [{ dx: 0, dy: 1 }, { dx: 0, dy: 0 }],
+    left: [{ dx: 0, dy: 0 }, { dx: 0, dy: -1 }],
+    down: [{ dx: 0, dy: 0 }, { dx: 0, dy: -1 }],
+    right: [{ dx: 0, dy: 0 }, { dx: 0, dy: -1 }]
+  },
+
+  // 3. Bật nhảy (Jump - 5 frames: nhún lấy đà -> bật lên cao -> rơi xuống -> tiếp đất)
+  jump: {
+    up: [
+      { dx: 0, dy: 2 }, { dx: 0, dy: 4 }, { dx: 0, dy: -2 }, { dx: 0, dy: -4 }, { dx: 0, dy: 0 }
+    ],
+    left: [
+      { dx: 0, dy: 0 }, { dx: -3, dy: 3 }, { dx: 0, dy: -1 }, { dx: 0, dy: -3 }, { dx: 0, dy: 1 }
+    ],
+    down: [
+      { dx: 0, dy: 0 }, { dx: 0, dy: 3 }, { dx: 0, dy: 0 }, { dx: 0, dy: -3 }, { dx: 0, dy: 1 }
+    ],
+    right: [
+      { dx: 0, dy: 0 }, { dx: 3, dy: 3 }, { dx: 0, dy: -1 }, { dx: 0, dy: -3 }, { dx: 0, dy: 1 }
+    ]
+  },
+
+  // 4. Ngồi nghỉ (Sit - 3 frames: ngồi xuống -> ngồi bệt sâu -> đứng dậy)
+  sit: {
+    up: [
+      { dx: 0, dy: 10 }, { dx: -1, dy: 9 }, { dx: 0, dy: 0 }
+    ],
+    left: [
+      { dx: 0, dy: 8 }, { dx: 0, dy: 8 }, { dx: -3, dy: 0 }
+    ],
+    down: [
+      { dx: 0, dy: 2 }, { dx: 0, dy: 7 }, { dx: 0, dy: -2 }
+    ],
+    right: [
+      { dx: 0, dy: 9 }, { dx: 0, dy: 9 }, { dx: 3, dy: 0 }
+    ]
+  },
+
+  // 5. Biểu cảm (Emote - 3 frames)
+  emote: {
+    up: [{ dx: 0, dy: 1 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }],
+    left: [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }, { dx: 6, dy: -2 }],
+    down: [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }, { dx: 0, dy: -2 }],
+    right: [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }, { dx: -6, dy: -2 }]
+  },
+
+  // 6. Chạy nhanh (Run - 8 frames chu kỳ sải chân nghiêng người)
+  run: {
+    up: [
+      { dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: 0 }, { dx: 0, dy: -2 },
+      { dx: 0, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: 0 }, { dx: 0, dy: -2 }
+    ],
+    left: [
+      { dx: -2, dy: 1 }, { dx: -2, dy: 2 }, { dx: -2, dy: 1 }, { dx: -2, dy: -1 },
+      { dx: -2, dy: 1 }, { dx: -2, dy: 2 }, { dx: -2, dy: 1 }, { dx: -2, dy: -1 }
+    ],
+    down: [
+      { dx: 0, dy: 1 }, { dx: 0, dy: 2 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 }, { dx: 0, dy: 2 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+    ],
+    right: [
+      { dx: 2, dy: 1 }, { dx: 2, dy: 2 }, { dx: 2, dy: 1 }, { dx: 2, dy: -1 },
+      { dx: 2, dy: 1 }, { dx: 2, dy: 2 }, { dx: 2, dy: 1 }, { dx: 2, dy: -1 }
+    ]
+  },
+
+  // 7. Thủ thế chiến đấu (Combat Idle - 2 frames)
+  combat_idle: {
+    up: [{ dx: 0, dy: 1 }, { dx: 0, dy: 3 }],
+    left: [{ dx: -2, dy: 0 }, { dx: -3, dy: 2 }],
+    down: [{ dx: 1, dy: -1 }, { dx: 1, dy: 1 }],
+    right: [{ dx: 2, dy: 0 }, { dx: 3, dy: 2 }]
+  },
+
+  // 8. Chém ngược (Backslash - 13 frames)
+  backslash: {
+    up: [
+      { dx: -1, dy: 4 }, { dx: 0, dy: 0 }, { dx: -4, dy: 1 }, { dx: -6, dy: 2 }, { dx: -6, dy: 2 },
+      { dx: -6, dy: 2 }, { dx: 0, dy: 0 }, { dx: -7, dy: 2 }, { dx: -5, dy: 1 }, { dx: 1, dy: 0 },
+      { dx: 3, dy: 0 }, { dx: 3, dy: 0 }, { dx: 3, dy: 0 }
+    ],
+    left: [
+      { dx: 5, dy: -1 }, { dx: -7, dy: 1 }, { dx: -9, dy: 2 }, { dx: -10, dy: 2 }, { dx: -10, dy: 2 },
+      { dx: -10, dy: 2 }, { dx: -7, dy: 1 }, { dx: -8, dy: 2 }, { dx: -3, dy: 2 }, { dx: 1, dy: 0 },
+      { dx: 4, dy: -1 }, { dx: 4, dy: -1 }, { dx: 4, dy: -1 }
+    ],
+    down: [
+      { dx: -3, dy: -1 }, { dx: 1, dy: 1 }, { dx: 3, dy: 1 }, { dx: 4, dy: 1 }, { dx: 4, dy: 1 },
+      { dx: 4, dy: 1 }, { dx: 1, dy: 1 }, { dx: 6, dy: 1 }, { dx: 3, dy: 1 }, { dx: 0, dy: -1 },
+      { dx: -1, dy: -2 }, { dx: -1, dy: -2 }, { dx: -1, dy: -2 }
+    ],
+    right: [
+      { dx: -5, dy: -1 }, { dx: 7, dy: 1 }, { dx: 9, dy: 2 }, { dx: 10, dy: 2 }, { dx: 10, dy: 2 },
+      { dx: 10, dy: 2 }, { dx: 7, dy: 1 }, { dx: 9, dy: 2 }, { dx: 3, dy: 2 }, { dx: -1, dy: 0 },
+      { dx: -4, dy: -1 }, { dx: -4, dy: -1 }, { dx: -4, dy: -1 }
+    ]
+  },
+
+  // 9. Chém nửa vòng (Halfslash - 6 frames)
+  halfslash: {
+    up: [
+      { dx: -1, dy: 4 }, { dx: 0, dy: 0 }, { dx: -3, dy: -1 },
+      { dx: -3, dy: -2 }, { dx: -3, dy: -2 }, { dx: 0, dy: 0 }
+    ],
+    left: [
+      { dx: 5, dy: -1 }, { dx: -7, dy: 1 }, { dx: -10, dy: 2 },
+      { dx: -14, dy: 2 }, { dx: -14, dy: 2 }, { dx: -7, dy: 1 }
+    ],
+    down: [
+      { dx: -3, dy: -1 }, { dx: 1, dy: 1 }, { dx: 3, dy: 2 },
+      { dx: 4, dy: 2 }, { dx: 4, dy: 2 }, { dx: 1, dy: 1 }
+    ],
+    right: [
+      { dx: -5, dy: -1 }, { dx: 7, dy: 1 }, { dx: 10, dy: 2 },
+      { dx: 14, dy: 2 }, { dx: 14, dy: 2 }, { dx: 7, dy: 1 }
+    ]
+  }
+};

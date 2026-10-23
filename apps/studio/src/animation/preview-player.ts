@@ -80,12 +80,11 @@ export class PreviewPlayer {
     if (!this.isPlaying) return;
 
     const now = performance.now();
-    const currentFrameData = this.project.frames[this.previewFrameIndex];
     const clip = this.controller.getActiveClip();
-    const fps = clip ? clip.fps : 10;
-    const frameInterval = (currentFrameData && currentFrameData.durationMs)
-      ? currentFrameData.durationMs
-      : (1000 / fps);
+    const fps = (clip && clip.fps && clip.fps > 0) ? clip.fps : 10;
+    const currentFrameData = this.project.frames[this.previewFrameIndex];
+    // Tinh frameInterval theo FPS hien tai cua clip de slider FPS dieu toc tuc thi
+    const frameInterval = Math.max(16, Math.floor(1000 / fps));
 
     if (now - this.lastFrameTime >= frameInterval) {
       this.lastFrameTime = now;

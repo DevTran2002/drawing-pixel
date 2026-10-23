@@ -4,9 +4,11 @@
 import {
   LpcDirection,
   LpcActionGroup,
+  LpcFrameRect,
   LPC_GRID_CONFIG,
   LPC_ACTION_GROUPS,
-  getLpcFrameRect
+  getLpcFrameRect,
+  LPC_MOTION_RIG_OFFSETS
 } from './lpc-matrix';
 import {
   recolorCanvasByPalette,
@@ -48,7 +50,14 @@ export interface LpcAssetItem {
   customColor?: string; // Mã màu tự do do người dùng tự chọn (Hex)
   customRamp?: string[]; // Dải màu bóng khối sinh tự động từ màu tự do
   cachedRecolorCanvas?: HTMLCanvasElement | null; // Bộ nhớ đệm canvas toàn sheet đã đổi màu
+  activeRows?: Set<number>; // Tập hợp các chỉ số hàng có chứa pixel thực tế trên sheet
   enabled: boolean;
+}
+
+export interface LpcLayerDrawInfo {
+  rect: LpcFrameRect;
+  offsetX: number;
+  offsetY: number;
 }
 
 export class LpcCompositor {
@@ -77,11 +86,47 @@ export class LpcCompositor {
     }
   }
 
+  // Phan tich nhanh 54 hang de biet hang nao co pixel thuc te
+  private analyzeLayerActiveRows(layer: LpcAssetItem): void {
+    if (!layer.imageElement) return;
+    const active = new Set<number>();
+    try {
+      const img = layer.imageElement;
+      const canvas = document.createElement('canvas');
+      canvas.width = 13;
+      canvas.height = LPC_GRID_CONFIG.totalRows;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) {
+        layer.activeRows = undefined;
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let r = 0; r < canvas.height; r++) {
+        let hasPixel = false;
+        for (let c = 0; c < canvas.width; c++) {
+          const alphaIndex = (r * canvas.width + c) * 4 + 3;
+          if (imgData[alphaIndex] > 0) {
+            hasPixel = true;
+            break;
+          }
+        }
+        if (hasPixel) {
+          active.add(r);
+        }
+      }
+      layer.activeRows = active;
+    } catch {
+      layer.activeRows = undefined;
+    }
+  }
+
   // Nap hoac cap nhat mot layer phu kien
   public async addOrUpdateLayer(item: LpcAssetItem): Promise<void> {
     if (!item.imageElement) {
       item.imageElement = await this.loadImage(item.imageUrl);
     }
+    this.analyzeLayerActiveRows(item);
     const idx = this.layers.findIndex((l) => l.id === item.id);
     if (idx >= 0) {
       this.layers[idx] = item;
@@ -112,6 +157,7 @@ export class LpcCompositor {
       layer.imageUrl = newImageUrl;
       if (newName) layer.name = newName;
       layer.imageElement = await this.loadImage(newImageUrl);
+      this.analyzeLayerActiveRows(layer);
       layer.cachedRecolorCanvas = null;
     }
   }
@@ -210,8 +256,8 @@ export class LpcCompositor {
     const group = this.getActionGroup(actionId);
     if (group) {
       this.currentActionId = actionId;
-      this.fps = group.defaultFps;
       this.currentFrameIndex = 0;
+      this.setFps(group.defaultFps);
     }
   }
 
@@ -357,6 +403,94 @@ export class LpcCompositor {
     }
   }
 
+  // Helper lay toa do cat frame an toan cho tung layer kem fallback va bu tru offset toa do
+  // Ngan chan tinh trang mat quan ao, mu hoac giap bi lech vi tri khi ngoi hoac thu the
+  // Helper lay toa do cat frame an toan cho tung layer kem fallback va bu tru offset toa do
+  // Ngan chan tinh trang mat quan ao, mu hoac giap bi lech vi tri khi ngoi hoac thu the
+  private getFrameDrawInfoForLayer(
+    layer: LpcAssetItem,
+    col: number,
+    row: number,
+    src: CanvasImageSource
+  ): LpcLayerDrawInfo {
+    // 1. Phôi thân người (Body) luôn dùng trực tiếp tọa độ frame gốc
+    if (layer.category === 'body') {
+      return {
+        rect: getLpcFrameRect(col, row),
+        offsetX: 0,
+        offsetY: 0
+      };
+    }
+
+    // 2. Kiểm tra chiều cao của nguồn ảnh:
+    // Toàn bộ hơn 1.200 tệp trong kho LPC Assets đã được biên soạn và vá chuẩn xác 54 hàng (chiều cao >= 3456px)
+    // với ma trận chuyển động khung xương chuẩn từng pixel. Ta cắt trực tiếp ô (col, row).
+    const srcHeight = (layer.imageElement as HTMLImageElement)?.naturalHeight ||
+                      (layer.imageElement as any)?.height || 0;
+
+    if (srcHeight >= LPC_GRID_CONFIG.sheetHeight || (layer.imageUrl && layer.imageUrl.includes('/lpc_assets/'))) {
+      return {
+        rect: getLpcFrameRect(col, row),
+        offsetX: 0,
+        offsetY: 0
+      };
+    }
+
+    // 3. ĐỐI VỚI TỆP CUSTOM DO NGƯỜI DÙNG TỰ TẢI LÊN (Chỉ có 21 hàng LPC cổ điển):
+    // Tự động áp dụng ma trận chuyển động khung xương LPC_MOTION_RIG_OFFSETS cho 9 hành động mở rộng
+    const rigAction = LPC_MOTION_RIG_OFFSETS[this.currentActionId];
+    if (rigAction) {
+      const currentDir = this.currentDirection;
+      const dirOffsets = rigAction[currentDir] || rigAction['up'];
+
+      let baseRow = 10;
+      let baseCol = 0;
+      switch (currentDir) {
+        case 'up': baseRow = 8; break;
+        case 'left': baseRow = 9; break;
+        case 'down': baseRow = 10; break;
+        case 'right': baseRow = 11; break;
+      }
+
+      if (this.currentActionId === 'climb') {
+        baseRow = 8; // Leo trèo luôn nhìn từ sau lưng (Up)
+        baseCol = 0;
+      } else if (this.currentActionId === 'run') {
+        baseCol = col % 9; // Chạy nhanh sải bước theo chu kỳ Walk
+      } else if (this.currentActionId === 'halfslash' || this.currentActionId === 'backslash') {
+        // Đối với chém kiếm, lấy từ tư thế Slash (Hàng 12..15)
+        const slashBase = currentDir === 'up' ? 12 : currentDir === 'left' ? 13 : currentDir === 'down' ? 14 : 15;
+        baseRow = slashBase;
+        baseCol = col % 6;
+      } else {
+        baseCol = 0;
+      }
+
+      let offsetX = 0;
+      let offsetY = 0;
+      if (dirOffsets && dirOffsets.length > 0) {
+        const offsetObj = dirOffsets[col % dirOffsets.length];
+        if (offsetObj) {
+          offsetX = offsetObj.dx;
+          offsetY = offsetObj.dy;
+        }
+      }
+
+      return {
+        rect: getLpcFrameRect(baseCol, baseRow),
+        offsetX,
+        offsetY
+      };
+    }
+
+    // 4. Đối với các hành động cơ bản (walk, slash, spellcast, thrust, shoot, hurt)
+    return {
+      rect: getLpcFrameRect(col, row),
+      offsetX: 0,
+      offsetY: 0
+    };
+  }
+
   // Render toan bo cac lop tai frame hien tai len mot context dich
   public renderCurrentFrame(
     targetCtx: CanvasRenderingContext2D,
@@ -371,7 +505,6 @@ export class LpcCompositor {
 
     const col = this.currentFrameIndex;
     const row = this.getCurrentRowIndex();
-    const rect = getLpcFrameRect(col, row);
 
     // 2. Ve cac layer da kich hoat theo thu tu Z-Order
     for (const layer of this.layers) {
@@ -379,14 +512,16 @@ export class LpcCompositor {
       const src = this.getLayerRenderSource(layer);
       if (!src) continue;
 
+      const drawInfo = this.getFrameDrawInfoForLayer(layer, col, row, src);
+
       this.offscreenCtx.drawImage(
         src,
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
-        0,
-        0,
+        drawInfo.rect.x,
+        drawInfo.rect.y,
+        drawInfo.rect.width,
+        drawInfo.rect.height,
+        drawInfo.offsetX,
+        drawInfo.offsetY,
         LPC_GRID_CONFIG.frameWidth,
         LPC_GRID_CONFIG.frameHeight
       );
@@ -417,21 +552,22 @@ export class LpcCompositor {
     this.offscreenCtx.clearRect(0, 0, LPC_GRID_CONFIG.frameWidth, LPC_GRID_CONFIG.frameHeight);
     const col = this.currentFrameIndex;
     const row = this.getCurrentRowIndex();
-    const rect = getLpcFrameRect(col, row);
 
     for (const layer of this.layers) {
       if (!layer.enabled) continue;
       const src = this.getLayerRenderSource(layer);
       if (!src) continue;
 
+      const drawInfo = this.getFrameDrawInfoForLayer(layer, col, row, src);
+
       this.offscreenCtx.drawImage(
         src,
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
-        0,
-        0,
+        drawInfo.rect.x,
+        drawInfo.rect.y,
+        drawInfo.rect.width,
+        drawInfo.rect.height,
+        drawInfo.offsetX,
+        drawInfo.offsetY,
         LPC_GRID_CONFIG.frameWidth,
         LPC_GRID_CONFIG.frameHeight
       );
@@ -458,21 +594,22 @@ export class LpcCompositor {
     if (!ctx) return canvas;
 
     ctx.imageSmoothingEnabled = false;
-    const rect = getLpcFrameRect(col, row);
 
     for (const layer of this.layers) {
       if (!layer.enabled) continue;
       const src = this.getLayerRenderSource(layer);
       if (!src) continue;
 
+      const drawInfo = this.getFrameDrawInfoForLayer(layer, col, row, src);
+
       ctx.drawImage(
         src,
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
-        0,
-        0,
+        drawInfo.rect.x,
+        drawInfo.rect.y,
+        drawInfo.rect.width,
+        drawInfo.rect.height,
+        drawInfo.offsetX,
+        drawInfo.offsetY,
         LPC_GRID_CONFIG.frameWidth,
         LPC_GRID_CONFIG.frameHeight
       );

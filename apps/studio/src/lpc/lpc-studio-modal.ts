@@ -806,8 +806,8 @@ export class LpcStudioModal {
 
     // 1.2 Nút Phối Ngẫu Nhiên (Randomize)
     const btnRandom = modal.querySelector('#lpc-btn-random');
-    btnRandom?.addEventListener('click', () => {
-      this.randomizeCharacter();
+    btnRandom?.addEventListener('click', async () => {
+      await this.randomizeCharacter();
     });
 
     // 1.3 Nút Đặt Lại Mặc Định (Reset)
@@ -1706,8 +1706,14 @@ export class LpcStudioModal {
   }
 
   // Phối ngẫu nhiên toàn bộ trang phục, kiểu tóc và màu sắc
-  private randomizeCharacter(): void {
+  private async randomizeCharacter(): Promise<void> {
+    const currentAction = this.compositor.getCurrentActionId();
+    const currentDir = this.compositor.getCurrentDirection();
+    const currentFrame = this.compositor.getCurrentFrameIndex();
+
     const layers = this.compositor.getLayers();
+    const imagePromises: Promise<void>[] = [];
+
     for (const lyr of layers) {
       // Phụ kiện thú và mũ xuất hiện ngẫu nhiên với xác suất 40%
       if (['hat', 'tails', 'ears'].includes(lyr.category)) {
@@ -1720,7 +1726,7 @@ export class LpcStudioModal {
       const availableStyles = this.getAvailableStylesForCategory(lyr.category);
       if (availableStyles.length > 0) {
         const randomStyle = availableStyles[Math.floor(Math.random() * availableStyles.length)];
-        this.compositor.changeLayerImage(lyr.id, randomStyle.imageUrl, randomStyle.name);
+        imagePromises.push(this.compositor.changeLayerImage(lyr.id, randomStyle.imageUrl, randomStyle.name));
       }
 
       // Chọn bảng màu ngẫu nhiên
@@ -1731,11 +1737,29 @@ export class LpcStudioModal {
       }
     }
 
+    await Promise.all(imagePromises);
+
+    // Giữ nguyên chính xác hành động, hướng nhìn và khung hình đang kiểm tra
+    this.compositor.setAction(currentAction);
+    this.compositor.setDirection(currentDir);
+    this.compositor.setFrameIndex(currentFrame);
+
+    if (this.container) {
+      const actionSelect = this.container.querySelector('#lpc-action-select') as HTMLSelectElement | null;
+      if (actionSelect) actionSelect.value = currentAction;
+      const timelineSlider = this.container.querySelector('#lpc-timeline-slider') as HTMLInputElement | null;
+      if (timelineSlider) {
+        timelineSlider.max = `${Math.max(0, this.compositor.getCurrentTotalFrames() - 1)}`;
+        timelineSlider.value = `${currentFrame}`;
+      }
+    }
+
     this.compositor.clearAllPaletteCaches();
     this.renderLayerList();
     this.drawPreview();
     this.updateActiveLayersBadge();
     this.updateAiPromptSuggestion();
+    this.updateFrameCounter();
   }
 
   // Khôi phục nhân vật về trang phục mặc định ban đầu
@@ -1849,7 +1873,6 @@ export class LpcStudioModal {
 
       const styleOptionsHtml = hasStyles
         ? availableStyles
-          .slice(0, 50) // Giới hạn 50 mẫu tiêu biểu để dropdown mượt mà
           .map(
             (s: LpcPresetStyle) =>
               `<option value="${s.imageUrl}" ${layer.imageUrl === s.imageUrl ? 'selected' : ''}>${s.name}</option>`

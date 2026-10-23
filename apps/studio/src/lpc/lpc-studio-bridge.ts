@@ -75,7 +75,8 @@ export function createAnimationClipFromLpc(
 
   const frameCount = dirInfo.frameCount;
   const rowIndex = dirInfo.rowIndex;
-  const durationMs = Math.max(20, Math.floor(1000 / group.defaultFps));
+  const fps = compositor.getFps() || group.defaultFps;
+  const durationMs = Math.max(16, Math.floor(1000 / fps));
   const frames: FrameData[] = [];
 
   for (let col = 0; col < frameCount; col++) {
@@ -109,7 +110,7 @@ export function createAnimationClipFromLpc(
     label: `${group.name} (${dirLabels[direction]})`,
     startFrame: 0,
     endFrame: Math.max(0, frames.length - 1),
-    fps: group.defaultFps,
+    fps,
     loop: group.loop,
     frames
   };

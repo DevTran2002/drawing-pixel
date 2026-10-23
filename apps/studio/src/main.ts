@@ -123,15 +123,24 @@ function renderAll(): void {
   renderTimeline();
   renderLayers();
 
-  // Cập nhật nhãn thông tin xem trước trên Timeline
+  // Cập nhật nhãn thông tin xem trước và đồng bộ FPS trên Timeline
   const timelineClipLabel = document.getElementById('timeline-preview-clip-name');
   const timelineFpsLabel = document.getElementById('timeline-preview-fps-text');
+  const fpsSliderEl = document.getElementById('fps-slider') as HTMLInputElement | null;
+  const fpsLabelEl = document.getElementById('fps-label');
   const activeClip = animController.getActiveClip();
   if (timelineClipLabel) {
     timelineClipLabel.textContent = `Clip: ${activeClip?.name || 'base'}`;
   }
+  const currentFps = activeClip?.fps || 10;
   if (timelineFpsLabel) {
-    timelineFpsLabel.textContent = `${activeClip?.fps || 10} FPS`;
+    timelineFpsLabel.textContent = `${currentFps} FPS`;
+  }
+  if (fpsSliderEl && document.activeElement !== fpsSliderEl) {
+    fpsSliderEl.value = `${currentFps}`;
+  }
+  if (fpsLabelEl) {
+    fpsLabelEl.innerText = `${currentFps}`;
   }
 }
 
@@ -1930,13 +1939,14 @@ previewPlayer.onFrameChange = (frameIndex: number) => {
       project.activeLayerId = targetFrame.layers[0].id;
     }
   }
-  // Highlight the card tren timeline
+  // Highlight the card tren timeline ma khong can pha huy DOM
   const cards = document.querySelectorAll('.frame-card');
   cards.forEach((c, i) => {
     c.classList.toggle('active', i === frameIndex);
   });
   canvasEngine.rebuildBuffers();
-  renderAll();
+  const onionCanvas = onionSkinRenderer.render(project, onionSkinEnabled);
+  canvasEngine.render(onionCanvas);
 };
 
 btnPlayPause?.addEventListener('click', togglePlayback);
@@ -1956,14 +1966,37 @@ btnOnion?.addEventListener('click', () => {
   renderAll();
 });
 
-// FPS Slider
+// FPS Slider - Dieu toc khung hinh Timeline va cap nhat thoi luong ms
 const fpsSlider = document.getElementById('fps-slider') as HTMLInputElement;
 const fpsLabel = document.getElementById('fps-label');
 fpsSlider?.addEventListener('input', () => {
-  const fps = parseInt(fpsSlider.value, 10);
+  const fps = Math.max(1, Math.min(60, parseInt(fpsSlider.value, 10) || 10));
   if (fpsLabel) fpsLabel.innerText = `${fps}`;
   const clip = animController.getActiveClip();
-  if (clip) clip.fps = fps;
+  if (clip) {
+    clip.fps = fps;
+    const newDuration = Math.max(16, Math.round(1000 / fps));
+    if (clip.frames) {
+      clip.frames.forEach((f) => {
+        f.durationMs = newDuration;
+      });
+    }
+    if (project.frames) {
+      project.frames.forEach((f) => {
+        f.durationMs = newDuration;
+      });
+    }
+    // Cap nhat tuc thi thoi luong tren tat ca the frame card
+    document.querySelectorAll('.frame-card .frame-ms').forEach((el) => {
+      el.textContent = `${newDuration}ms`;
+    });
+    // Cap nhat nhan thong tin xem truoc Timeline
+    const timelineFpsLabel = document.getElementById('timeline-preview-fps-text');
+    if (timelineFpsLabel) {
+      timelineFpsLabel.textContent = `${fps} FPS`;
+    }
+    syncProjectToServer();
+  }
 });
 
 // Top bar controls: Undo / Redo / Grid / Pivot / Symmetry
@@ -9466,7 +9499,7 @@ function initWorkspaceSwitcher(): void {
 }
 
 // 17.2. Khởi tạo phân hệ LPC Character Studio & Motion Rig
-function initLpcStudioModal(): void {
+function initLpcStudioModal(): LpcStudioModal {
   const lpcModal = new LpcStudioModal({
     onLoadFrameToCanvas: (layer: LayerData) => {
       // Nếu kích thước Canvas nhỏ hơn 64x64, điều chỉnh về chuẩn 64x64 của LPC
@@ -9495,6 +9528,16 @@ function initLpcStudioModal(): void {
 
       project.clips.push(clip);
       animController.setActiveClipById(clip.id);
+
+      // Cập nhật thanh trượt FPS và nhãn hiển thị theo nhịp chuẩn của clip
+      const clipFps = clip.fps || 10;
+      const fpsSliderEl = document.getElementById('fps-slider') as HTMLInputElement | null;
+      const fpsLabelEl = document.getElementById('fps-label');
+      const timelineFpsLabel = document.getElementById('timeline-preview-fps-text');
+      if (fpsSliderEl) fpsSliderEl.value = `${clipFps}`;
+      if (fpsLabelEl) fpsLabelEl.innerText = `${clipFps}`;
+      if (timelineFpsLabel) timelineFpsLabel.textContent = `${clipFps} FPS`;
+
       canvasEngine.rebuildBuffers();
       renderAll();
       if (globalSwitchDockTab) {
@@ -9581,6 +9624,9 @@ function initLpcStudioModal(): void {
   btnOpenLpc?.addEventListener('click', () => {
     lpcModal.open('/sprites.png');
   });
+
+  (window as any)._lpcStudioModal = lpcModal;
+  return lpcModal;
 }
 
 
