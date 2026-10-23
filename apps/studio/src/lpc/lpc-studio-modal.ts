@@ -17,7 +17,12 @@ import {
   PaletteRamp,
   CHARACTER_THEMES,
   CharacterPaletteTheme,
-  findThemeByPrompt
+  findThemeByPrompt,
+  hexToRgb,
+  rgbToHex,
+  rgbToHsl,
+  hslToRgb,
+  generateRampFromHex
 } from './lpc-palette';
 
 // Metadata đi kèm batch frame khi chuyển sang AI Studio để AI biết hành động và nhịp phim
@@ -56,19 +61,57 @@ export const LPC_PRESET_STYLES: Record<string, LpcPresetStyle[]> = {
     { id: 'hair_pixie', name: 'Tóc Ngắn Cá Tính (Pixie)', imageUrl: '/lpc_assets/hair_pixie.png' }
   ],
   torso: [
-    { id: 'armor_plate', name: 'Giáp Sắt Hiệp Sĩ (Plate)', imageUrl: '/lpc_assets/armor_plate.png' },
-    { id: 'armor_leather', name: 'Giáp Da Thợ Săn (Leather)', imageUrl: '/lpc_assets/armor_leather.png' },
-    { id: 'armor_legion', name: 'Giáp Quân Đoàn La Mã (Legion)', imageUrl: '/lpc_assets/armor_legion.png' }
+    { id: 'armor_plate_heavy', name: 'Giáp Sắt Đại Hiệp Sĩ (Heavy Plate)', imageUrl: '/lpc_assets/armor_plate_heavy.png' },
+    { id: 'armor_plate', name: 'Giáp Sắt Hiệp Sĩ (Steel Plate)', imageUrl: '/lpc_assets/armor_plate.png' },
+    { id: 'armor_leather', name: 'Giáp Da Chiến Binh (Leather Armor)', imageUrl: '/lpc_assets/armor_leather.png' },
+    { id: 'armor_leather_vest', name: 'Áo Giáp Da Thợ Săn (Leather Vest)', imageUrl: '/lpc_assets/armor_leather_vest.png' },
+    { id: 'armor_legion', name: 'Giáp Quân Đoàn La Mã (Legion)', imageUrl: '/lpc_assets/armor_legion.png' },
+    { id: 'armor_chainmail', name: 'Áo Giáp Lưới Xích (Chainmail)', imageUrl: '/lpc_assets/armor_chainmail.png' },
+    { id: 'jacket_purple_chain', name: 'Áo Khoác Hoàng Gia Lót Xích (Purple Jacket)', imageUrl: '/lpc_assets/jacket_purple_chain.png' },
+    { id: 'armor_plate_shoulders', name: 'Giáp Vai Bọc Sắt (Pauldrons)', imageUrl: '/lpc_assets/armor_plate_shoulders.png' },
+    { id: 'shirt_white', name: 'Áo Sơ Mi Trắng Lữ Khách (White Shirt)', imageUrl: '/lpc_assets/shirt_white.png' },
+    { id: 'robe_brown', name: 'Áo Choàng Đạo Sĩ Nâu (Mage Robe)', imageUrl: '/lpc_assets/robe_brown.png' },
+    { id: 'torso_longsleeve', name: 'Áo Sơ Mi Tay Dài (Longsleeve)', imageUrl: '/lpc_assets/torso_longsleeve.png' },
+    { id: 'torso_shortsleeve', name: 'Áo Cộc Tay Năng Động (Shortsleeve)', imageUrl: '/lpc_assets/torso_shortsleeve.png' }
   ],
   legs: [
-    { id: 'pants_leather', name: 'Quần Dài Chiến Binh (Pants)', imageUrl: '/lpc_assets/pants_leather.png' }
+    { id: 'pants_leather', name: 'Quần Da Chiến Binh (Leather Pants)', imageUrl: '/lpc_assets/pants_leather.png' },
+    { id: 'pants_plate', name: 'Giáp Chân Bọc Thép (Plate Greaves)', imageUrl: '/lpc_assets/pants_plate.png' },
+    { id: 'pants_forest', name: 'Quần Vải Lục Lâm (Forest Green Pants)', imageUrl: '/lpc_assets/pants_forest.png' },
+    { id: 'skirt_robe', name: 'Váy Choàng Đạo Sĩ (Mage Robe Skirt)', imageUrl: '/lpc_assets/skirt_robe.png' },
+    { id: 'pants_pantaloons', name: 'Quần Thụng Quý Tộc (Noble Pantaloons)', imageUrl: '/lpc_assets/pants_pantaloons.png' },
+    { id: 'pants_shorts', name: 'Quần Đùi Dã Chiến (Adventurer Shorts)', imageUrl: '/lpc_assets/pants_shorts.png' },
+    { id: 'pants_cuffed', name: 'Quần Túm Gấu Du Mục (Cuffed Pants)', imageUrl: '/lpc_assets/pants_cuffed.png' }
   ],
   feet: [
-    { id: 'boots_basic', name: 'Ủng Da Hiệp Sĩ (Basic)', imageUrl: '/lpc_assets/boots_leather.png' },
-    { id: 'boots_fold', name: 'Ủng Gấp Cổ Cao (Fold)', imageUrl: '/lpc_assets/boots_fold.png' }
+    { id: 'boots_basic', name: 'Ủng Da Hiệp Sĩ (Basic Boots)', imageUrl: '/lpc_assets/boots_leather.png' },
+    { id: 'boots_fold', name: 'Ủng Gấp Cổ Cao (Fold Boots)', imageUrl: '/lpc_assets/boots_fold.png' },
+    { id: 'boots_plate', name: 'Ủng Sắt Thiết Kỵ (Iron Plate Boots)', imageUrl: '/lpc_assets/boots_plate.png' },
+    { id: 'shoes_brown', name: 'Giày Da Nâu Du Hành (Brown Shoes)', imageUrl: '/lpc_assets/shoes_brown.png' },
+    { id: 'boots_sandals', name: 'Dép Quai Hậu Sandal (Traveler Sandals)', imageUrl: '/lpc_assets/boots_sandals.png' }
   ],
   hat: [
-    { id: 'helmet_greathelm', name: 'Mũ Sắt Hiệp Sĩ (Greathelm)', imageUrl: '/lpc_assets/hat_helmet.png' }
+    { id: 'helmet_greathelm', name: 'Mũ Sắt Hiệp Sĩ (Greathelm)', imageUrl: '/lpc_assets/hat_helmet.png' },
+    { id: 'hat_plate_helm', name: 'Mũ Sắt Toàn Diện (Full Plate Helm)', imageUrl: '/lpc_assets/hat_plate_helm.png' },
+    { id: 'hat_chain_helm', name: 'Mũ Nồi Giáp Xích (Chainmail Coif)', imageUrl: '/lpc_assets/hat_chain_helm.png' },
+    { id: 'hat_chain_hood', name: 'Mũ Trùm Đầu Giáp Xích (Chain Hood)', imageUrl: '/lpc_assets/hat_chain_hood.png' },
+    { id: 'hat_leather', name: 'Mũ Da Cung Thủ (Ranger Leather Hat)', imageUrl: '/lpc_assets/hat_leather.png' },
+    { id: 'hat_robe_hood', name: 'Mũ Trùm Pháp Sư Huyền Bí (Mage Hood)', imageUrl: '/lpc_assets/hat_robe_hood.png' },
+    { id: 'hat_horned', name: 'Mũ Sừng Chiến Binh Viking (Horned Helm)', imageUrl: '/lpc_assets/hat_horned.png' },
+    { id: 'hat_barbuta', name: 'Mũ Thiết Kỵ Barbuta (Barbuta Helm)', imageUrl: '/lpc_assets/hat_barbuta.png' }
+  ],
+  cape: [
+    { id: 'cape_solid', name: 'Áo Choàng Hiệp Sĩ (Knight Cloak)', imageUrl: '/lpc_assets/cape_solid.png' }
+  ],
+  weapons: [
+    { id: 'weapon_sword', name: 'Thanh Kiếm Hiệp Sĩ (Steel Broadsword)', imageUrl: '/lpc_assets/weapon_sword.png' }
+  ],
+  shield: [
+    { id: 'shield_wooden', name: 'Khiên Gỗ Viền Thép (Wooden Shield)', imageUrl: '/lpc_assets/shield_wooden.png' }
+  ],
+  belt: [
+    { id: 'belt_leather', name: 'Thắt Lưng Da Khóa Đồng (Leather Belt)', imageUrl: '/lpc_assets/belt_leather.png' },
+    { id: 'belt_rope', name: 'Thắt Lưng Dây Thừng Đạo Sĩ (Rope Belt)', imageUrl: '/lpc_assets/belt_rope.png' }
   ],
   tails: [
     { id: 'tail_cat', name: 'Đuôi Mèo (Cat)', imageUrl: '/lpc_assets/tail_cat.png' },
@@ -90,6 +133,16 @@ export class LpcStudioModal {
   private callbacks: LpcModalCallbacks;
   private isInitialized = false;
 
+  // Trạng thái giao diện nâng cao
+  private isFullscreen = false;
+  private currentZoom = 2; // 1: 128px, 2: 256px, 3: 320px
+  private currentBg = 'checker'; // 'checker', 'dark', 'light', 'grass', 'dungeon'
+  private isTurntableActive = false;
+  private turntableTimer: any = null;
+  private activeCategoryFilter = 'all';
+  private searchQuery = '';
+  private dynamicManifestStyles: Record<string, LpcPresetStyle[]> = {};
+
   // Trạng thái lưu trữ của Phương án 2: AI Keyframe Concept + Motion Transfer
   private currentKeyframeConcept: { imageUrl: string; seed: number; outputPath: string; prompt?: string; strength?: number } | null = null;
   private currentTransferFrames: any[] = [];
@@ -110,6 +163,19 @@ export class LpcStudioModal {
     this.compositor = new LpcCompositor();
   }
 
+  // Nạp danh mục phụ kiện phong phú từ tệp lpc_manifest.json (hơn 1.200 asset)
+  private async loadDynamicManifest(): Promise<void> {
+    try {
+      const response = await fetch('/lpc_assets/lpc_manifest.json');
+      if (response.ok) {
+        const data = await response.json();
+        this.dynamicManifestStyles = data;
+      }
+    } catch (err) {
+      console.warn('Khong the doc lpc_manifest.json, dung danh muc mac dinh:', err);
+    }
+  }
+
   // Khởi tạo và mở Modal
   public async open(defaultBodyUrl = '/sprites.png'): Promise<void> {
     if (!this.container) {
@@ -117,6 +183,8 @@ export class LpcStudioModal {
     }
 
     if (!this.isInitialized) {
+      // Nạp danh mục phụ kiện động từ manifest nếu có
+      await this.loadDynamicManifest();
       // Nạp bộ phôi hoàn chỉnh gồm các Layer chuẩn Paper Doll với Asset vẽ tay tinh xảo từ Universal LPC
       // 1. Đuôi thú (Z: 12 - nằm sau lưng thân người)
       await this.compositor.addOrUpdateLayer({
@@ -206,6 +274,50 @@ export class LpcStudioModal {
         enabled: false // Mặc định tắt để thấy tóc, người dùng có thể tick chọn để đội mũ
       });
 
+      // 9. Áo choàng hiệp sĩ (Z: 25)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_cape',
+        name: 'Áo Choàng Hiệp Sĩ (Knight Cloak)',
+        category: 'cape',
+        zIndex: 25,
+        imageUrl: '/lpc_assets/cape_solid.png',
+        paletteId: 'cape_crimson',
+        enabled: false // Mặc định tắt, người dùng có thể bật khi muốn
+      });
+
+      // 10. Thắt lưng da (Z: 44)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_belt',
+        name: 'Thắt Lưng Da Khóa Đồng (Belt)',
+        category: 'belt',
+        zIndex: 44,
+        imageUrl: '/lpc_assets/belt_leather.png',
+        paletteId: 'belt_leather_brown',
+        enabled: true
+      });
+
+      // 11. Thanh kiếm hiệp sĩ (Z: 58)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_weapon',
+        name: 'Thanh Kiếm Hiệp Sĩ (Sword)',
+        category: 'weapons',
+        zIndex: 58,
+        imageUrl: '/lpc_assets/weapon_sword.png',
+        paletteId: 'weapon_steel',
+        enabled: true
+      });
+
+      // 12. Khiên phòng thủ (Z: 60)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_shield',
+        name: 'Khiên Gỗ Viền Thép (Shield)',
+        category: 'shield',
+        zIndex: 60,
+        imageUrl: '/lpc_assets/shield_wooden.png',
+        paletteId: 'shield_wood_iron',
+        enabled: false // Mặc định tắt
+      });
+
 
 
 
@@ -229,6 +341,11 @@ export class LpcStudioModal {
   // Dong Modal
   public close(): void {
     this.compositor.stopAnimation();
+    if (this.turntableTimer) {
+      clearInterval(this.turntableTimer);
+      this.turntableTimer = null;
+      this.isTurntableActive = false;
+    }
     if (this.transferPreviewInterval) {
       clearInterval(this.transferPreviewInterval);
       this.transferPreviewInterval = null;
@@ -249,19 +366,31 @@ export class LpcStudioModal {
     modal.id = 'lpc-studio-modal';
 
     modal.innerHTML = `
-      <div class="lpc-modal-dialog">
-        <!-- Header -->
+      <div class="lpc-modal-dialog" id="lpc-modal-dialog">
+        <!-- Header Nâng Cao -->
         <div class="lpc-modal-header">
           <div class="lpc-header-title">
             <span class="lpc-badge">LPC 2.5D</span>
             <h3>LPC Character Studio & Motion Rig</h3>
+            <span class="lpc-badge-count" id="lpc-active-layers-count">6 Layer Hoạt Động</span>
           </div>
-          <button class="lpc-btn-close" id="lpc-btn-close" title="Đóng">&times;</button>
+          <div class="lpc-header-actions">
+            <button class="lpc-btn-header" id="lpc-btn-random" title="Phối ngẫu nhiên toàn bộ trang phục và màu sắc">
+              🎲 Ngẫu Nhiên
+            </button>
+            <button class="lpc-btn-header" id="lpc-btn-reset" title="Khôi phục trạng thái ban đầu">
+              ↺ Mặc Định
+            </button>
+            <button class="lpc-btn-header" id="lpc-btn-fullscreen" title="Phóng to / Thu nhỏ cửa sổ">
+              ⛶ Toàn Màn Hình
+            </button>
+            <button class="lpc-btn-close" id="lpc-btn-close" title="Đóng">&times;</button>
+          </div>
         </div>
 
-        <!-- Body: 3 Columns -->
+        <!-- Body: 3 Columns Rộng Rãi -->
         <div class="lpc-modal-body">
-          <!-- Col 1: Kho phu kien (Layers & Equipment) -->
+          <!-- Col 1: Kho phụ kiện (Layers & Equipment) -->
           <div class="lpc-col lpc-col-layers">
             <div class="lpc-panel-header">
               <h4>Kho Phụ Kiện (Paper Doll)</h4>
@@ -270,21 +399,69 @@ export class LpcStudioModal {
                 <input type="file" id="lpc-layer-file-input" accept="image/png" style="display:none;" />
               </label>
             </div>
+
+            <!-- Tab lọc danh mục -->
+            <div class="lpc-cat-nav" id="lpc-cat-nav">
+              <button class="lpc-cat-pill active" data-cat="all">Tất Cả</button>
+              <button class="lpc-cat-pill" data-cat="body">Thân</button>
+              <button class="lpc-cat-pill" data-cat="torso">Áo/Giáp</button>
+              <button class="lpc-cat-pill" data-cat="legs">Quần</button>
+              <button class="lpc-cat-pill" data-cat="feet">Ủng</button>
+              <button class="lpc-cat-pill" data-cat="cape">Áo Choàng</button>
+              <button class="lpc-cat-pill" data-cat="hat">Mũ</button>
+              <button class="lpc-cat-pill" data-cat="hair">Tóc</button>
+              <button class="lpc-cat-pill" data-cat="weapon">Vũ Khí/Khiên</button>
+              <button class="lpc-cat-pill" data-cat="belt">Thắt Lưng</button>
+              <button class="lpc-cat-pill" data-cat="beast">Tai/Đuôi</button>
+            </div>
+
+            <!-- Thanh tìm kiếm nhanh -->
+            <div class="lpc-search-box">
+              <span class="lpc-search-icon">🔍</span>
+              <input type="text" id="lpc-layer-search" class="lpc-search-input" placeholder="Tìm kiếm phụ kiện (tóc, giáp, mũ, kiếm...)" />
+            </div>
+
+            <!-- Danh sách Layer -->
             <div class="lpc-layer-list" id="lpc-layer-list">
               <!-- Danh sach layer do renderLayerList() sinh -->
             </div>
             <div class="lpc-hint-box">
-              Hỗ trợ xếp tầng Z-Order: Thân &rarr; Mắt &rarr; Quần &rarr; Áo &rarr; Tóc &rarr; Vũ khí.
+              Sử dụng ▲ ▼ để đổi tầng xếp lớp Z-Order: Đuôi &rarr; Thân &rarr; Quần &rarr; Ủng &rarr; Áo &rarr; Áo Choàng &rarr; Thắt Lưng &rarr; Tóc &rarr; Tai &rarr; Mũ &rarr; Vũ Khí &rarr; Khiên.
             </div>
           </div>
 
           <!-- Col 2: Live Animation Preview & Controls -->
           <div class="lpc-col lpc-col-preview">
-            <div class="lpc-preview-box">
+            <!-- Toolbar Xem Trước: Zoom, Background, Turntable 360 -->
+            <div class="lpc-preview-toolbar">
+              <div class="lpc-tool-group">
+                <span class="lpc-tool-label">Thu phóng:</span>
+                <button class="lpc-btn-mini" data-zoom="1">1x</button>
+                <button class="lpc-btn-mini active" data-zoom="2">2x</button>
+                <button class="lpc-btn-mini" data-zoom="3">3x</button>
+              </div>
+
+              <!-- Nút Xoay 360 Độ -->
+              <button class="lpc-btn-turntable" id="lpc-btn-turntable" title="Tự động xoay tròn 4 hướng theo nhịp bước đi">
+                Xoay tự động
+              </button>
+
+              <div class="lpc-tool-group">
+                <span class="lpc-tool-label">Nền:</span>
+                <div class="lpc-bg-dot lpc-bg-checker active" data-bg="checker" title="Caro trong suốt"></div>
+                <div class="lpc-bg-dot lpc-bg-dark" data-bg="dark" title="Nền Tối"></div>
+                <div class="lpc-bg-dot lpc-bg-light" data-bg="light" title="Nền Sáng"></div>
+                <div class="lpc-bg-dot lpc-bg-grass" data-bg="grass" title="Thảo Nguyên"></div>
+                <div class="lpc-bg-dot lpc-bg-dungeon" data-bg="dungeon" title="Hầm Ngục"></div>
+              </div>
+            </div>
+
+            <!-- Khung Canvas Xem Trước -->
+            <div class="lpc-preview-box" id="lpc-preview-box">
               <canvas id="lpc-preview-canvas" width="256" height="256"></canvas>
             </div>
 
-            <!-- Dieu huong 4 chieu (D-Pad) -->
+            <!-- Điều Hướng 4 Hướng Nhìn -->
             <div class="lpc-direction-controls">
               <span class="lpc-control-label">Hướng nhìn:</span>
               <div class="lpc-dpad">
@@ -297,30 +474,37 @@ export class LpcStudioModal {
               </div>
             </div>
 
-            <!-- Chon hoat canh & Dieu toc -->
+            <!-- Chọn Hoạt Cảnh & Điều Tốc Timeline -->
             <div class="lpc-action-controls">
               <div class="lpc-form-row">
                 <label>Động tác:</label>
                 <select id="lpc-action-select" class="lpc-select">
                   ${LPC_ACTION_GROUPS.map(
-                    (g) => `<option value="${g.id}">${g.name}</option>`
-                  ).join('')}
+      (g) => `<option value="${g.id}">${g.name}</option>`
+    ).join('')}
                 </select>
               </div>
 
+              <!-- Thanh Kéo Khung Hình (Timeline Scrubber) -->
+              <div class="lpc-scrubber-box">
+                <span style="font-size:11px;color:#94a3b8;width:60px;">Tua khung:</span>
+                <input type="range" id="lpc-timeline-slider" class="lpc-timeline-slider" min="0" max="8" value="0" />
+                <div class="lpc-frame-indicator" id="lpc-frame-indicator">Khung: 1 / 9</div>
+              </div>
+
               <div class="lpc-playback-controls">
-                <button id="lpc-btn-play-pause" class="lpc-btn-secondary">Tạm dừng</button>
-                <button id="lpc-btn-step" class="lpc-btn-secondary">Khung tiếp &gt;</button>
+                <button id="lpc-btn-prev-frame" class="lpc-btn-secondary" title="Khung trước">&lt; Lùi</button>
+                <button id="lpc-btn-play-pause" class="lpc-btn-primary" style="padding:5px 14px;">Tạm dừng</button>
+                <button id="lpc-btn-step" class="lpc-btn-secondary" title="Khung tiếp">Tiếp &gt;</button>
                 <div class="lpc-fps-box">
                   <span>FPS: <b id="lpc-fps-val">10</b></span>
                   <input type="range" id="lpc-fps-slider" min="1" max="24" value="10" />
                 </div>
-                <div class="lpc-frame-indicator" id="lpc-frame-indicator">Khung: 1 / 9</div>
               </div>
             </div>
           </div>
 
-          <!-- Col 3: Cong cu dong bo Studio & AI Re-skin -->
+          <!-- Col 3: Công cụ đồng bộ Studio & Trang phục chủ đề -->
           <div class="lpc-col lpc-col-tools">
             <div class="lpc-panel-header">
               <h4>Đồng Bộ Vào Studio</h4>
@@ -348,7 +532,7 @@ export class LpcStudioModal {
               </button>
             </div>
 
-            <!-- Tab 1: Trang Phục Chủ Đề & Palette Shading (Phương Án 1 - Chuẩn Khớp 100%, Không Biến Đổi Chi Tiết) -->
+            <!-- Tab 1: Trang Phục Chủ Đề & Palette Shading -->
             <div id="lpc-tab-p1" class="lpc-tab-pane active">
               <div class="lpc-reskin-studio">
                 <div class="lpc-reskin-header">
@@ -356,49 +540,132 @@ export class LpcStudioModal {
                   <span class="lpc-badge" style="background:#2563eb;color:#ffffff;">Chuẩn 100% Khớp</span>
                 </div>
                 <p class="lpc-reskin-desc">
-                  Áp dụng dải màu bóng khối đồng nhất lên toàn bộ các Layer vẽ tay của LPC. Cầu vai, nếp áo, viền quần giữ nguyên 100% chi tiết trên mọi khung hình, không bị nhấp nháy hay biến dạng!
+                  Áp dụng dải màu bóng khối đồng nhất lên toàn bộ các Layer vẽ tay của LPC. Không nhấp nháy, giữ nguyên 100% nét pixel gốc!
                 </p>
 
-                <!-- Các bộ trang phục chủ đề nhanh -->
-                <div class="lpc-reskin-tags" id="lpc-theme-tags">
-                  ${CHARACTER_THEMES.map(t => `
-                    <button type="button" class="lpc-reskin-tag-btn ${t.id === 'theme_paladin' ? 'active' : ''}" data-theme-id="${t.id}" title="${t.description}">
-                      ${t.name}
-                    </button>
-                  `).join('')}
+                <!-- Grid Theme Cards với Swatch Màu Sắc -->
+                <div class="lpc-theme-grid" id="lpc-theme-grid">
+                  ${CHARACTER_THEMES.map(t => {
+      // Tạo màu swatch đại diện cho từng chủ đề
+      const colors = t.id === 'theme_paladin' ? ['#fbbf24', '#f1f5f9', '#2563eb'] :
+        t.id === 'theme_flame_dragon' ? ['#ef4444', '#f97316', '#78350f'] :
+          t.id === 'theme_cyberpunk' ? ['#06b6d4', '#d946ef', '#1e1b4b'] :
+            t.id === 'theme_void_mystic' ? ['#8b5cf6', '#6366f1', '#0f172a'] :
+              t.id === 'theme_shadow_assassin' ? ['#475569', '#1e293b', '#94a3b8'] :
+                t.id === 'theme_emerald_ranger' ? ['#10b981', '#059669', '#d97706'] :
+                  ['#3b82f6', '#60a5fa', '#1e293b'];
+      return `
+                      <div class="lpc-theme-card ${t.id === 'theme_paladin' ? 'active' : ''}" data-theme-id="${t.id}" title="${t.description}">
+                        <div class="lpc-theme-card-title">${t.name}</div>
+                        <div class="lpc-swatch-row">
+                          <span class="lpc-swatch-pip" style="background:${colors[0]};"></span>
+                          <span class="lpc-swatch-pip" style="background:${colors[1]};"></span>
+                          <span class="lpc-swatch-pip" style="background:${colors[2]};"></span>
+                        </div>
+                      </div>
+                    `;
+    }).join('')}
                 </div>
 
-                <!-- Ô nhập Prompt thông minh tìm kiếm hoặc mô tả trang phục -->
-                <div style="display:flex;gap:6px;">
-                  <input type="text" id="lpc-reskin-prompt" class="lpc-input" style="flex:1;" placeholder="Nhập tên trang phục (ví dụ: paladin, rồng lửa, cyberpunk, ninja...)" value="Hiệp Sĩ Thánh Paladin" />
+                <!-- Ô nhập Prompt thông minh -->
+                <div style="display:flex;gap:6px;margin-bottom:8px;">
+                  <input type="text" id="lpc-reskin-prompt" class="lpc-input" style="flex:1;" placeholder="Nhập tên trang phục (paladin, rồng lửa, cyberpunk...)" value="Hiệp Sĩ Thánh Paladin" />
                   <button id="lpc-btn-apply-theme" class="lpc-btn-primary" style="padding:6px 12px;white-space:nowrap;">
                     Áp Dụng
                   </button>
                 </div>
 
-                <div id="lpc-theme-applied-info" style="font-size:11px;color:#38bdf8;background:rgba(56,189,248,0.1);padding:6px 10px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);">
+                <div id="lpc-theme-applied-info" style="font-size:11px;color:#38bdf8;background:rgba(56,189,248,0.1);padding:6px 10px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);margin-bottom:8px;">
                   Đang dùng: <b>Hiệp Sĩ Thánh Paladin (Vàng Kim)</b> - 100% đồng nhất tất cả khung hình.
                 </div>
 
-                <!-- Màn hình xem trước vòng lặp chuyển động trực tiếp của trang phục đã đổi màu -->
-                <div class="lpc-reskin-preview-area active" style="margin-top:4px;">
-                  <div style="font-size:11px;font-weight:600;color:#60a5fa;">Xem trước chuyển động đồng nhất 100%:</div>
-                  <div class="lpc-preview-canvas-box" style="box-shadow: 0 0 16px rgba(37, 99, 235, 0.4);">
+                <!-- Khối Tùy Biến Bảng Màu Tự Do (Full Custom Color Mixer) -->
+                <div class="lpc-custom-palette-box">
+                  <div class="lpc-custom-palette-header">
+                    <span style="font-size:12px;font-weight:700;color:#38bdf8;">Tùy Biến Màu Tự Do (Color Mixer)</span>
+                    <button type="button" id="lpc-btn-reset-all-colors" class="lpc-btn-mini" title="Khôi phục toàn bộ màu về mặc định">Mặc Định</button>
+                  </div>
+
+                  <!-- Thanh trượt Xoay Sắc Độ Toàn Thân (Hue Shift 360°) -->
+                  <div class="lpc-slider-control-row">
+                    <span style="font-size:11px;color:#cbd5e1;white-space:nowrap;">Xoay màu (Hue):</span>
+                    <input type="range" id="lpc-hue-slider" min="0" max="360" value="0" class="lpc-slider-rainbow" />
+                    <span id="lpc-hue-val" style="font-size:11px;color:#38bdf8;min-width:30px;text-align:right;">0°</span>
+                  </div>
+
+                  <!-- Lưới các bộ phận chính để chọn màu trực tiếp -->
+                  <div class="lpc-bodypart-color-grid">
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Áo/Giáp</span>
+                      <input type="color" id="lpc-color-torso" class="lpc-part-color-picker" value="#3b82f6" title="Chọn màu Áo/Giáp" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Quần</span>
+                      <input type="color" id="lpc-color-legs" class="lpc-part-color-picker" value="#1e293b" title="Chọn màu Quần" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Ủng</span>
+                      <input type="color" id="lpc-color-feet" class="lpc-part-color-picker" value="#475569" title="Chọn màu Ủng" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Tóc</span>
+                      <input type="color" id="lpc-color-hair" class="lpc-part-color-picker" value="#d97706" title="Chọn màu Tóc" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Mũ</span>
+                      <input type="color" id="lpc-color-hat" class="lpc-part-color-picker" value="#64748b" title="Chọn màu Mũ" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Áo Choàng</span>
+                      <input type="color" id="lpc-color-cape" class="lpc-part-color-picker" value="#ef4444" title="Chọn màu Áo Choàng" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Vũ Khí</span>
+                      <input type="color" id="lpc-color-weapons" class="lpc-part-color-picker" value="#94a3b8" title="Chọn màu Vũ Khí" />
+                    </div>
+                    <div class="lpc-bodypart-item">
+                      <span class="lpc-bodypart-label">Khiên</span>
+                      <input type="color" id="lpc-color-shield" class="lpc-part-color-picker" value="#78350f" title="Chọn màu Khiên" />
+                    </div>
+                  </div>
+
+                  <!-- Các dải màu phối nhanh thịnh hành (Quick Swatches) -->
+                  <div class="lpc-quick-swatches-box">
+                    <span style="font-size:10px;color:#94a3b8;margin-bottom:2px;display:block;">Màu nhanh toàn thân:</span>
+                    <div class="lpc-swatches-row">
+                      <button type="button" class="lpc-quick-swatch" data-color="#ef4444" style="background:#ef4444;" title="Đỏ Hỏa Long"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#f97316" style="background:#f97316;" title="Cam Hổ Phách"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#eab308" style="background:#eab308;" title="Vàng Hoàng Kim"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#10b981" style="background:#10b981;" title="Xanh Lục Bảo"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#06b6d4" style="background:#06b6d4;" title="Xanh Biển Neon"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#3b82f6" style="background:#3b82f6;" title="Lam Hiệp Sĩ"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#8b5cf6" style="background:#8b5cf6;" title="Tím Hư Không"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#ec4899" style="background:#ec4899;" title="Hồng Sakura"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#f1f5f9" style="background:#f1f5f9;" title="Bạch Kim Tuyết"></button>
+                      <button type="button" class="lpc-quick-swatch" data-color="#0f172a" style="background:#0f172a;border:1px solid #475569;" title="Đen Bóng Đêm"></button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Xem trước hoạt cảnh đã phối màu -->
+                <div class="lpc-reskin-preview-area active">
+                  <div style="font-size:11px;font-weight:600;color:#60a5fa;margin-bottom:4px;">Xem trước chuyển động phối màu:</div>
+                  <div class="lpc-preview-canvas-box" style="box-shadow: 0 0 16px rgba(37, 99, 235, 0.4);margin-bottom:6px;">
                     <canvas id="lpc-reskin-anim-canvas" width="128" height="128"></canvas>
                   </div>
-                  <div style="display:flex;gap:6px;width:100%;margin-top:4px;">
+                  <div style="display:flex;gap:6px;width:100%;">
                     <button id="lpc-btn-load-theme-timeline" class="lpc-btn-primary" style="flex:1;">
-                      Nạp Hoạt Cảnh Vào Timeline
+                      Nạp Vào Timeline
                     </button>
                     <button id="lpc-btn-export-theme-strip" class="lpc-btn-secondary" style="flex:1;">
-                      Xuất Spritesheet (PNG)
+                      Xuất PNG
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Tab 2: AI Keyframe Studio (Phương Án 2: Sáng tạo theo khung mẫu) -->
+            <!-- Tab 2: AI Keyframe Studio -->
             <div id="lpc-tab-p2" class="lpc-tab-pane">
               <div class="lpc-keyframe-studio">
                 <div class="lpc-keyframe-header">
@@ -407,7 +674,7 @@ export class LpcStudioModal {
                 </div>
                 <p class="lpc-subtext">Sáng tạo trang phục mới trên 1 Frame mẫu, sau đó chuyển giao chuyển động sang toàn bộ hoạt cảnh:</p>
 
-                <!-- Các thẻ phong cách nhanh -->
+                <!-- Thẻ phong cách nhanh -->
                 <div class="lpc-keyframe-tags">
                   <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, cyberpunk glowing armor, neon visor, futuristic battle suit, sharp outline">Cyberpunk</button>
                   <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, flame dragon plate armor, molten gold trims, glowing runes, sharp outline">Giáp Rồng</button>
@@ -415,34 +682,29 @@ export class LpcStudioModal {
                   <button type="button" class="lpc-tag-btn" data-prompt="pixel art, 16-bit RPG, holy paladin royal plate armor, shining golden crest, sharp outline">Hiệp Sĩ</button>
                 </div>
 
-                <!-- Ô nhập Prompt sáng tạo -->
                 <input type="text" id="lpc-keyframe-prompt" class="lpc-input" placeholder="Mô tả ý tưởng trang phục sáng tạo..." />
 
-                <!-- Thanh trượt độ sáng tạo Strength -->
                 <div class="lpc-strength-row">
                   <span>Độ sáng tạo:</span>
                   <input type="range" id="lpc-keyframe-strength" min="35" max="75" value="58" />
                   <b id="lpc-keyframe-strength-val" style="color:#c084fc;">0.58</b>
                 </div>
 
-                <!-- Nút sinh mẫu thử -->
                 <button id="lpc-btn-gen-keyframe" class="lpc-btn-accent" style="background:linear-gradient(135deg, #7c3aed, #a855f7);">
                   Sinh Mẫu Thử Keyframe
                 </button>
 
-                <!-- Khung xem trước mẫu thử Keyframe đã sinh -->
                 <div class="lpc-keyframe-preview-area" id="lpc-keyframe-preview-area">
                   <div class="lpc-preview-canvas-box">
                     <canvas id="lpc-keyframe-preview-canvas" width="128" height="128"></canvas>
                   </div>
                   <div id="lpc-keyframe-seed-info" style="font-size:11px;color:#cbd5e1;">Seed: -</div>
                   <div class="lpc-keyframe-actions-row">
-                    <button id="lpc-btn-reroll-keyframe" class="lpc-btn-secondary" title="Sinh lại mẫu khác với Seed ngẫu nhiên mới">Thử Khác</button>
+                    <button id="lpc-btn-reroll-keyframe" class="lpc-btn-secondary">Thử Khác</button>
                     <button id="lpc-btn-apply-transfer" class="lpc-btn-accent" style="background:linear-gradient(135deg, #059669, #10b981);">Duyệt & Chuyển Giao</button>
                   </div>
                 </div>
 
-                <!-- Trạng thái tiến trình & Khung xem trước hoạt cảnh chuyển giao -->
                 <div class="lpc-transfer-status" id="lpc-transfer-status">
                   <div id="lpc-transfer-msg">Đang chuẩn bị...</div>
                 </div>
@@ -459,7 +721,6 @@ export class LpcStudioModal {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     `;
@@ -497,6 +758,109 @@ export class LpcStudioModal {
 
     modal.addEventListener('click', (e) => {
       if (e.target === modal) this.close();
+    });
+
+    // 1.1 Toàn Màn Hình (Fullscreen)
+    const btnFullscreen = modal.querySelector('#lpc-btn-fullscreen') as HTMLButtonElement;
+    const dialog = modal.querySelector('#lpc-modal-dialog');
+    btnFullscreen?.addEventListener('click', () => {
+      this.isFullscreen = !this.isFullscreen;
+      dialog?.classList.toggle('fullscreen', this.isFullscreen);
+      btnFullscreen.textContent = this.isFullscreen ? '🗗 Thu Nhỏ' : '⛶ Toàn Màn Hình';
+    });
+
+    // 1.2 Nút Phối Ngẫu Nhiên (Randomize)
+    const btnRandom = modal.querySelector('#lpc-btn-random');
+    btnRandom?.addEventListener('click', () => {
+      this.randomizeCharacter();
+    });
+
+    // 1.3 Nút Đặt Lại Mặc Định (Reset)
+    const btnReset = modal.querySelector('#lpc-btn-reset');
+    btnReset?.addEventListener('click', () => {
+      this.resetCharacter();
+    });
+
+    // 1.4 Tab lọc danh mục phụ kiện
+    const catPills = modal.querySelectorAll('.lpc-cat-pill');
+    catPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        catPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        this.activeCategoryFilter = pill.getAttribute('data-cat') || 'all';
+        this.renderLayerList();
+      });
+    });
+
+    // 1.5 Tìm kiếm phụ kiện
+    const searchInput = modal.querySelector('#lpc-layer-search') as HTMLInputElement;
+    searchInput?.addEventListener('input', () => {
+      this.searchQuery = searchInput.value.trim().toLowerCase();
+      this.renderLayerList();
+    });
+
+    // 1.6 Thu phóng (Zoom: 1x, 2x, 3x)
+    const zoomBtns = modal.querySelectorAll('[data-zoom]');
+    const previewBox = modal.querySelector('#lpc-preview-box') as HTMLElement;
+    zoomBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        zoomBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const zoom = parseInt(btn.getAttribute('data-zoom') || '2', 10);
+        this.currentZoom = zoom;
+        const size = zoom === 1 ? 128 : zoom === 3 ? 320 : 256;
+        if (this.previewCanvas && previewBox) {
+          this.previewCanvas.style.width = `${size}px`;
+          this.previewCanvas.style.height = `${size}px`;
+          previewBox.style.width = `${size}px`;
+          previewBox.style.height = `${size}px`;
+        }
+      });
+    });
+
+    // 1.7 Đổi Nền Xem Trước (Background Changer)
+    const bgDots = modal.querySelectorAll('.lpc-bg-dot');
+    bgDots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        bgDots.forEach((d) => d.classList.remove('active'));
+        dot.classList.add('active');
+        const bg = dot.getAttribute('data-bg') || 'checker';
+        this.currentBg = bg;
+        if (previewBox) {
+          previewBox.className = `lpc-preview-box lpc-bg-${bg}`;
+          if (bg === 'dark') previewBox.style.backgroundColor = '#060911';
+          else if (bg === 'light') previewBox.style.backgroundColor = '#e2e8f0';
+          else if (bg === 'grass') previewBox.style.backgroundColor = '#14532d';
+          else if (bg === 'dungeon') previewBox.style.backgroundColor = '#2d3748';
+          else previewBox.style.backgroundColor = '#1e293b';
+        }
+      });
+    });
+
+    // 1.8 Nút Tự Động Xoay 360 Độ (Auto Turntable)
+    const btnTurntable = modal.querySelector('#lpc-btn-turntable') as HTMLButtonElement;
+    btnTurntable?.addEventListener('click', () => {
+      this.isTurntableActive = !this.isTurntableActive;
+      btnTurntable.classList.toggle('active', this.isTurntableActive);
+
+      if (this.isTurntableActive) {
+        btnTurntable.textContent = '⏹ Dừng Xoay';
+        this.turntableTimer = setInterval(() => {
+          const nextDir = this.compositor.rotateDirection360();
+          // Cập nhật D-Pad active
+          const dpadBtns = modal.querySelectorAll('.lpc-dpad-btn');
+          dpadBtns.forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-dir') === nextDir);
+          });
+          this.drawPreview();
+        }, 1200);
+      } else {
+        btnTurntable.textContent = 'Xoay 360°';
+        if (this.turntableTimer) {
+          clearInterval(this.turntableTimer);
+          this.turntableTimer = null;
+        }
+      }
     });
 
     // 2. Chuyen doi huong nhin (D-Pad)
@@ -543,12 +907,32 @@ export class LpcStudioModal {
       }
     });
 
-    // 5. Next Frame (Step)
+    // 5. Khung trước / Khung tiếp (Step & Prev)
+    const btnPrevFrame = modal.querySelector('#lpc-btn-prev-frame');
+    btnPrevFrame?.addEventListener('click', () => {
+      this.compositor.stopAnimation();
+      if (btnPlayPause) btnPlayPause.textContent = 'Phát';
+      this.compositor.stepPrevFrame();
+      this.drawPreview();
+      this.updateFrameCounter();
+    });
+
     const btnStep = modal.querySelector('#lpc-btn-step');
     btnStep?.addEventListener('click', () => {
       this.compositor.stopAnimation();
       if (btnPlayPause) btnPlayPause.textContent = 'Phát';
       this.compositor.stepNextFrame();
+      this.drawPreview();
+      this.updateFrameCounter();
+    });
+
+    // 5.1 Thanh Kéo Khung Hình (Timeline Scrubber)
+    const timelineSlider = modal.querySelector('#lpc-timeline-slider') as HTMLInputElement;
+    timelineSlider?.addEventListener('input', () => {
+      this.compositor.stopAnimation();
+      if (btnPlayPause) btnPlayPause.textContent = 'Phát';
+      const frameIdx = parseInt(timelineSlider.value, 10);
+      this.compositor.setFrameIndex(frameIdx);
       this.drawPreview();
       this.updateFrameCounter();
     });
@@ -811,7 +1195,7 @@ export class LpcStudioModal {
           if (seedInfo) seedInfo.textContent = `Seed: ${data.seed}`;
           if (statusBox) statusBox.classList.remove('active');
         };
-        
+
         // Ưu tiên nạp trực tiếp qua data URI Base64 trong bộ nhớ
         const targetSrc = data.imageBase64 || (data.imageUrl?.startsWith('http') ? data.imageUrl : `http://127.0.0.1:3055${data.imageUrl}`);
         img.src = targetSrc;
@@ -976,13 +1360,14 @@ export class LpcStudioModal {
   }
 
   // Cài đặt các sự kiện cho công cụ Trang Phục Chủ Đề & Palette Shading (Phương Án 1: Chuẩn 100% Khớp, Không Biến Đổi Chi Tiết)
+  // Cài đặt các sự kiện cho công cụ AI Modular Re-skin (Phương Án 1: Giữ nguyên 100% giải phẫu chuẩn LPC)
   private setupModularReskinListeners(modal: HTMLElement): void {
     const inputPrompt = modal.querySelector('#lpc-reskin-prompt') as HTMLInputElement;
     const btnApplyTheme = modal.querySelector('#lpc-btn-apply-theme') as HTMLButtonElement;
     const themeAppliedInfo = modal.querySelector('#lpc-theme-applied-info') as HTMLElement;
     const btnLoadTimeline = modal.querySelector('#lpc-btn-load-theme-timeline') as HTMLButtonElement;
     const btnExportStrip = modal.querySelector('#lpc-btn-export-theme-strip') as HTMLButtonElement;
-    const tagButtons = modal.querySelectorAll('#lpc-theme-tags .lpc-reskin-tag-btn');
+    const themeCards = modal.querySelectorAll('#lpc-theme-grid .lpc-theme-card');
 
     // Hàm áp dụng một bộ Trang Phục Chủ Đề (Character Palette Theme)
     const applyTheme = (theme: CharacterPaletteTheme) => {
@@ -1004,12 +1389,12 @@ export class LpcStudioModal {
       this.drawPreview();
       this.updateFrameCounter();
 
-      // 3. Cập nhật trạng thái hiển thị
-      tagButtons.forEach((b) => {
-        if (b.getAttribute('data-theme-id') === theme.id) {
-          b.classList.add('active');
+      // 3. Cập nhật trạng thái hiển thị trên Grid Card
+      themeCards.forEach((c) => {
+        if (c.getAttribute('data-theme-id') === theme.id) {
+          c.classList.add('active');
         } else {
-          b.classList.remove('active');
+          c.classList.remove('active');
         }
       });
 
@@ -1021,10 +1406,10 @@ export class LpcStudioModal {
       }
     };
 
-    // 1. Sự kiện click vào các thẻ bộ trang phục nhanh
-    tagButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const themeId = btn.getAttribute('data-theme-id');
+    // 1. Sự kiện click vào các thẻ bộ trang phục dạng Grid Card
+    themeCards.forEach((card) => {
+      card.addEventListener('click', () => {
+        const themeId = card.getAttribute('data-theme-id');
         const theme = CHARACTER_THEMES.find((t) => t.id === themeId);
         if (theme) {
           applyTheme(theme);
@@ -1070,6 +1455,124 @@ export class LpcStudioModal {
       linkPng.click();
     });
 
+    // 5. Tùy biến màu tự do cho từng bộ phận trang phục (Color Picker)
+    const partInputs: { id: string; category: string }[] = [
+      { id: '#lpc-color-torso', category: 'torso' },
+      { id: '#lpc-color-legs', category: 'legs' },
+      { id: '#lpc-color-feet', category: 'feet' },
+      { id: '#lpc-color-hair', category: 'hair' },
+      { id: '#lpc-color-hat', category: 'hat' },
+      { id: '#lpc-color-cape', category: 'cape' },
+      { id: '#lpc-color-weapons', category: 'weapons' },
+      { id: '#lpc-color-shield', category: 'shield' }
+    ];
+
+    partInputs.forEach(({ id, category }) => {
+      const inputEl = modal.querySelector(id) as HTMLInputElement;
+      if (!inputEl) return;
+
+      inputEl.addEventListener('input', () => {
+        const hex = inputEl.value;
+        const targetLayer = this.compositor.getLayers().find((l) => l.category === category);
+        if (targetLayer) {
+          this.compositor.setLayerCustomColor(targetLayer.id, hex);
+          this.drawPreview();
+        }
+      });
+
+      inputEl.addEventListener('change', () => {
+        this.renderLayerList();
+      });
+    });
+
+    // 6. Thanh trượt Xoay Sắc Độ Toàn Thân (Hue Shift 360°)
+    const hueSlider = modal.querySelector('#lpc-hue-slider') as HTMLInputElement;
+    const hueVal = modal.querySelector('#lpc-hue-val') as HTMLElement;
+    let lastHueValue = 0;
+
+    hueSlider?.addEventListener('input', () => {
+      const shiftDeg = parseInt(hueSlider.value, 10);
+      if (hueVal) hueVal.textContent = `${shiftDeg}°`;
+
+      const delta = shiftDeg - lastHueValue;
+      lastHueValue = shiftDeg;
+
+      // Xoay Hue của tất cả layer trang phục đang bật (ngoại trừ màu da body)
+      const layers = this.compositor.getLayers().filter((l) => l.category !== 'body' && l.enabled);
+      layers.forEach((layer) => {
+        let baseColorHex = layer.customColor;
+        if (!baseColorHex) {
+          const availablePalettes = getPalettesByCategory(layer.category);
+          const activePalette = availablePalettes.find((p) => p.id === layer.paletteId);
+          if (activePalette && activePalette.colors.length > 0) {
+            const midIdx = Math.floor(activePalette.colors.length / 2);
+            baseColorHex = activePalette.colors[midIdx];
+          }
+        }
+        if (baseColorHex) {
+          const rgb = hexToRgb(baseColorHex);
+          const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+          const newH = (hsl.h + delta + 360) % 360;
+          const newRgb = hslToRgb(newH, hsl.s, hsl.l);
+          const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+          this.compositor.setLayerCustomColor(layer.id, newHex);
+        }
+      });
+
+      this.drawPreview();
+    });
+
+    hueSlider?.addEventListener('change', () => {
+      this.renderLayerList();
+    });
+
+    // 7. Các ô màu nhanh thịnh hành (Quick Swatches)
+    const quickSwatches = modal.querySelectorAll('.lpc-quick-swatch');
+    quickSwatches.forEach((swatch) => {
+      swatch.addEventListener('click', () => {
+        const hex = swatch.getAttribute('data-color');
+        if (!hex) return;
+
+        // Phối màu đồng nhất cho các bộ phận chính: áo giáp, mũ, áo choàng
+        const mainCategories = ['torso', 'hat', 'cape'];
+        const layers = this.compositor.getLayers();
+        layers.forEach((layer) => {
+          if (mainCategories.includes(layer.category)) {
+            this.compositor.setLayerCustomColor(layer.id, hex);
+          }
+        });
+
+        // Đồng bộ giá trị trên các ô Color Picker
+        const torsoInput = modal.querySelector('#lpc-color-torso') as HTMLInputElement;
+        const hatInput = modal.querySelector('#lpc-color-hat') as HTMLInputElement;
+        const capeInput = modal.querySelector('#lpc-color-cape') as HTMLInputElement;
+        if (torsoInput) torsoInput.value = hex;
+        if (hatInput) hatInput.value = hex;
+        if (capeInput) capeInput.value = hex;
+
+        this.compositor.clearAllPaletteCaches();
+        this.renderLayerList();
+        this.drawPreview();
+      });
+    });
+
+    // 8. Nút khôi phục toàn bộ màu về mặc định
+    const btnResetAllColors = modal.querySelector('#lpc-btn-reset-all-colors');
+    btnResetAllColors?.addEventListener('click', () => {
+      const layers = this.compositor.getLayers();
+      layers.forEach((layer) => {
+        this.compositor.setLayerCustomColor(layer.id, undefined);
+      });
+
+      if (hueSlider) hueSlider.value = '0';
+      if (hueVal) hueVal.textContent = '0°';
+      lastHueValue = 0;
+
+      this.compositor.clearAllPaletteCaches();
+      this.renderLayerList();
+      this.drawPreview();
+    });
+
     // Áp dụng theme mặc định Paladin khi vừa mở modal
     const defaultTheme = CHARACTER_THEMES.find((t) => t.id === 'theme_paladin');
     if (defaultTheme) {
@@ -1077,69 +1580,202 @@ export class LpcStudioModal {
     }
   }
 
+  // Cập nhật nhãn đếm số lượng layer đang bật trên Header
+  private updateActiveLayersBadge(): void {
+    if (!this.container) return;
+    const badge = this.container.querySelector('#lpc-active-layers-count');
+    if (badge) {
+      const all = this.compositor.getLayers();
+      const active = all.filter((l) => l.enabled);
+      badge.textContent = `${active.length}/${all.length} Layer Hoạt Động`;
+    }
+  }
+
+  // Phối ngẫu nhiên toàn bộ trang phục, kiểu tóc và màu sắc
+  private randomizeCharacter(): void {
+    const layers = this.compositor.getLayers();
+    for (const lyr of layers) {
+      // Phụ kiện thú và mũ xuất hiện ngẫu nhiên với xác suất 40%
+      if (['hat', 'tails', 'ears'].includes(lyr.category)) {
+        this.compositor.setLayerEnabled(lyr.id, Math.random() < 0.4);
+      } else {
+        this.compositor.setLayerEnabled(lyr.id, true);
+      }
+
+      // Chọn kiểu dáng ngẫu nhiên từ kho preset
+      const availableStyles = this.getAvailableStylesForCategory(lyr.category);
+      if (availableStyles.length > 0) {
+        const randomStyle = availableStyles[Math.floor(Math.random() * availableStyles.length)];
+        this.compositor.changeLayerImage(lyr.id, randomStyle.imageUrl, randomStyle.name);
+      }
+
+      // Chọn bảng màu ngẫu nhiên
+      const availablePalettes = getPalettesByCategory(lyr.category);
+      if (availablePalettes.length > 0) {
+        const randomPalette = availablePalettes[Math.floor(Math.random() * availablePalettes.length)];
+        this.compositor.setLayerPalette(lyr.id, randomPalette.id);
+      }
+    }
+
+    this.compositor.clearAllPaletteCaches();
+    this.renderLayerList();
+    this.drawPreview();
+    this.updateActiveLayersBadge();
+    this.updateAiPromptSuggestion();
+  }
+
+  // Khôi phục nhân vật về trang phục mặc định ban đầu
+  private async resetCharacter(): Promise<void> {
+    const layers = this.compositor.getLayers();
+    for (const lyr of layers) {
+      if (lyr.category === 'body') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        this.compositor.setLayerPalette(lyr.id, 'body_fair');
+      } else if (lyr.category === 'legs') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        await this.compositor.changeLayerImage(lyr.id, '/lpc_assets/pants_leather.png', 'Quần Dài Chiến Binh (Pants)');
+        this.compositor.setLayerPalette(lyr.id, 'legs_leather_brown');
+      } else if (lyr.category === 'feet') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        await this.compositor.changeLayerImage(lyr.id, '/lpc_assets/boots_leather.png', 'Ủng Da Hiệp Sĩ (Boots)');
+        this.compositor.setLayerPalette(lyr.id, 'feet_brown');
+      } else if (lyr.category === 'torso') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        await this.compositor.changeLayerImage(lyr.id, '/lpc_assets/armor_plate.png', 'Giáp Sắt Hiệp Sĩ (Plate)');
+        this.compositor.setLayerPalette(lyr.id, 'torso_steel_blue');
+      } else if (lyr.category === 'hair') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        await this.compositor.changeLayerImage(lyr.id, '/lpc_assets/hair_messy.png', 'Tóc Xù Lãng Tử (Messy)');
+        this.compositor.setLayerPalette(lyr.id, 'hair_brown');
+      } else if (lyr.category === 'belt') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        await this.compositor.changeLayerImage(lyr.id, '/lpc_assets/belt_leather.png', 'Thắt Lưng Da Khóa Đồng (Belt)');
+        this.compositor.setLayerPalette(lyr.id, 'belt_leather_brown');
+      } else if (lyr.category === 'weapons') {
+        this.compositor.setLayerEnabled(lyr.id, true);
+        await this.compositor.changeLayerImage(lyr.id, '/lpc_assets/weapon_sword.png', 'Thanh Kiếm Hiệp Sĩ (Sword)');
+        this.compositor.setLayerPalette(lyr.id, 'weapon_steel');
+      } else if (lyr.category === 'cape') {
+        this.compositor.setLayerEnabled(lyr.id, false);
+      } else if (lyr.category === 'shield') {
+        this.compositor.setLayerEnabled(lyr.id, false);
+      } else {
+        // Tắt các phụ kiện nón, tai, đuôi
+        this.compositor.setLayerEnabled(lyr.id, false);
+      }
+    }
+
+    this.compositor.clearAllPaletteCaches();
+    this.renderLayerList();
+    this.drawPreview();
+    this.updateActiveLayersBadge();
+    this.updateAiPromptSuggestion();
+  }
+
+  // Lấy danh sách kiểu dáng phụ kiện kết hợp cả preset tĩnh và tệp dynamic manifest
+  private getAvailableStylesForCategory(category: string): LpcPresetStyle[] {
+    const staticStyles = LPC_PRESET_STYLES[category] || [];
+    const dynamicStyles = this.dynamicManifestStyles[category] || [];
+    if (dynamicStyles.length === 0) return staticStyles;
+
+    // Kết hợp và loại bỏ trùng lặp imageUrl
+    const map = new Map<string, LpcPresetStyle>();
+    staticStyles.forEach(s => map.set(s.imageUrl, s));
+    dynamicStyles.forEach(s => {
+      if (!map.has(s.imageUrl)) {
+        map.set(s.imageUrl, s);
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
   // Cập nhật danh sách layer hiển thị ở cột 1 kèm bộ chọn bảng màu (Palette Shading)
   private renderLayerList(): void {
-
     if (!this.container) return;
     const listContainer = this.container.querySelector('#lpc-layer-list');
     if (!listContainer) return;
 
     listContainer.innerHTML = '';
-    const layers = this.compositor.getLayers();
+    const allLayers = this.compositor.getLayers();
 
-    if (layers.length === 0) {
-      listContainer.innerHTML = '<div class="lpc-empty-hint">Chưa có layer nào được nạp.</div>';
+    // 1. Áp dụng bộ lọc danh mục (Category filter)
+    let filteredLayers = allLayers;
+    if (this.activeCategoryFilter !== 'all') {
+      if (this.activeCategoryFilter === 'beast') {
+        filteredLayers = filteredLayers.filter(l => l.category === 'tails' || l.category === 'ears');
+      } else if (this.activeCategoryFilter === 'weapon') {
+        filteredLayers = filteredLayers.filter(l => l.category === 'weapons' || l.category === 'shield' || l.category === 'quiver');
+      } else {
+        filteredLayers = filteredLayers.filter(l => l.category === this.activeCategoryFilter);
+      }
+    }
+
+    // 2. Áp dụng tìm kiếm phụ kiện
+    if (this.searchQuery) {
+      filteredLayers = filteredLayers.filter(l => l.name.toLowerCase().includes(this.searchQuery));
+    }
+
+    if (filteredLayers.length === 0) {
+      listContainer.innerHTML = '<div class="lpc-empty-hint" style="padding:16px;text-align:center;color:#64748b;font-size:12px;">Không tìm thấy phụ kiện nào phù hợp.</div>';
+      this.updateActiveLayersBadge();
       return;
     }
 
-    layers.forEach((layer) => {
+    filteredLayers.forEach((layer) => {
       const itemRow = document.createElement('div');
       itemRow.className = `lpc-layer-item ${layer.enabled ? 'active' : ''}`;
 
-      // Lấy danh sách mẫu kiểu dáng có sẵn cho danh mục layer này
-      const availableStyles = LPC_PRESET_STYLES[layer.category] || [];
+      // Lấy danh sách mẫu kiểu dáng phong phú
+      const availableStyles = this.getAvailableStylesForCategory(layer.category);
       const hasStyles = availableStyles.length > 1;
 
-      // Lấy danh sách bảng màu phù hợp cho danh mục layer này
+      // Lấy danh sách bảng màu phù hợp
       const availablePalettes = getPalettesByCategory(layer.category);
       const hasPalettes = availablePalettes.length > 0;
 
       const styleOptionsHtml = hasStyles
         ? availableStyles
-            .map(
-              (s: LpcPresetStyle) =>
-                `<option value="${s.imageUrl}" ${layer.imageUrl === s.imageUrl ? 'selected' : ''}>${s.name}</option>`
-            )
-            .join('')
+          .slice(0, 50) // Giới hạn 50 mẫu tiêu biểu để dropdown mượt mà
+          .map(
+            (s: LpcPresetStyle) =>
+              `<option value="${s.imageUrl}" ${layer.imageUrl === s.imageUrl ? 'selected' : ''}>${s.name}</option>`
+          )
+          .join('')
         : '';
 
       const paletteOptionsHtml = hasPalettes
         ? availablePalettes
-            .map(
-              (p: PaletteRamp) =>
-                `<option value="${p.id}" ${layer.paletteId === p.id ? 'selected' : ''}>${p.name}</option>`
-            )
-            .join('')
+          .map(
+            (p: PaletteRamp) =>
+              `<option value="${p.id}" ${layer.paletteId === p.id ? 'selected' : ''}>${p.name}</option>`
+          )
+          .join('')
         : '';
 
       itemRow.innerHTML = `
         <div class="lpc-layer-item-header">
-          <label class="lpc-layer-checkbox">
-            <input type="checkbox" ${layer.enabled ? 'checked' : ''} />
-            <span class="lpc-layer-name">${layer.name}</span>
-          </label>
+          <div class="lpc-layer-title-group">
+            <label class="lpc-switch">
+              <input type="checkbox" ${layer.enabled ? 'checked' : ''} />
+              <span class="lpc-switch-slider"></span>
+            </label>
+            <span class="lpc-layer-name" title="${layer.name}">${layer.name}</span>
+          </div>
           <div class="lpc-layer-badges">
+            <div class="lpc-z-controls">
+              <button class="lpc-z-btn btn-z-up" title="Đẩy layer lên trên (Tăng Z-Index)">▲</button>
+              <button class="lpc-z-btn btn-z-down" title="Đẩy layer xuống dưới (Giảm Z-Index)">▼</button>
+            </div>
             <span class="lpc-z-badge">Z:${layer.zIndex}</span>
-            ${
-              layer.category !== 'body'
-                ? `<button class="lpc-btn-remove-layer" title="Xóa layer">&times;</button>`
-                : ''
-            }
+            ${layer.category !== 'body'
+          ? `<button class="lpc-btn-remove-layer" title="Xóa layer">&times;</button>`
+          : ''
+        }
           </div>
         </div>
-        ${
-          hasStyles
-            ? `
+        ${hasStyles
+          ? `
           <div class="lpc-layer-palette-row">
             <span class="lpc-palette-label">Kiểu:</span>
             <select class="lpc-style-select" data-layer-id="${layer.id}">
@@ -1147,30 +1783,55 @@ export class LpcStudioModal {
             </select>
           </div>
         `
-            : ''
+          : ''
         }
-        ${
-          hasPalettes
-            ? `
+        ${hasPalettes
+          ? `
           <div class="lpc-layer-palette-row">
             <span class="lpc-palette-label">Màu:</span>
             <select class="lpc-palette-select" data-layer-id="${layer.id}">
-              <option value="" ${!layer.paletteId ? 'selected' : ''}>Màu gốc (Original)</option>
+              <option value="" ${!layer.paletteId && !layer.customColor ? 'selected' : ''}>Màu gốc (Original)</option>
+              ${layer.customColor ? `<option value="__custom__" selected>Tự chọn (${layer.customColor})</option>` : ''}
               ${paletteOptionsHtml}
             </select>
+            <div class="lpc-color-picker-wrap" title="Chọn màu tự do (Color Picker)">
+              <span class="lpc-color-picker-swatch" style="background:${layer.customColor || '#38bdf8'};"></span>
+              <input type="color" class="lpc-layer-color-picker" data-layer-id="${layer.id}" value="${layer.customColor || '#38bdf8'}" />
+            </div>
+            ${layer.customColor
+            ? `<button class="lpc-btn-reset-color" data-layer-id="${layer.id}" title="Xóa màu tự do, trở về màu mặc định">&times;</button>`
+            : ''
+          }
           </div>
         `
-            : ''
+          : ''
         }
       `;
 
-      // Checkbox bật/tắt layer
+      // Switch toggle bật/tắt layer
       const checkbox = itemRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
       checkbox?.addEventListener('change', () => {
         this.compositor.setLayerEnabled(layer.id, checkbox.checked);
         itemRow.classList.toggle('active', checkbox.checked);
         this.drawPreview();
+        this.updateActiveLayersBadge();
         this.updateAiPromptSuggestion();
+      });
+
+      // Nút điều chỉnh Z-Index Lên trên
+      const btnZUp = itemRow.querySelector('.btn-z-up');
+      btnZUp?.addEventListener('click', () => {
+        this.compositor.moveLayerZIndex(layer.id, 5);
+        this.renderLayerList();
+        this.drawPreview();
+      });
+
+      // Nút điều chỉnh Z-Index Xuống dưới
+      const btnZDown = itemRow.querySelector('.btn-z-down');
+      btnZDown?.addEventListener('click', () => {
+        this.compositor.moveLayerZIndex(layer.id, -5);
+        this.renderLayerList();
+        this.drawPreview();
       });
 
       // Bắt sự kiện đổi kiểu dáng phụ kiện
@@ -1194,6 +1855,28 @@ export class LpcStudioModal {
         this.updateAiPromptSuggestion();
       });
 
+      // Bắt sự kiện chọn màu tự do bằng Color Picker
+      const colorPicker = itemRow.querySelector('.lpc-layer-color-picker') as HTMLInputElement;
+      const colorSwatch = itemRow.querySelector('.lpc-color-picker-swatch') as HTMLElement;
+      colorPicker?.addEventListener('input', () => {
+        const newColor = colorPicker.value;
+        if (colorSwatch) colorSwatch.style.backgroundColor = newColor;
+        this.compositor.setLayerCustomColor(layer.id, newColor);
+        this.drawPreview();
+      });
+      colorPicker?.addEventListener('change', () => {
+        this.renderLayerList();
+      });
+
+      // Bắt sự kiện xóa màu tự do
+      const btnResetColor = itemRow.querySelector('.lpc-btn-reset-color') as HTMLButtonElement;
+      btnResetColor?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.compositor.setLayerCustomColor(layer.id, undefined);
+        this.renderLayerList();
+        this.drawPreview();
+      });
+
       // Nút xóa layer (ngoại trừ layer gốc)
       const btnRemove = itemRow.querySelector('.lpc-btn-remove-layer');
       btnRemove?.addEventListener('click', (e) => {
@@ -1201,11 +1884,14 @@ export class LpcStudioModal {
         this.compositor.removeLayer(layer.id);
         this.renderLayerList();
         this.drawPreview();
+        this.updateActiveLayersBadge();
         this.updateAiPromptSuggestion();
       });
 
       listContainer.appendChild(itemRow);
     });
+
+    this.updateActiveLayersBadge();
   }
 
   // Tự động tạo gợi ý prompt cho AI dựa trên các phụ kiện và màu sắc đang được bật
@@ -1265,14 +1951,21 @@ export class LpcStudioModal {
     }
   }
 
-  // Cap nhat bo dem khung hinh (Frame X / N)
+  // Cap nhat bo dem khung hinh (Frame X / N) va Timeline Scrubber
   private updateFrameCounter(): void {
     if (!this.container) return;
+    const current = this.compositor.getCurrentFrameIndex();
+    const total = this.compositor.getCurrentTotalFrames();
+
     const indicator = this.container.querySelector('#lpc-frame-indicator');
     if (indicator) {
-      const current = this.compositor.getCurrentFrameIndex() + 1;
-      const total = this.compositor.getCurrentTotalFrames();
-      indicator.textContent = `Khung: ${current} / ${total}`;
+      indicator.textContent = `Khung: ${current + 1} / ${total}`;
+    }
+
+    const slider = this.container.querySelector('#lpc-timeline-slider') as HTMLInputElement;
+    if (slider) {
+      slider.max = `${Math.max(0, total - 1)}`;
+      slider.value = `${current}`;
     }
   }
 }

@@ -1,0 +1,136 @@
+[
+  {
+    "title": "Pre-downloaded Package: lpc-hair.zip",
+    "author": "OpenGameArt LPC Contributors",
+    "source": "Local Root Archive",
+    "category": "characters",
+    "target_dir": "d:\\pixel_draw\\assets\\lpc_collection\\characters\\lpc_hair_master",
+    "extracted_count": 2828
+  },
+  {
+    "title": "Pre-downloaded Package: lpc_entry.zip",
+    "author": "OpenGameArt LPC Contributors",
+    "source": "Local Root Archive",
+    "category": "characters",
+    "target_dir": "d:\\pixel_draw\\assets\\lpc_collection\\characters\\lpc_entry_base",
+    "extracted_count": 184
+  },
+  {
+    "title": "Pre-downloaded Package: expansion_pack-0.04.zip",
+    "author": "OpenGameArt LPC Contributors",
+    "source": "Local Root Archive",
+    "category": "characters",
+    "target_dir": "d:\\pixel_draw\\assets\\lpc_collection\\characters\\lpc_expansion_pack",
+    "extracted_count": 20
+  },
+  {
+    "title": "Tiled Terrains",
+    "author": "Eiyeron",
+    "url": "https://opengameart.org/content/tiled-terrains",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "tilesets",
+    "folder": "assets\\lpc_collection\\tilesets\\tiled-terrains",
+    "files_count": 4
+  },
+  {
+    "title": "[LPC] Forest tiles",
+    "author": "Unknown",
+    "url": "https://opengameart.org/content/lpc-forest-tiles",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "tilesets",
+    "folder": "assets\\lpc_collection\\tilesets\\lpc-forest-tiles",
+    "files_count": 4
+  },
+  {
+    "title": "Liberated Pixel Cup (LPC) Base Assets (sprites & map tiles)",
+    "author": "ILIKESCIFI",
+    "url": "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "tilesets",
+    "folder": "assets\\lpc_collection\\tilesets\\liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "files_count": 73
+  },
+  {
+    "title": "[LPC] Plant Repack",
+    "author": "Julius",
+    "url": "https://opengameart.org/content/lpc-plant-repack",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "items_objects",
+    "folder": "assets\\lpc_collection\\items_objects\\lpc-plant-repack",
+    "files_count": 1
+  },
+  {
+    "title": "[LPC] Tree Recolors",
+    "author": "Julius",
+    "url": "https://opengameart.org/content/lpc-tree-recolors",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "tilesets",
+    "folder": "assets\\lpc_collection\\tilesets\\lpc-tree-recolors",
+    "files_count": 7
+  },
+  {
+    "title": "LPC Tile Atlas2",
+    "author": "adrix89",
+    "url": "https://opengameart.org/content/lpc-tile-atlas2",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "tilesets",
+    "folder": "assets\\lpc_collection\\tilesets\\lpc-tile-atlas2",
+    "files_count": 5
+  },
+  {
+    "title": "LPC Fireplace",
+    "author": "makrohn",
+    "url": "https://opengameart.org/content/lpc-fireplace",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "items_objects",
+    "folder": "assets\\lpc_collection\\items_objects\\lpc-fireplace",
+    "files_count": 3
+  },
+  {
+    "title": "[LPC] Golem",
+    "author": "Nemisys",
+    "url": "https://opengameart.org/content/lpc-golem",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "monsters",
+    "folder": "assets\\lpc_collection\\monsters\\lpc-golem",
+    "files_count": 4
+  },
+  {
+    "title": "LPC Animated Water and waterfalls",
+    "author": "William.Thompsonj",
+    "url": "https://opengameart.org/content/lpc-animated-water-and-waterfalls",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "effects",
+    "folder": "assets\\lpc_collection\\effects\\lpc-animated-water-and-waterfalls",
+    "files_count": 1
+  },
+  {
+    "title": "[LPC] House Insides",
+    "author": "Sharkou",
+    "url": "https://opengameart.org/content/lpc-house-insides",
+    "licenses": [
+      "CC-BY-SA 3.0 / GPL 3.0"
+    ],
+    "category": "tilesets",
+    "folder": "assets\\lpc_collection\\tilesets\\lpc-house-insides",
+    "files_count": 2
+  }
+]

@@ -36,3 +36,4 @@ trainning/
 venv/
 .venv/
 .env
+*.pyc

@@ -2,7 +2,7 @@
 // Module định nghĩa các bảng màu dải bậc (Palette Color Ramps) chuẩn LPC
 // và thuật toán ánh xạ màu giữ nguyên bóng khối (Palette Recolor & Shading)
 
-export type LpcPaletteCategory = 'hair' | 'torso' | 'legs' | 'feet' | 'hat' | 'tails' | 'ears' | 'body';
+export type LpcPaletteCategory = 'hair' | 'torso' | 'legs' | 'feet' | 'hat' | 'tails' | 'ears' | 'body' | 'cape' | 'weapons' | 'shield' | 'belt';
 
 export interface PaletteRamp {
   id: string;
@@ -28,7 +28,15 @@ export const DEFAULT_SOURCE_RAMPS = {
   // Dải màu tai thú chuẩn LPC gốc
   ears: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00'],
   // Dải màu da sáng cơ bản
-  body: ['#8f563b', '#c28569', '#e0a98b', '#f2cbb3', '#ffe4d4']
+  body: ['#8f563b', '#c28569', '#e0a98b', '#f2cbb3', '#ffe4d4'],
+  // Dải màu áo choàng
+  cape: ['#2b1118', '#5c1726', '#8f2337', '#bd354e', '#e65e77'],
+  // Dải màu vũ khí kiếm
+  weapons: ['#1f242b', '#3b434f', '#647285', '#9bb0cc', '#e2edfa'],
+  // Dải màu khiên
+  shield: ['#2d1b10', '#54331e', '#7d4f30', '#a87349', '#d19f6e'],
+  // Dải màu thắt lưng
+  belt: ['#24150d', '#422718', '#663d26', '#8f5737', '#bd774c']
 };
 
 
@@ -323,6 +331,80 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
       category: 'body',
       colors: ['#6e5659', '#9e7f84', '#c9a9af', '#edd1d6', '#fff0f3']
     }
+  ],
+  cape: [
+    {
+      id: 'cape_crimson',
+      name: 'Đỏ Rượu Hoàng Gia',
+      category: 'cape',
+      colors: ['#2e0c14', '#591624', '#8a2036', '#ba2f4c', '#e34d6d']
+    },
+    {
+      id: 'cape_royal_blue',
+      name: 'Xanh Lam Kỵ Sĩ',
+      category: 'cape',
+      colors: ['#0f172a', '#1e3a8a', '#2563eb', '#60a5fa', '#93c5fd']
+    },
+    {
+      id: 'cape_dark_shadow',
+      name: 'Đen Bóng Đêm',
+      category: 'cape',
+      colors: ['#0a0b0d', '#181b20', '#2d323b', '#48505e', '#6e798c']
+    },
+    {
+      id: 'cape_emerald',
+      name: 'Lục Bảo Rừng Già',
+      category: 'cape',
+      colors: ['#062419', '#0d4a34', '#157a55', '#22a877', '#4ade80']
+    }
+  ],
+  weapons: [
+    {
+      id: 'weapon_steel',
+      name: 'Thép Bạc Sáng',
+      category: 'weapons',
+      colors: ['#1f242b', '#3b434f', '#647285', '#9bb0cc', '#e2edfa']
+    },
+    {
+      id: 'weapon_gold',
+      name: 'Hoàng Kim Thánh Tích',
+      category: 'weapons',
+      colors: ['#382405', '#6b470c', '#a87319', '#e0a028', '#fce28b']
+    },
+    {
+      id: 'weapon_fire',
+      name: 'Hỏa Long Chấn Thiên',
+      category: 'weapons',
+      colors: ['#380b0b', '#731717', '#b52424', '#f04343', '#ff9436']
+    }
+  ],
+  shield: [
+    {
+      id: 'shield_wood_iron',
+      name: 'Gỗ Sồi Viền Thép',
+      category: 'shield',
+      colors: ['#24150b', '#472a15', '#734422', '#a16335', '#cca378']
+    },
+    {
+      id: 'shield_steel_blue',
+      name: 'Khiên Thép Xanh',
+      category: 'shield',
+      colors: ['#141d26', '#253545', '#3e566e', '#6082a6', '#92b3d9']
+    }
+  ],
+  belt: [
+    {
+      id: 'belt_leather_brown',
+      name: 'Da Nâu Khóa Đồng',
+      category: 'belt',
+      colors: ['#24150d', '#422718', '#663d26', '#8f5737', '#bd774c']
+    },
+    {
+      id: 'belt_black_steel',
+      name: 'Da Đen Khóa Thép',
+      category: 'belt',
+      colors: ['#111317', '#20242b', '#353c47', '#505a69', '#758194']
+    }
   ]
 };
 
@@ -345,6 +427,107 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
 export function rgbToHex(r: number, g: number, b: number): string {
   const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
   return `#${((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1)}`;
+}
+
+// Chuyển đổi RGB sang HSL
+export function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+// Chuyển đổi HSL sang RGB
+export function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(100, s)) / 100;
+  l = Math.max(0, Math.min(100, l)) / 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (h < 60) { r1 = c; g1 = x; }
+  else if (h < 120) { r1 = x; g1 = c; }
+  else if (h < 180) { g1 = c; b1 = x; }
+  else if (h < 240) { g1 = x; b1 = c; }
+  else if (h < 300) { r1 = x; b1 = c; }
+  else { r1 = c; b1 = x; }
+
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255)
+  };
+}
+
+// Tự động sinh ra dải Ramp bóng khối 5-6 bậc từ một mã màu Hex tùy chọn
+export function generateRampFromHex(baseHex: string, category?: string): string[] {
+  const rgb = hexToRgb(baseHex);
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+
+  // Quy chuẩn số bậc màu theo category nguồn:
+  // hair: 6 bậc, torso: 6 bậc, hat: 6 bậc, legs: 5 bậc, feet: 5 bậc, cape: 5 bậc, weapons: 5 bậc
+  const numSteps = (category === 'hair' || category === 'torso' || category === 'hat') ? 6 : 5;
+
+  const ramp: string[] = [];
+  if (numSteps === 6) {
+    // 6 bậc: Cực tối -> Bóng đậm -> Bóng trung -> Màu chính -> Sáng highlight -> Điểm lóa phản quang
+    const steps = [
+      { lMul: 0.22, sMul: 1.15, hShift: -8 }, // Bậc 0: Deep Shadow (Hue dịch lạnh)
+      { lMul: 0.45, sMul: 1.10, hShift: -4 }, // Bậc 1: Medium Shadow
+      { lMul: 0.72, sMul: 1.05, hShift: -2 }, // Bậc 2: Soft Shadow
+      { lMul: 1.00, sMul: 1.00, hShift: 0 },  // Bậc 3: Base color (Màu chính người dùng chọn)
+      { lMul: 1.35, sMul: 0.85, hShift: 4 },  // Bậc 4: Highlight (Hue dịch ấm)
+      { lMul: 1.70, sMul: 0.50, hShift: 8 }   // Bậc 5: Specular Glow
+    ];
+
+    for (const step of steps) {
+      let newL = Math.max(5, Math.min(95, hsl.l * step.lMul));
+      if (step.lMul > 1) {
+        newL = Math.min(96, hsl.l + (100 - hsl.l) * (step.lMul - 1));
+      }
+      const newS = Math.max(0, Math.min(100, hsl.s * step.sMul));
+      const newH = (hsl.h + step.hShift + 360) % 360;
+      const c = hslToRgb(newH, newS, newL);
+      ramp.push(rgbToHex(c.r, c.g, c.b));
+    }
+  } else {
+    // 5 bậc: Bóng tối đậm -> Bóng trung -> Màu chính -> Sáng -> Sáng lóa
+    const steps = [
+      { lMul: 0.26, sMul: 1.15, hShift: -6 },
+      { lMul: 0.58, sMul: 1.08, hShift: -3 },
+      { lMul: 1.00, sMul: 1.00, hShift: 0 },
+      { lMul: 1.38, sMul: 0.82, hShift: 4 },
+      { lMul: 1.75, sMul: 0.45, hShift: 7 }
+    ];
+
+    for (const step of steps) {
+      let newL = Math.max(6, Math.min(95, hsl.l * step.lMul));
+      if (step.lMul > 1) {
+        newL = Math.min(96, hsl.l + (100 - hsl.l) * (step.lMul - 1));
+      }
+      const newS = Math.max(0, Math.min(100, hsl.s * step.sMul));
+      const newH = (hsl.h + step.hShift + 360) % 360;
+      const c = hslToRgb(newH, newS, newL);
+      ramp.push(rgbToHex(c.r, c.g, c.b));
+    }
+  }
+
+  return ramp;
 }
 
 // Tính khoảng cách màu Euclidean giữa 2 màu RGB

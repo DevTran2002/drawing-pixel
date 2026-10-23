@@ -12,7 +12,8 @@ import {
   recolorCanvasByPalette,
   DEFAULT_SOURCE_RAMPS,
   LPC_PALETTES,
-  LpcPaletteCategory
+  LpcPaletteCategory,
+  generateRampFromHex
 } from './lpc-palette';
 
 export type LpcLayerCategory =
@@ -26,7 +27,12 @@ export type LpcLayerCategory =
   | 'hair'
   | 'tails'
   | 'ears'
-  | 'weapons';
+  | 'weapons'
+  | 'cape'
+  | 'belt'
+  | 'shield'
+  | 'quiver'
+  | 'gloves';
 
 
 
@@ -39,6 +45,8 @@ export interface LpcAssetItem {
   imageElement?: HTMLImageElement;
   tintColor?: string;
   paletteId?: string; // ID bảng màu đang kích hoạt (ví dụ: 'hair_blonde', 'torso_golden')
+  customColor?: string; // Mã màu tự do do người dùng tự chọn (Hex)
+  customRamp?: string[]; // Dải màu bóng khối sinh tự động từ màu tự do
   cachedRecolorCanvas?: HTMLCanvasElement | null; // Bộ nhớ đệm canvas toàn sheet đã đổi màu
   enabled: boolean;
 }
@@ -114,7 +122,25 @@ export class LpcCompositor {
     const layer = this.layers.find((l) => l.id === layerId);
     if (layer) {
       layer.paletteId = paletteId || undefined;
+      layer.customColor = undefined; // Bỏ custom color khi người dùng chọn palette mẫu
+      layer.customRamp = undefined;
       // Xóa cache cũ để lần vẽ tiếp theo tự động recolor lại với bảng màu mới
+      layer.cachedRecolorCanvas = null;
+    }
+  }
+
+  // Cài đặt màu tùy biến tự do cho một layer (tự động tính dải màu bóng khối)
+  public setLayerCustomColor(layerId: string, hexColor?: string): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (layer) {
+      if (!hexColor) {
+        layer.customColor = undefined;
+        layer.customRamp = undefined;
+      } else {
+        layer.customColor = hexColor;
+        layer.paletteId = undefined; // Ưu tiên màu tự do
+        layer.customRamp = generateRampFromHex(hexColor, layer.category);
+      }
       layer.cachedRecolorCanvas = null;
     }
   }
@@ -126,12 +152,12 @@ export class LpcCompositor {
     }
   }
 
-  // Lấy nguồn ảnh để vẽ (tự động recolor theo Palette Shading nếu layer có paletteId)
+  // Lấy nguồn ảnh để vẽ (tự động recolor theo Palette Shading hoặc Custom Ramp nếu có)
   public getLayerRenderSource(layer: LpcAssetItem): CanvasImageSource | null {
     if (!layer.imageElement) return null;
 
-    // Nếu không cấu hình bảng màu hoặc không thuộc các nhóm có dải màu, dùng ảnh gốc
-    if (!layer.paletteId) {
+    // Nếu không cấu hình bảng màu và cũng không có màu tùy chọn, dùng ảnh gốc
+    if (!layer.paletteId && (!layer.customRamp || layer.customRamp.length === 0)) {
       return layer.imageElement;
     }
 
@@ -140,14 +166,22 @@ export class LpcCompositor {
       return layer.cachedRecolorCanvas;
     }
 
-    // Tiến hành recolor toàn bộ sprite sheet phụ kiện theo dải màu
     const cat = layer.category as LpcPaletteCategory;
     const sourceRamp = DEFAULT_SOURCE_RAMPS[cat];
-    const targetPalettes = LPC_PALETTES[cat];
-    const targetPalette = targetPalettes?.find(p => p.id === layer.paletteId);
+    if (!sourceRamp) {
+      return layer.imageElement;
+    }
 
+    let targetColors: string[] | undefined;
+    if (layer.customRamp && layer.customRamp.length > 0) {
+      targetColors = layer.customRamp;
+    } else if (layer.paletteId) {
+      const targetPalettes = LPC_PALETTES[cat];
+      const targetPalette = targetPalettes?.find(p => p.id === layer.paletteId);
+      targetColors = targetPalette?.colors;
+    }
 
-    if (!sourceRamp || !targetPalette) {
+    if (!targetColors || targetColors.length === 0) {
       return layer.imageElement;
     }
 
@@ -161,7 +195,7 @@ export class LpcCompositor {
     tempCtx.drawImage(layer.imageElement, 0, 0);
 
     // Ánh xạ dải màu giữ nguyên bóng khối
-    const recolored = recolorCanvasByPalette(tempCanvas, sourceRamp, targetPalette.colors);
+    const recolored = recolorCanvasByPalette(tempCanvas, sourceRamp, targetColors);
     layer.cachedRecolorCanvas = recolored;
     return recolored;
   }
@@ -283,11 +317,43 @@ export class LpcCompositor {
     }
   }
 
+  // Lùi về khung hình trước đó
+  public stepPrevFrame(): void {
+    const total = this.getCurrentTotalFrames();
+    if (this.currentFrameIndex > 0) {
+      this.currentFrameIndex--;
+    } else {
+      this.currentFrameIndex = total - 1;
+    }
+    if (this.onFrameUpdate) {
+      this.onFrameUpdate(this.currentFrameIndex);
+    }
+  }
+
+  // Đặt trực tiếp chỉ số khung hình (Scrubbing)
   public setFrameIndex(index: number): void {
     const total = this.getCurrentTotalFrames();
     this.currentFrameIndex = Math.max(0, Math.min(total - 1, index));
     if (this.onFrameUpdate) {
       this.onFrameUpdate(this.currentFrameIndex);
+    }
+  }
+
+  // Xoay 360 độ sang hướng kế tiếp: Xuống -> Trái -> Lên -> Phải
+  public rotateDirection360(): LpcDirection {
+    const sequence: LpcDirection[] = ['down', 'left', 'up', 'right'];
+    const idx = sequence.indexOf(this.currentDirection);
+    const nextDir = sequence[(idx + 1) % sequence.length];
+    this.setDirection(nextDir);
+    return nextDir;
+  }
+
+  // Thay đổi Z-Index của layer (Di chuyển lên/xuống)
+  public moveLayerZIndex(layerId: string, delta: number): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (layer) {
+      layer.zIndex = Math.max(1, layer.zIndex + delta);
+      this.layers.sort((a, b) => a.zIndex - b.zIndex);
     }
   }
 
