@@ -3255,46 +3255,179 @@ body.tree-resizing * {
   border-color: #38bdf8;
 }
 
-/* Category Filter Tabs */
-.lpc-cat-nav {
+/* Thanh Bộ Lọc Danh Mục Đa Chọn (Multi-select Filter Bar) */
+.lpc-filter-bar {
   display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
-  scrollbar-width: none;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
 }
-.lpc-cat-nav::-webkit-scrollbar { display: none; }
 
-.lpc-cat-pill {
-  padding: 4px 10px;
+.lpc-filter-dropdown-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.lpc-btn-filter-toggle {
+  width: 100%;
+  padding: 6px 10px;
   background: #1e293b;
   border: 1px solid #334155;
-  border-radius: 20px;
+  color: #f1f5f9;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.lpc-btn-filter-toggle:hover {
+  background: #27354a;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.lpc-btn-filter-toggle.has-filter {
+  border-color: #0284c7;
+  background: rgba(2, 132, 199, 0.15);
+  color: #38bdf8;
+}
+
+.lpc-filter-badge {
+  background: #0b1120;
+  border: 1px solid #334155;
+  color: #38bdf8;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lpc-btn-filter-reset {
+  padding: 6px 10px;
+  background: #131c2e;
+  border: 1px solid #334155;
   color: #94a3b8;
+  border-radius: 6px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
 }
 
-.lpc-cat-pill:hover {
-  background: #334155;
-  color: #f8fafc;
+.lpc-btn-filter-reset:hover {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: #64748b;
 }
 
-.lpc-cat-pill.active {
-  background: #0284c7;
+/* Popover Menu Thả Xuống Cho Phép Tích Chọn Nhiều Phụ Kiện */
+.lpc-filter-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  min-width: 280px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7), 0 0 15px rgba(56, 189, 248, 0.12);
+  padding: 10px 12px;
+  z-index: 1000;
+  box-sizing: border-box;
+}
+
+.lpc-filter-dropdown.open {
+  display: block;
+  animation: lpcFadeInDown 0.15s ease-out;
+}
+
+@keyframes lpcFadeInDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lpc-filter-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.lpc-filter-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lpc-filter-header-links {
+  display: flex;
+  gap: 10px;
+}
+
+.lpc-filter-link {
+  background: transparent;
+  border: none;
+  color: #38bdf8;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lpc-filter-link:hover {
+  color: #7dd3fc;
+}
+
+/* Lưới Checkbox 2 Cột */
+.lpc-filter-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 10px;
+}
+
+.lpc-filter-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+  padding: 3px 0;
+}
+
+.lpc-filter-checkbox-item:hover {
   color: #ffffff;
-  border-color: #38bdf8;
-  font-weight: 600;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
 }
 
-/* Thanh tim kiem phu kien */
+.lpc-filter-checkbox-item input[type="checkbox"] {
+  accent-color: #0284c7;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+/* Thanh tim kiem phu kien - Bỏ icon, nhập trực tiếp cân đối */
 .lpc-search-box {
   position: relative;
   margin-bottom: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .lpc-search-input {
@@ -3305,7 +3438,7 @@ body.tree-resizing * {
   border-radius: 6px;
   color: #f8fafc;
   font-size: 11px;
-  padding: 6px 10px 6px 28px;
+  padding: 7px 12px;
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -3315,14 +3448,16 @@ body.tree-resizing * {
   box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
 }
 
-.lpc-search-icon {
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  transform: translateY(-50%);
+.lpc-hint-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid #1e293b;
+  border-radius: 6px;
   font-size: 11px;
   color: #64748b;
-  pointer-events: none;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 /* Quick Bar Buttons */

@@ -45,6 +45,25 @@ export interface LpcModalCallbacks {
   onBatchAiReskin?: (payload: LpcBatchAiPayload) => void;
 }
 
+// Danh sách các danh mục bộ lọc cho phép người dùng tích chọn nhiều phụ kiện
+export interface LpcFilterCategory {
+  id: string;
+  name: string;
+}
+
+export const LPC_FILTER_CATEGORIES: LpcFilterCategory[] = [
+  { id: 'body', name: 'Thân người' },
+  { id: 'torso', name: 'Áo / Giáp' },
+  { id: 'legs', name: 'Quần' },
+  { id: 'feet', name: 'Ủng' },
+  { id: 'cape', name: 'Áo Choàng' },
+  { id: 'hat', name: 'Mũ' },
+  { id: 'hair', name: 'Tóc' },
+  { id: 'weapon', name: 'Vũ Khí / Khiên' },
+  { id: 'belt', name: 'Thắt Lưng' },
+  { id: 'beast', name: 'Tai / Đuôi' }
+];
+
 // Danh mục các mẫu kiểu dáng phụ kiện chuẩn Universal LPC vẽ tay tinh xảo
 export interface LpcPresetStyle {
   id: string;
@@ -139,7 +158,7 @@ export class LpcStudioModal {
   private currentBg = 'checker'; // 'checker', 'dark', 'light', 'grass', 'dungeon'
   private isTurntableActive = false;
   private turntableTimer: any = null;
-  private activeCategoryFilter = 'all';
+  private selectedCategoryFilters: Set<string> = new Set(LPC_FILTER_CATEGORIES.map((c) => c.id));
   private searchQuery = '';
   private dynamicManifestStyles: Record<string, LpcPresetStyle[]> = {};
 
@@ -376,7 +395,7 @@ export class LpcStudioModal {
           </div>
           <div class="lpc-header-actions">
             <button class="lpc-btn-header" id="lpc-btn-random" title="Phối ngẫu nhiên toàn bộ trang phục và màu sắc">
-              🎲 Ngẫu Nhiên
+              Ngẫu Nhiên
             </button>
             <button class="lpc-btn-header" id="lpc-btn-reset" title="Khôi phục trạng thái ban đầu">
               ↺ Mặc Định
@@ -400,25 +419,41 @@ export class LpcStudioModal {
               </label>
             </div>
 
-            <!-- Tab lọc danh mục -->
-            <div class="lpc-cat-nav" id="lpc-cat-nav">
-              <button class="lpc-cat-pill active" data-cat="all">Tất Cả</button>
-              <button class="lpc-cat-pill" data-cat="body">Thân</button>
-              <button class="lpc-cat-pill" data-cat="torso">Áo/Giáp</button>
-              <button class="lpc-cat-pill" data-cat="legs">Quần</button>
-              <button class="lpc-cat-pill" data-cat="feet">Ủng</button>
-              <button class="lpc-cat-pill" data-cat="cape">Áo Choàng</button>
-              <button class="lpc-cat-pill" data-cat="hat">Mũ</button>
-              <button class="lpc-cat-pill" data-cat="hair">Tóc</button>
-              <button class="lpc-cat-pill" data-cat="weapon">Vũ Khí/Khiên</button>
-              <button class="lpc-cat-pill" data-cat="belt">Thắt Lưng</button>
-              <button class="lpc-cat-pill" data-cat="beast">Tai/Đuôi</button>
-            </div>
-
             <!-- Thanh tìm kiếm nhanh -->
             <div class="lpc-search-box">
-              <span class="lpc-search-icon">🔍</span>
               <input type="text" id="lpc-layer-search" class="lpc-search-input" placeholder="Tìm kiếm phụ kiện (tóc, giáp, mũ, kiếm...)" />
+            </div>
+
+            <!-- Nút Bộ Lọc dạng Popover cho phép tích chọn nhiều danh mục phụ kiện -->
+            <div class="lpc-filter-bar">
+              <div class="lpc-filter-dropdown-wrap">
+                <button type="button" class="lpc-btn-filter-toggle" id="lpc-btn-filter-toggle" title="Nhấp để lọc nhiều loại phụ kiện">
+                  <span>Bộ Lọc Phụ Kiện</span>
+                  <span class="lpc-filter-badge" id="lpc-filter-badge-text">Tất Cả</span>
+                </button>
+                <div class="lpc-filter-dropdown" id="lpc-filter-dropdown">
+                  <div class="lpc-filter-dropdown-header">
+                    <span class="lpc-filter-title">Lọc Danh Mục Phụ Kiện</span>
+                    <div class="lpc-filter-header-links">
+                      <button type="button" id="lpc-filter-btn-select-all" class="lpc-filter-link">Tất cả</button>
+                      <button type="button" id="lpc-filter-btn-clear-all" class="lpc-filter-link">Bỏ chọn</button>
+                    </div>
+                  </div>
+                  <div class="lpc-filter-options-grid" id="lpc-filter-options-grid">
+                    ${LPC_FILTER_CATEGORIES.map(
+                      (c) => `
+                      <label class="lpc-filter-checkbox-item">
+                        <input type="checkbox" value="${c.id}" checked />
+                        <span>${c.name}</span>
+                      </label>
+                    `
+                    ).join('')}
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="lpc-btn-filter-reset" id="lpc-btn-filter-reset" title="Khôi phục hiển thị toàn bộ phụ kiện">
+                Hiện Tất Cả
+              </button>
             </div>
 
             <!-- Danh sách Layer -->
@@ -766,7 +801,7 @@ export class LpcStudioModal {
     btnFullscreen?.addEventListener('click', () => {
       this.isFullscreen = !this.isFullscreen;
       dialog?.classList.toggle('fullscreen', this.isFullscreen);
-      btnFullscreen.textContent = this.isFullscreen ? '🗗 Thu Nhỏ' : '⛶ Toàn Màn Hình';
+      btnFullscreen.textContent = this.isFullscreen ? 'Thu Nhỏ' : 'Toàn Màn Hình';
     });
 
     // 1.2 Nút Phối Ngẫu Nhiên (Randomize)
@@ -781,15 +816,94 @@ export class LpcStudioModal {
       this.resetCharacter();
     });
 
-    // 1.4 Tab lọc danh mục phụ kiện
-    const catPills = modal.querySelectorAll('.lpc-cat-pill');
-    catPills.forEach((pill) => {
-      pill.addEventListener('click', () => {
-        catPills.forEach((p) => p.classList.remove('active'));
-        pill.classList.add('active');
-        this.activeCategoryFilter = pill.getAttribute('data-cat') || 'all';
+    // 1.4 Bộ lọc danh mục đa chọn dạng Popover (Multi-select Category Popover)
+    const btnFilterToggle = modal.querySelector('#lpc-btn-filter-toggle') as HTMLButtonElement;
+    const filterDropdown = modal.querySelector('#lpc-filter-dropdown') as HTMLElement;
+    const filterBadgeText = modal.querySelector('#lpc-filter-badge-text');
+    const filterCheckboxes = modal.querySelectorAll('#lpc-filter-options-grid input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+    const btnSelectAll = modal.querySelector('#lpc-filter-btn-select-all');
+    const btnClearAll = modal.querySelector('#lpc-filter-btn-clear-all');
+    const btnFilterReset = modal.querySelector('#lpc-btn-filter-reset');
+
+    // Hàm cập nhật nhãn hiển thị trạng thái bộ lọc
+    const updateFilterBadge = () => {
+      const selectedCount = this.selectedCategoryFilters.size;
+      const totalCount = LPC_FILTER_CATEGORIES.length;
+      if (filterBadgeText) {
+        if (selectedCount === totalCount) {
+          filterBadgeText.textContent = 'Tất Cả';
+        } else if (selectedCount === 0) {
+          filterBadgeText.textContent = 'Không có (0)';
+        } else {
+          filterBadgeText.textContent = `${selectedCount}/${totalCount}`;
+        }
+      }
+      if (btnFilterToggle) {
+        btnFilterToggle.classList.toggle('has-filter', selectedCount < totalCount);
+      }
+    };
+
+    // Bật/tắt menu popover thả xuống
+    btnFilterToggle?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      filterDropdown?.classList.toggle('open');
+    });
+
+    // Ngăn chặn sự kiện click bên trong dropdown bị lan ra ngoài làm đóng menu
+    filterDropdown?.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    // Đóng dropdown khi nhấp chuột ra ngoài
+    document.addEventListener('click', () => {
+      if (filterDropdown && filterDropdown.classList.contains('open')) {
+        filterDropdown.classList.remove('open');
+      }
+    });
+
+    // Bắt sự kiện khi người dùng tích/bỏ tích các checkbox danh mục
+    filterCheckboxes.forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const catId = cb.value;
+        if (cb.checked) {
+          this.selectedCategoryFilters.add(catId);
+        } else {
+          this.selectedCategoryFilters.delete(catId);
+        }
+        updateFilterBadge();
         this.renderLayerList();
       });
+    });
+
+    // Nút Chọn tất cả danh mục
+    btnSelectAll?.addEventListener('click', () => {
+      filterCheckboxes.forEach((cb) => {
+        cb.checked = true;
+      });
+      LPC_FILTER_CATEGORIES.forEach((c) => this.selectedCategoryFilters.add(c.id));
+      updateFilterBadge();
+      this.renderLayerList();
+    });
+
+    // Nút Bỏ chọn toàn bộ
+    btnClearAll?.addEventListener('click', () => {
+      filterCheckboxes.forEach((cb) => {
+        cb.checked = false;
+      });
+      this.selectedCategoryFilters.clear();
+      updateFilterBadge();
+      this.renderLayerList();
+    });
+
+    // Nút Hiện Tất Cả đặt ngoài thanh công cụ
+    btnFilterReset?.addEventListener('click', () => {
+      filterCheckboxes.forEach((cb) => {
+        cb.checked = true;
+      });
+      LPC_FILTER_CATEGORIES.forEach((c) => this.selectedCategoryFilters.add(c.id));
+      updateFilterBadge();
+      this.renderLayerList();
+      filterDropdown?.classList.remove('open');
     });
 
     // 1.5 Tìm kiếm phụ kiện
@@ -1699,16 +1813,15 @@ export class LpcStudioModal {
     listContainer.innerHTML = '';
     const allLayers = this.compositor.getLayers();
 
-    // 1. Áp dụng bộ lọc danh mục (Category filter)
+    // 1. Áp dụng bộ lọc danh mục đa chọn (Multi-select Category filter)
     let filteredLayers = allLayers;
-    if (this.activeCategoryFilter !== 'all') {
-      if (this.activeCategoryFilter === 'beast') {
-        filteredLayers = filteredLayers.filter(l => l.category === 'tails' || l.category === 'ears');
-      } else if (this.activeCategoryFilter === 'weapon') {
-        filteredLayers = filteredLayers.filter(l => l.category === 'weapons' || l.category === 'shield' || l.category === 'quiver');
-      } else {
-        filteredLayers = filteredLayers.filter(l => l.category === this.activeCategoryFilter);
-      }
+    if (this.selectedCategoryFilters.size < LPC_FILTER_CATEGORIES.length) {
+      filteredLayers = filteredLayers.filter((l) => {
+        let catKey: string = l.category;
+        if (catKey === 'tails' || catKey === 'ears') catKey = 'beast';
+        if (catKey === 'weapons' || catKey === 'shield' || catKey === 'quiver') catKey = 'weapon';
+        return this.selectedCategoryFilters.has(catKey);
+      });
     }
 
     // 2. Áp dụng tìm kiếm phụ kiện
