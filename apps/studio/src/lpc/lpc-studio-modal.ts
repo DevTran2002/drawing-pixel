@@ -59,7 +59,9 @@ export const LPC_FILTER_CATEGORIES: LpcFilterCategory[] = [
   { id: 'cape', name: 'Áo Choàng' },
   { id: 'hat', name: 'Mũ' },
   { id: 'hair', name: 'Tóc' },
-  { id: 'weapon', name: 'Vũ Khí / Khiên' },
+  { id: 'tools', name: 'Công Cụ (Tools)' },
+  { id: 'weapon', name: 'Vũ Khí (Weapons)' },
+  { id: 'shield', name: 'Khiên Chắn (Shields)' },
   { id: 'belt', name: 'Thắt Lưng' },
   { id: 'beast', name: 'Tai / Đuôi' }
 ];
@@ -335,6 +337,16 @@ export class LpcStudioModal {
         imageUrl: '/lpc_assets/shield_wooden.png',
         paletteId: 'shield_wood_iron',
         enabled: false // Mặc định tắt
+      });
+
+      // 13. Công cụ lao động (Z: 59)
+      await this.compositor.addOrUpdateLayer({
+        id: 'layer_tools',
+        name: 'Công Cụ Lao Động (Tools)',
+        category: 'tools',
+        zIndex: 59,
+        imageUrl: '/lpc_assets/tool_axe.png',
+        enabled: false // Mặc định tắt, người dùng có thể bật khi muốn nhân vật cầm rìu, cuốc, cần câu
       });
 
 
@@ -1813,7 +1825,24 @@ export class LpcStudioModal {
   // Lấy danh sách kiểu dáng phụ kiện kết hợp cả preset tĩnh và tệp dynamic manifest
   private getAvailableStylesForCategory(category: string): LpcPresetStyle[] {
     const staticStyles = LPC_PRESET_STYLES[category] || [];
-    const dynamicStyles = this.dynamicManifestStyles[category] || [];
+    let dynamicStyles: LpcPresetStyle[] = [];
+
+    if (category === 'weapons' || category === 'weapon') {
+      // Gom tất cả các phân loại vũ khí
+      const weaponSubCats = ['weapons', 'weapons_sword', 'weapons_blunt', 'weapons_polearm', 'weapons_ranged', 'weapons_magic'];
+      weaponSubCats.forEach((sc) => {
+        if (this.dynamicManifestStyles[sc]) {
+          dynamicStyles.push(...this.dynamicManifestStyles[sc]);
+        }
+      });
+    } else if (category === 'tools') {
+      dynamicStyles = this.dynamicManifestStyles['tools'] || [];
+    } else if (category === 'shield') {
+      dynamicStyles = this.dynamicManifestStyles['shield'] || [];
+    } else {
+      dynamicStyles = this.dynamicManifestStyles[category] || [];
+    }
+
     if (dynamicStyles.length === 0) return staticStyles;
 
     // Kết hợp và loại bỏ trùng lặp imageUrl
@@ -1843,7 +1872,9 @@ export class LpcStudioModal {
       filteredLayers = filteredLayers.filter((l) => {
         let catKey: string = l.category;
         if (catKey === 'tails' || catKey === 'ears') catKey = 'beast';
-        if (catKey === 'weapons' || catKey === 'shield' || catKey === 'quiver') catKey = 'weapon';
+        if (catKey === 'weapons' || catKey === 'weapon' || catKey.startsWith('weapons_') || catKey === 'quiver') catKey = 'weapon';
+        if (catKey === 'tools') catKey = 'tools';
+        if (catKey === 'shield') catKey = 'shield';
         return this.selectedCategoryFilters.has(catKey);
       });
     }
@@ -1947,8 +1978,17 @@ export class LpcStudioModal {
       // Switch toggle bật/tắt layer
       const checkbox = itemRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
       checkbox?.addEventListener('change', () => {
-        this.compositor.setLayerEnabled(layer.id, checkbox.checked);
-        itemRow.classList.toggle('active', checkbox.checked);
+        const isChecked = checkbox.checked;
+        this.compositor.setLayerEnabled(layer.id, isChecked);
+
+        // Chuyển đổi thông minh: Nếu bật Công Cụ, tự động tắt Vũ Khí (và ngược lại) để tránh cầm 2 món đè lên nhau
+        if (isChecked && layer.category === 'tools') {
+          this.compositor.setLayerEnabled('layer_weapon', false);
+        } else if (isChecked && (layer.category === 'weapons' || (layer.category as string).startsWith('weapons_'))) {
+          this.compositor.setLayerEnabled('layer_tools', false);
+        }
+
+        this.renderLayerList();
         this.drawPreview();
         this.updateActiveLayersBadge();
         this.updateAiPromptSuggestion();

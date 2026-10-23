@@ -29,7 +29,13 @@ export type LpcLayerCategory =
   | 'hair'
   | 'tails'
   | 'ears'
+  | 'tools'
   | 'weapons'
+  | 'weapons_sword'
+  | 'weapons_blunt'
+  | 'weapons_polearm'
+  | 'weapons_ranged'
+  | 'weapons_magic'
   | 'cape'
   | 'belt'
   | 'shield'
@@ -51,6 +57,8 @@ export interface LpcAssetItem {
   customRamp?: string[]; // Dải màu bóng khối sinh tự động từ màu tự do
   cachedRecolorCanvas?: HTMLCanvasElement | null; // Bộ nhớ đệm canvas toàn sheet đã đổi màu
   activeRows?: Set<number>; // Tập hợp các chỉ số hàng có chứa pixel thực tế trên sheet
+  supportedAnimations?: string[]; // Danh sách các hành động mà phụ kiện này hỗ trợ (tránh vẽ lỗi)
+  hasTransparencyMask?: boolean; // Layer có chứa mặt nạ màu tím Magenta #FF2CE6
   enabled: boolean;
 }
 
@@ -507,8 +515,17 @@ export class LpcCompositor {
     const row = this.getCurrentRowIndex();
 
     // 2. Ve cac layer da kich hoat theo thu tu Z-Order
+    let needsMaskCheck = false;
     for (const layer of this.layers) {
       if (!layer.enabled) continue;
+
+      // Kiem tra tinh tuong thich hanh dong (Neu phu kien khong ho tro dong tac hien tai thi an)
+      if (layer.supportedAnimations && layer.supportedAnimations.length > 0) {
+        if (!layer.supportedAnimations.includes(this.currentActionId)) {
+          continue;
+        }
+      }
+
       const src = this.getLayerRenderSource(layer);
       if (!src) continue;
 
@@ -527,7 +544,9 @@ export class LpcCompositor {
       );
     }
 
-    // 3. Phong to len Canvas xem truoc voi che do pixelated
+    // 3. Phong to len Canvas xem truoc voi che do pixelated siêu mượt 60 FPS (Không gọi getImageData trong loop)
+
+    // 4. Phong to len Canvas xem truoc voi che do pixelated
     targetCtx.imageSmoothingEnabled = false;
     if (clearTarget) {
       targetCtx.clearRect(0, 0, destWidth, destHeight);
@@ -628,3 +647,42 @@ export class LpcCompositor {
     });
   }
 }
+
+/**
+ * Quét toàn bộ canvas khung hình và tẩy trong suốt các pixel có màu tím Magenta (#FF2CE6)
+ * Chuẩn màu mặt nạ của Universal LPC: RGB(255, 44, 230)
+ * Dùng để tự động cắt bỏ phần tóc thừa hoặc cơ thể bị mũ/giáp che khuất
+ */
+export function applyLpcTransparencyMask(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): void {
+  try {
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const pix = imgData.data;
+    const len = pix.length;
+    let modified = false;
+
+    for (let i = 0; i < len; i += 4) {
+      const a = pix[i + 3];
+      if (a > 0) {
+        const r = pix[i];
+        const g = pix[i + 1];
+        const b = pix[i + 2];
+        // So màu Magenta #FF2CE6 với dung sai 2 đơn vị RGB
+        if (Math.abs(r - 255) <= 2 && Math.abs(g - 44) <= 2 && Math.abs(b - 230) <= 2) {
+          pix[i + 3] = 0;
+          modified = true;
+        }
+      }
+    }
+
+    if (modified) {
+      ctx.putImageData(imgData, 0, 0);
+    }
+  } catch {
+    // Bỏ qua lỗi nếu canvas bị giới hạn bảo mật cross-origin
+  }
+}
+

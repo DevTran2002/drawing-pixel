@@ -460,9 +460,29 @@
   ],
   "shield": [
     {
-      "id": "shield_wooden",
-      "name": "Khiên Gỗ Viền Thép (Wooden Shield)",
-      "imageUrl": "/lpc_assets/shield_wooden.png"
+      "id": "shield_heater",
+      "name": "Khiên Tam Giác Hiệp Sĩ (Heater Shield)",
+      "imageUrl": "/lpc_assets/shield_heater.png"
+    },
+    {
+      "id": "shield_kite",
+      "name": "Khiên Giọt Nước (Kite Shield)",
+      "imageUrl": "/lpc_assets/shield_kite.png"
+    },
+    {
+      "id": "shield_round",
+      "name": "Khiên Tròn Viking (Round Shield)",
+      "imageUrl": "/lpc_assets/shield_round.png"
+    },
+    {
+      "id": "shield_scutum",
+      "name": "Khiên Chữ Nhật La Mã (Roman Scutum)",
+      "imageUrl": "/lpc_assets/shield_scutum.png"
+    },
+    {
+      "id": "shield_spartan",
+      "name": "Khiên Đồng Sparta (Spartan Shield)",
+      "imageUrl": "/lpc_assets/shield_spartan.png"
     }
   ],
   "belt": [
@@ -489,6 +509,163 @@
       "id": "quiver_arrows",
       "name": "Ống Tên Cung Thủ Sau Lưng (Back Quiver)",
       "imageUrl": "/lpc_assets/quiver_arrows.png"
+    }
+  ],
+  "tools": [
+    {
+      "id": "tool_axe",
+      "name": "Rìu Chặt Củi (Wood Axe)",
+      "imageUrl": "/lpc_assets/tool_axe.png"
+    },
+    {
+      "id": "tool_pickaxe",
+      "name": "Cuốc Chim Khai Khoáng (Pickaxe)",
+      "imageUrl": "/lpc_assets/tool_pickaxe.png"
+    },
+    {
+      "id": "tool_hammer",
+      "name": "Búa Thợ Rèn (Forge Hammer)",
+      "imageUrl": "/lpc_assets/tool_hammer.png"
+    },
+    {
+      "id": "tool_shovel",
+      "name": "Xẻng Đào Đất (Iron Shovel)",
+      "imageUrl": "/lpc_assets/tool_shovel.png"
+    },
+    {
+      "id": "tool_hoe",
+      "name": "Cuốc Làm Nông (Garden Hoe)",
+      "imageUrl": "/lpc_assets/tool_hoe.png"
+    },
+    {
+      "id": "tool_watering_can",
+      "name": "Bình Tưới Cây (Watering Can)",
+      "imageUrl": "/lpc_assets/tool_watering_can.png"
+    }
+  ],
+  "weapons_sword": [
+    {
+      "id": "weapon_sword_arming",
+      "name": "Kiếm Hiệp Sĩ (Arming Sword)",
+      "imageUrl": "/lpc_assets/weapon_sword_arming.png"
+    },
+    {
+      "id": "weapon_sword_katana",
+      "name": "Kiếm Nhật Katana",
+      "imageUrl": "/lpc_assets/weapon_sword_katana.png"
+    },
+    {
+      "id": "weapon_sword_dagger",
+      "name": "Đoản Đao Thích Khách (Dagger)",
+      "imageUrl": "/lpc_assets/weapon_sword_dagger.png"
+    },
+    {
+      "id": "weapon_sword_longsword",
+      "name": "Trường Kiếm (Longsword)",
+      "imageUrl": "/lpc_assets/weapon_sword_longsword.png"
+    },
+    {
+      "id": "weapon_sword_rapier",
+      "name": "Kiếm Liễu Quý Tộc (Rapier)",
+      "imageUrl": "/lpc_assets/weapon_sword_rapier.png"
+    },
+    {
+      "id": "weapon_sword_saber",
+      "name": "Kiếm Kỵ Binh (Saber)",
+      "imageUrl": "/lpc_assets/weapon_sword_saber.png"
+    },
+    {
+      "id": "weapon_sword_scimitar",
+      "name": "Đao Cong Sa Mạc (Scimitar)",
+      "imageUrl": "/lpc_assets/weapon_sword_scimitar.png"
+    }
+  ],
+  "weapons_blunt": [
+    {
+      "id": "weapon_blunt_mace",
+      "name": "Chùy Gai Thiết Giáp (Mace)",
+      "imageUrl": "/lpc_assets/weapon_blunt_mace.png"
+    },
+    {
+      "id": "weapon_blunt_waraxe",
+      "name": "Rìu Chiến Song Lưỡi (Battle Axe)",
+      "imageUrl": "/lpc_assets/weapon_blunt_waraxe.png"
+    },
+    {
+      "id": "weapon_blunt_flail",
+      "name": "Chùy Xích Hiệp Sĩ (Flail)",
+      "imageUrl": "/lpc_assets/weapon_blunt_flail.png"
+    },
+    {
+      "id": "weapon_blunt_club",
+      "name": "Gậy Gai Chiến Binh (Spiked Club)",
+      "imageUrl": "/lpc_assets/weapon_blunt_club.png"
+    }
+  ],
+  "weapons_polearm": [
+    {
+      "id": "weapon_polearm_spear",
+      "name": "Ngọn Giáo Chiến Binh (Spear)",
+      "imageUrl": "/lpc_assets/weapon_polearm_spear.png"
+    },
+    {
+      "id": "weapon_polearm_halberd",
+      "name": "Đại Kích Chiến Trận (Halberd)",
+      "imageUrl": "/lpc_assets/weapon_polearm_halberd.png"
+    },
+    {
+      "id": "weapon_polearm_trident",
+      "name": "Đinh Ba Thần Biển (Trident)",
+      "imageUrl": "/lpc_assets/weapon_polearm_trident.png"
+    },
+    {
+      "id": "weapon_polearm_scythe",
+      "name": "Lưỡi Hái Tử Thần (Death Scythe)",
+      "imageUrl": "/lpc_assets/weapon_polearm_scythe.png"
+    }
+  ],
+  "weapons_ranged": [
+    {
+      "id": "weapon_ranged_bow",
+      "name": "Cung Gỗ Xạ Thủ (Recurve Bow)",
+      "imageUrl": "/lpc_assets/weapon_ranged_bow.png"
+    },
+    {
+      "id": "weapon_ranged_crossbow",
+      "name": "Nỏ Săn Cơ Khí (Crossbow)",
+      "imageUrl": "/lpc_assets/weapon_ranged_crossbow.png"
+    },
+    {
+      "id": "weapon_ranged_slingshot",
+      "name": "Súng Cao Su (Slingshot)",
+      "imageUrl": "/lpc_assets/weapon_ranged_slingshot.png"
+    },
+    {
+      "id": "weapon_ranged_boomerang",
+      "name": "Vũ Khí Boomerang",
+      "imageUrl": "/lpc_assets/weapon_ranged_boomerang.png"
+    }
+  ],
+  "weapons_magic": [
+    {
+      "id": "weapon_magic_wand",
+      "name": "Đũa Phép Thuật (Magic Wand)",
+      "imageUrl": "/lpc_assets/weapon_magic_wand.png"
+    },
+    {
+      "id": "weapon_magic_crystal",
+      "name": "Gậy Phép Pha Lê (Crystal Staff)",
+      "imageUrl": "/lpc_assets/weapon_magic_crystal.png"
+    },
+    {
+      "id": "weapon_magic_diamond",
+      "name": "Gậy Kim Cương Cổ Đại (Diamond Staff)",
+      "imageUrl": "/lpc_assets/weapon_magic_diamond.png"
+    },
+    {
+      "id": "weapon_magic_gnarled",
+      "name": "Trượng Gỗ Thần Bí (Gnarled Staff)",
+      "imageUrl": "/lpc_assets/weapon_magic_gnarled.png"
     }
   ]
 }

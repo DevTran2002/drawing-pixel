@@ -27,8 +27,8 @@ export const DEFAULT_SOURCE_RAMPS = {
   tails: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00'],
   // Dải màu tai thú chuẩn LPC gốc
   ears: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00'],
-  // Dải màu da sáng cơ bản
-  body: ['#8f563b', '#c28569', '#e0a98b', '#f2cbb3', '#ffe4d4'],
+  // Dải màu da sáng cơ bản (Chuẩn 6 bậc Universal LPC)
+  body: ['#271920', '#99423c', '#cc8665', '#e4a47c', '#f9d5ba', '#faece7'],
   // Dải màu áo choàng
   cape: ['#2b1118', '#5c1726', '#8f2337', '#bd354e', '#e65e77'],
   // Dải màu vũ khí kiếm
@@ -47,40 +47,64 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
 
   hair: [
     {
-      id: 'hair_brown',
-      name: 'Nâu Tự Nhiên',
+      id: 'hair_orange',
+      name: 'Cam Tự Nhiên (Gốc)',
       category: 'hair',
-      colors: ['#2b180d', '#4d2a14', '#78431e', '#a56230', '#cf874e']
+      colors: ['#260d14', '#6a1108', '#a42600', '#bf4000', '#e55600', '#ff8a00']
     },
     {
       id: 'hair_blonde',
-      name: 'Vàng Hoe',
+      name: 'Vàng Hoe (Blonde)',
       category: 'hair',
-      colors: ['#423211', '#73571d', '#aa832d', '#d8b24e', '#f8df85']
+      colors: ['#331313', '#552b15', '#ac5d1f', '#e09e2b', '#fccf56', '#ffe67d']
     },
     {
-      id: 'hair_red',
-      name: 'Đỏ Hung',
+      id: 'hair_brown',
+      name: 'Nâu Hạt Dẻ (Brown)',
       category: 'hair',
-      colors: ['#3b110a', '#691d12', '#9f2e1e', '#cf4c38', '#f27c69']
+      colors: ['#1c0e06', '#633e2c', '#99622d', '#bf9d5a', '#eddc7e', '#f6f6c2']
     },
     {
       id: 'hair_raven',
-      name: 'Đen Tuyền',
+      name: 'Đen Tuyền (Raven)',
       category: 'hair',
-      colors: ['#14171a', '#24292e', '#39414a', '#545f6b', '#7a8896']
+      colors: ['#0e0e0e', '#292929', '#4b4b4b', '#777777', '#aaaaaa', '#d9d9d9']
     },
     {
       id: 'hair_silver',
-      name: 'Bạch Kim',
+      name: 'Bạch Kim / Trắng (Silver)',
       category: 'hair',
-      colors: ['#2a2c30', '#474b52', '#727883', '#a3abb8', '#d5dbe4']
+      colors: ['#1d1d21', '#484e57', '#8b9498', '#b8bbbc', '#d8dcdc', '#ffffff']
+    },
+    {
+      id: 'hair_red',
+      name: 'Đỏ Rực (Crimson Red)',
+      category: 'hair',
+      colors: ['#300000', '#5c0000', '#870000', '#b80000', '#e62400', '#ff5a36']
     },
     {
       id: 'hair_blue',
-      name: 'Xanh Lam Anime',
+      name: 'Xanh Lam (Anime Blue)',
       category: 'hair',
-      colors: ['#0f2537', '#173f60', '#215f91', '#3286cb', '#69b4f2']
+      colors: ['#0e1626', '#142742', '#1a3c69', '#245ca3', '#3984d6', '#6eb1ff']
+    },
+    {
+      id: 'hair_purple',
+      name: 'Tím Huyền Bí (Mystic Purple)',
+      category: 'hair',
+      colors: ['#1f0a24', '#3b1247', '#5f1e73', '#8b2ba8', '#ba45de', '#e07dff']
+    },
+    {
+      id: 'hair_green',
+      name: 'Xanh Lục Bảo (Emerald)',
+      category: 'hair',
+      colors: ['#071f0d', '#0f3d1b', '#18612b', '#259442', '#3ac75f', '#77e894']
+    },
+    {
+      id: 'hair_pink',
+      name: 'Hồng Anh Đào (Sakura Pink)',
+      category: 'hair',
+      colors: ['#2b0d18', '#54122c', '#851a44', '#bd2861', '#e84883', '#ff85b3']
     }
   ],
   torso: [
@@ -306,30 +330,41 @@ export const LPC_PALETTES: Record<LpcPaletteCategory, PaletteRamp[]> = {
     }
   ],
   body: [
-
     {
       id: 'body_fair',
-      name: 'Da Sáng Tự Nhiên',
+      name: 'Da Sáng Tự Nhiên (Light)',
       category: 'body',
-      colors: ['#8f563b', '#c28569', '#e0a98b', '#f2cbb3', '#ffe4d4']
+      colors: ['#271920', '#99423c', '#cc8665', '#e4a47c', '#f9d5ba', '#faece7']
     },
     {
-      id: 'body_tan',
-      name: 'Da Bánh Mật',
+      id: 'body_amber',
+      name: 'Da Hổ Phách Rạng Rỡ (Amber)',
       category: 'body',
-      colors: ['#6b3b24', '#965636', '#b87049', '#d18b62', '#e8ab85']
+      colors: ['#281716', '#9e3e37', '#d28144', '#ea9f54', '#fdd082', '#fbe7a4']
+    },
+    {
+      id: 'body_bronze',
+      name: 'Da Bánh Mật Khỏe Khoắn (Bronze)',
+      category: 'body',
+      colors: ['#1a1213', '#442725', '#644133', '#7f4c31', '#ae6b3f', '#d38b59']
     },
     {
       id: 'body_dark',
-      name: 'Da Ngăm Đen',
+      name: 'Da Ngăm Đen Huyền (Dark)',
       category: 'body',
-      colors: ['#3b2216', '#593422', '#78472f', '#965c3e', '#b87552']
+      colors: ['#000000', '#1a1213', '#2e1f1c', '#442725', '#603429', '#7f4c31']
     },
     {
       id: 'body_pale',
-      name: 'Bạch Tuyết (Pale)',
+      name: 'Bạch Tuyết Thần Bí (Pale Ghost)',
       category: 'body',
-      colors: ['#6e5659', '#9e7f84', '#c9a9af', '#edd1d6', '#fff0f3']
+      colors: ['#16171b', '#46425d', '#586b90', '#748da4', '#a9c9ca', '#c8e8e8']
+    },
+    {
+      id: 'body_orc',
+      name: 'Da Dạ Xoa Xanh (Orc Green)',
+      category: 'body',
+      colors: ['#011708', '#02280e', '#06410e', '#255e1d', '#508a48', '#509e59']
     }
   ],
   cape: [
