@@ -105,10 +105,27 @@ let symmetryX = false;
 let symmetryY = false;
 let onionSkinEnabled = false;
 
-// Trạng thái giữ phím Space và lia chuột (Pan/Hand tool)
+// Trạng thái giữ phím Space, Alt và lia chuột (Pan/Hand tool, Eyedropper)
 let isSpacePressed = false;
+let isAltPressed = false;
 let isPanning = false;
 let lastPanPoint = { x: 0, y: 0 };
+let isRightClickActive = false;
+
+// Biểu tượng con trỏ Eyedropper sắc nét với viền tương phản cao
+const EYEDROPPER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2l4 4L6 18l-4 4 1-5L14 2z' fill='%230f172a'/%3E%3Cpath d='M15 7l2 2' stroke='%2338bdf8'/%3E%3C/svg%3E") 2 22, crosshair`;
+
+function updateCanvasCursor(): void {
+  if (isPanning) {
+    mainCanvas.style.cursor = 'grabbing';
+  } else if (isSpacePressed) {
+    mainCanvas.style.cursor = 'grab';
+  } else if (isAltPressed || activeTool === 'eyedropper') {
+    mainCanvas.style.cursor = EYEDROPPER_CURSOR;
+  } else {
+    mainCanvas.style.cursor = 'crosshair';
+  }
+}
 
 let isPointerDown = false;
 let pointerStartPoint: Point2D | null = null;
@@ -204,6 +221,32 @@ function applyBrushAt(
 // Bien theo doi vi tri di chuyen diem anh (Move tool)
 let lastMovePoint: Point2D | null = null;
 
+// Hàm hút màu thông minh: ưu tiên layer đang chọn, nếu rỗng thì duyệt các layer hiển thị bên dưới
+function pickColorAt(px: number, py: number): PixelColor | null {
+  const currentFrame = canvasEngine.getCurrentFrame();
+  if (!currentFrame) return null;
+
+  // 1. Kiểm tra layer đang hoạt động
+  const activeBuf = canvasEngine.getActiveLayerBuffer();
+  if (activeBuf) {
+    const col = activeBuf.getPixel(px, py);
+    if (col) return col;
+  }
+
+  // 2. Nếu layer đang hoạt động không có điểm ảnh tại (px, py), duyệt các layer từ trên xuống dưới
+  for (let i = currentFrame.layers.length - 1; i >= 0; i--) {
+    const layer = currentFrame.layers[i];
+    if (!layer.visible) continue;
+    const buf = canvasEngine.getLayerBuffer(layer.id);
+    if (buf) {
+      const col = buf.getPixel(px, py);
+      if (col) return col;
+    }
+  }
+
+  return null;
+}
+
 // Su kien chuot tren Canvas
 mainCanvas.addEventListener('pointerdown', (e) => {
   // 1. Xu ly Pan/Hand Tool khi giu Space hoac nhan chuot giua (Middle click)
@@ -217,11 +260,29 @@ mainCanvas.addEventListener('pointerdown', (e) => {
   const pt = canvasEngine.screenToPixel(e.clientX, e.clientY);
   if (!pt) return;
 
+  const isRightClick = e.button === 2;
+  isRightClickActive = isRightClick;
+
+  // 2. Chế độ hút màu nhanh khi giữ phím Alt hoặc chọn công cụ Hút màu (Eyedropper)
+  // Chuột trái: lấy màu chính (primaryColor) | Chuột phải: lấy màu phụ (secondaryColor)
+  if (isAltPressed || e.altKey || activeTool === 'eyedropper') {
+    const picked = pickColorAt(pt.x, pt.y);
+    if (picked) {
+      if (isRightClick) {
+        secondaryColor = picked;
+      } else {
+        primaryColor = picked;
+      }
+      updateColorInputs();
+    }
+    isPointerDown = true;
+    pointerStartPoint = pt;
+    return;
+  }
+
   isPointerDown = true;
   pointerStartPoint = pt;
   currentStrokeChanges = [];
-
-  const isRightClick = e.button === 2;
 
   // Cong cu Cay dua than (Magic Wand)
   if (activeTool === 'magicwand') {
@@ -283,19 +344,6 @@ mainCanvas.addEventListener('pointerdown', (e) => {
     return;
   }
 
-  if (activeTool === 'eyedropper') {
-    const buffer = canvasEngine.getActiveLayerBuffer();
-    if (buffer) {
-      const picked = buffer.getPixel(pt.x, pt.y);
-      if (picked) {
-        primaryColor = picked;
-        updateColorInputs();
-      }
-    }
-    isPointerDown = false;
-    return;
-  }
-
   if (activeTool === 'bucket') {
     const buffer = canvasEngine.getActiveLayerBuffer();
     const currentLayer = canvasEngine.getCurrentFrame()?.layers.find(l => l.id === project.activeLayerId);
@@ -323,6 +371,12 @@ mainCanvas.addEventListener('pointerdown', (e) => {
 });
 
 mainCanvas.addEventListener('pointermove', (e) => {
+  // Đồng bộ trạng thái Alt nếu có thay đổi ngoài sự kiện bàn phím
+  if (e.altKey !== isAltPressed) {
+    isAltPressed = e.altKey;
+    updateCanvasCursor();
+  }
+
   // 1. Neu dang o che do Pan viewport bang phim Space
   if (isPanning) {
     const dx = e.clientX - lastPanPoint.x;
@@ -339,6 +393,22 @@ mainCanvas.addEventListener('pointermove', (e) => {
   const coordLabel = document.getElementById('cursor-coord');
   if (coordLabel) {
     coordLabel.innerText = pt ? `X: ${pt.x}, Y: ${pt.y}` : 'X: --, Y: --';
+  }
+
+  // 2. Kéo rê chuột khi giữ Alt hoặc công cụ Eyedropper để hút màu liên tục
+  if (isPointerDown && (isAltPressed || e.altKey || activeTool === 'eyedropper')) {
+    if (pt) {
+      const picked = pickColorAt(pt.x, pt.y);
+      if (picked) {
+        if (isRightClickActive) {
+          secondaryColor = picked;
+        } else {
+          primaryColor = picked;
+        }
+        updateColorInputs();
+      }
+    }
+    return;
   }
 
   if (!isPointerDown || !pt) return;
@@ -408,11 +478,12 @@ mainCanvas.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerup', (e) => {
   if (isPanning) {
     isPanning = false;
-    mainCanvas.style.cursor = isSpacePressed ? 'grab' : 'crosshair';
+    updateCanvasCursor();
   }
 
   if (!isPointerDown) return;
   isPointerDown = false;
+  isRightClickActive = false;
 
   if (activeTool === 'select') {
     canvasEngine.setSelection(selectionManager.getSelection());
@@ -479,6 +550,8 @@ window.addEventListener('pointerup', (e) => {
 
   pointerStartPoint = null;
   renderAll();
+  // Đồng bộ nét vẽ lên server sau khi kết thúc nét cọ
+  syncProjectToServer();
 });
 
 // Ham nhan vung chon sang Layer moi (Tuong tu Ctrl+J trong Photoshop)
@@ -642,11 +715,28 @@ window.addEventListener('keydown', (e) => {
   const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName);
   if (isInput) return;
 
+  // Giữ phím Alt để bật chế độ Hút màu nhanh (Quick Eyedropper)
+  if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
+    e.preventDefault();
+    if (!isAltPressed) {
+      isAltPressed = true;
+      updateCanvasCursor();
+    }
+    return;
+  }
+
+  // Phím tắt X: Hoán đổi màu chính và màu phụ (Swap Colors như Photoshop/Aseprite)
+  if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    swapColors();
+    return;
+  }
+
   // 1. Giu Space: Hand/Pan tool
   if (e.code === 'Space') {
     if (!isSpacePressed) {
       isSpacePressed = true;
-      mainCanvas.style.cursor = 'grab';
+      updateCanvasCursor();
     }
     e.preventDefault();
     return;
@@ -805,16 +895,27 @@ window.addEventListener('keydown', (e) => {
       b.classList.toggle('active', b.dataset.tool === activeTool);
     });
     updateContextHintBar(activeTool);
+    updateCanvasCursor();
   }
 });
 
 window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') {
     isSpacePressed = false;
-    if (!isPanning) {
-      mainCanvas.style.cursor = 'crosshair';
-    }
+    updateCanvasCursor();
   }
+  if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
+    isAltPressed = false;
+    updateCanvasCursor();
+  }
+});
+
+// Khi mất tiêu điểm cửa sổ (Alt-Tab hoặc chuyển tab), tự động hủy trạng thái giữ phím
+window.addEventListener('blur', () => {
+  isSpacePressed = false;
+  isAltPressed = false;
+  isPanning = false;
+  updateCanvasCursor();
 });
 
 // Chặn menu chuột phải mặc định trên canvas
@@ -853,19 +954,19 @@ if (zoomBadge) {
 const TOOL_HINTS: Record<ToolType, { name: string; desc: string }> = {
   pencil: {
     name: 'Bút chì (P)',
-    desc: 'Chuột trái: Vẽ màu chính | Chuột phải: Màu phụ | Giữ Space: Kéo Canvas'
+    desc: 'Chuột trái: Vẽ màu chính | Chuột phải: Màu phụ | Giữ Alt: Hút màu | Giữ Space: Kéo Canvas'
   },
   eraser: {
     name: 'Tẩy xóa (E)',
-    desc: 'Chuột trái/phải: Xóa điểm ảnh về nền trong suốt | Giữ Space: Kéo Canvas'
+    desc: 'Chuột trái/phải: Xóa điểm ảnh về nền trong suốt | Giữ Alt: Hút màu | Giữ Space: Kéo Canvas'
   },
   bucket: {
     name: 'Thùng sơn (G)',
-    desc: 'Chuột trái: Tô màu chính | Chuột phải: Tô màu phụ kín mảng đồng màu'
+    desc: 'Chuột trái: Tô màu chính | Chuột phải: Tô màu phụ kín mảng đồng màu | Giữ Alt: Hút màu'
   },
   eyedropper: {
-    name: 'Hút màu (I)',
-    desc: 'Nhấp chuột lên Canvas để lấy mã màu làm màu chính'
+    name: 'Hút màu (Giữ Alt / Phím I)',
+    desc: 'Chuột trái: Hút màu chính | Chuột phải: Hút màu phụ (Khuyên dùng: Giữ Alt và nhấp chuột)'
   },
   select: {
     name: 'Chọn vùng (S)',
@@ -958,6 +1059,7 @@ if (toolbar) {
 
     activeTool = btn.dataset.tool as ToolType;
     updateContextHintBar(activeTool);
+    updateCanvasCursor();
   });
   setupInstantTooltips();
   updateContextHintBar(activeTool);
@@ -979,6 +1081,25 @@ function updateColorInputs(): void {
   if (hexLabel) {
     hexLabel.innerText = primaryColor || '#000000';
   }
+  const priHex = document.getElementById('primary-hex-label');
+  const secHex = document.getElementById('secondary-hex-label');
+  if (priHex) priHex.innerText = primaryColor || '#000000';
+  if (secHex) secHex.innerText = secondaryColor || '#000000';
+}
+
+// Hàm hoán đổi màu chính và màu phụ
+function swapColors(): void {
+  const temp = primaryColor;
+  primaryColor = secondaryColor;
+  secondaryColor = temp;
+  updateColorInputs();
+}
+
+const btnSwapColors = document.getElementById('btn-swap-colors');
+if (btnSwapColors) {
+  btnSwapColors.addEventListener('click', () => {
+    swapColors();
+  });
 }
 
 if (primaryInput) {
@@ -1004,19 +1125,41 @@ function loadPalette(paletteId: string): void {
     const item = document.createElement('div');
     item.className = 'palette-item';
     item.style.backgroundColor = col;
-    item.title = col;
+    item.title = `${col}\n- Chuột trái: Chọn màu chuột trái\n- Chuột phải: Chọn màu chuột phải`;
 
+    // 1. Chuột trái: Chọn màu chính
     item.addEventListener('click', (e) => {
-      if (e.shiftKey) {
-        secondaryColor = col;
-      } else {
-        primaryColor = col;
-      }
+      e.preventDefault();
+      primaryColor = col;
       updateColorInputs();
+    });
+
+    // 2. Chuột phải: Chọn màu phụ và chặn menu chuột phải mặc định
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      secondaryColor = col;
+      updateColorInputs();
+    });
+
+    // 3. Phản hồi mousedown/pointerdown tức thì
+    item.addEventListener('pointerdown', (e) => {
+      if (e.button === 0) {
+        primaryColor = col;
+        updateColorInputs();
+      } else if (e.button === 2) {
+        e.preventDefault();
+        secondaryColor = col;
+        updateColorInputs();
+      }
     });
 
     paletteGrid.appendChild(item);
   }
+}
+
+// Chặn menu chuột phải mặc định trên toàn bộ vùng bảng màu
+if (paletteGrid) {
+  paletteGrid.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 const paletteSelect = document.getElementById('palette-select') as HTMLSelectElement;
@@ -1874,11 +2017,20 @@ function renderTimeline(): void {
   });
 }
 
-// Nut them frame moi vao clip dang hoat dong
+// Nut them frame moi (frame trong) vao clip dang hoat dong
 document.getElementById('btn-add-frame')?.addEventListener('click', () => {
-  animController.addFrameToActiveClip(true);
+  animController.addFrameToActiveClip(false);
+  // Tự động bật Onion Skin nếu đang tắt và clip có từ 2 frame trở lên để người dùng thấy bóng mờ frame trước
+  if (!onionSkinEnabled && project.frames.length > 1) {
+    onionSkinEnabled = true;
+    const btnOnionEl = document.getElementById('btn-onion-skin');
+    if (btnOnionEl) {
+      btnOnionEl.innerText = 'Onion: On';
+    }
+  }
   canvasEngine.rebuildBuffers();
   renderAll();
+  syncProjectToServer();
 });
 
 // Nut nhan ban frame dang chon
@@ -1886,6 +2038,7 @@ document.getElementById('btn-duplicate-frame')?.addEventListener('click', () => 
   animController.duplicateActiveFrame();
   canvasEngine.rebuildBuffers();
   renderAll();
+  syncProjectToServer();
 });
 
 // Nut them thu muc dong tac moi tren Action Folders bar
@@ -2182,8 +2335,12 @@ function initWebSocketBridge(): void {
           project.height = newProj.height;
           project.frames = newProj.frames;
           project.clips = newProj.clips;
+          // Đồng bộ thư mục động tác đang hoạt động
+          const resolvedClipId = newProj.activeClipId || project.activeClipId || 'clip_base';
+          project.activeClipId = resolvedClipId;
+          animController.setActiveClipById(resolvedClipId);
           project.activeFrameIndex = newProj.activeFrameIndex || 0;
-          project.activeLayerId = newProj.activeLayerId || newProj.frames[0]?.layers[0]?.id || 'layer_1';
+          project.activeLayerId = newProj.activeLayerId || project.frames[0]?.layers[0]?.id || 'layer_1';
 
           canvasEngine.rebuildBuffers();
           onionSkinRenderer.resize(project.width, project.height);

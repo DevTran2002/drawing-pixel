@@ -231,9 +231,9 @@
             <svg class="tool-icon" viewBox="0 0 24 24"><path d="M19 11l-8-8-8.5 8.5a2.12 2.12 0 0 0 0 3l5 5a2.12 2.12 0 0 0 3 0L19 11zM5 2l5 5M2 13h15M22 20a2 2 0 1 1-4 0c0-1.6 2-3 2-3s2 1.4 2 3z"/></svg>
             <span class="tool-shortcut">G</span>
           </button>
-          <button class="tool-btn" data-tool="eyedropper" data-name="Hút màu" data-desc="Lấy mã màu điểm ảnh trên Canvas">
+          <button class="tool-btn" data-tool="eyedropper" data-name="Hút màu" data-desc="Giữ Alt + Chuột trái: Hút màu chính | Chuột phải: Hút màu phụ">
             <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14 2l4 4L6 18l-4 4 1-5L14 2zM15 7l2 2"/></svg>
-            <span class="tool-shortcut">I</span>
+            <span class="tool-shortcut">Alt</span>
           </button>
         </div>
 
@@ -315,9 +315,21 @@
           </div>
 
           <div class="color-swatch-box">
-            <input type="color" id="primary-color" class="primary-color-input" value="#ec4899" title="Mau chinh (Chuot trai)" />
-            <input type="color" id="secondary-color" class="secondary-color-input" value="#000000" title="Mau phu (Chuot phai)" />
-            <span style="font-size: 11px; color: var(--text-muted);" id="color-hex-label">#ec4899</span>
+            <div class="color-picker-wrapper" title="Màu chính (Chuột trái khi vẽ) - Nhấp để chọn màu">
+              <input type="color" id="primary-color" class="primary-color-input" value="#ec4899" />
+              <span class="color-badge" title="Chuột trái (Left Click)">L</span>
+            </div>
+            <button class="btn-swap-colors" id="btn-swap-colors" type="button" title="Hoán đổi màu chuột trái và chuột phải (Phím X)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"/></svg>
+            </button>
+            <div class="color-picker-wrapper" title="Màu phụ (Chuột phải khi vẽ) - Nhấp để chọn màu">
+              <input type="color" id="secondary-color" class="secondary-color-input" value="#000000" />
+              <span class="color-badge" title="Chuột phải (Right Click)">R</span>
+            </div>
+            <div class="color-hex-container">
+              <div class="color-hex-row" title="Mã màu chuột trái"><span class="color-hex-tag">Trái:</span><span id="primary-hex-label">#ec4899</span></div>
+              <div class="color-hex-row" title="Mã màu chuột phải"><span class="color-hex-tag">Phải:</span><span id="secondary-hex-label">#000000</span></div>
+            </div>
           </div>
 
           <div class="section-header" style="margin-top: 8px;">

@@ -13,14 +13,14 @@ import {
 
 export class AnimationController {
   private project: CanvasProject;
-  private activeClipName = 'idle';
+  private activeClipName = 'base';
 
   constructor(project: CanvasProject) {
     this.project = project;
     this.ensureDefaultClips();
   }
 
-  // Dam bao du an luon co day du cac thu muc dong tac co ban
+  // Đảm bảo dự án luôn có đầy đủ các thư mục động tác cơ bản
   private ensureDefaultClips(): void {
     if (!this.project.clips || this.project.clips.length === 0) {
       const initialFrame: FrameData = this.project.frames?.[0] || {
@@ -73,14 +73,14 @@ export class AnimationController {
       ];
     }
 
-    // Dam bao tat ca clip deu co mang frames
+    // Đảm bảo tất cả clip đều có mảng frames
     for (const clip of this.project.clips) {
       if (!clip.frames) {
         clip.frames = [];
       }
     }
 
-    // Neu chua co clip_base, tim hoac danh dau clip dau tien la base
+    // Nếu chưa có clip_base, tìm hoặc đánh dấu clip đầu tiên là base
     let baseClip = this.project.clips.find(c => c.isBase || c.name === 'base');
     if (!baseClip) {
       baseClip = this.project.clips[0];
@@ -92,48 +92,69 @@ export class AnimationController {
       }
     } else {
       if (!baseClip.frames) baseClip.frames = [];
+      if (baseClip.frames.length === 0 && this.project.frames?.length > 0) {
+        baseClip.frames = [...this.project.frames];
+      }
     }
 
-    // Xac dinh thu muc hoat dong mac dinh
+    // Xác định thư mục hoạt động mặc định
     if (!this.project.activeClipId) {
       this.project.activeClipId = baseClip ? baseClip.id : this.project.clips[0].id;
     }
 
-    // Dong bo tham chieu mang frames cua project theo clip dang kich hoat
+    // Đồng bộ tham chiếu mảng frames của project theo clip đang kích hoạt
     const activeClip = this.getActiveClip();
-    if (!activeClip.frames) activeClip.frames = [];
+    if (!activeClip.frames || activeClip.frames.length === 0) {
+      if (activeClip.isBase && this.project.frames && this.project.frames.length > 0) {
+        activeClip.frames = [...this.project.frames];
+      } else if (!activeClip.frames) {
+        activeClip.frames = [];
+      }
+    }
     this.project.frames = activeClip.frames;
   }
 
-  // Lay clip theo ten dong tac
+  // Lấy clip theo tên động tác
   getClip(name: string): AnimationClip | undefined {
     return this.project.clips.find(c => c.name === name);
   }
 
-  // Lay clip theo dinh danh ID duy nhat
+  // Lấy clip theo định danh ID duy nhất
   getClipById(id: string): AnimationClip | undefined {
     return this.project.clips.find(c => c.id === id);
   }
 
-  // Lay toan bo danh sach cac thu muc dong tac
+  // Lấy toàn bộ danh sách các thư mục động tác
   getAllClips(): AnimationClip[] {
     return this.project.clips;
   }
 
-  // Lay thu muc nhan vat goc (Base Pose)
+  // Lấy thư mục nhân vật gốc (Base Pose)
   getBaseClip(): AnimationClip {
     const base = this.project.clips.find(c => c.isBase || c.name === 'base');
     return base || this.project.clips[0];
   }
 
-  // Lay thu muc dong tac dang kich hoat
+  // Lấy thư mục động tác đang kích hoạt
   getActiveClip(): AnimationClip {
     if (this.project.activeClipId) {
       const byId = this.getClipById(this.project.activeClipId);
-      if (byId) return byId;
+      if (byId) {
+        this.activeClipName = byId.name;
+        return byId;
+      }
     }
     const byName = this.getClip(this.activeClipName);
-    if (byName) return byName;
+    if (byName) {
+      this.project.activeClipId = byName.id;
+      return byName;
+    }
+    const base = this.getBaseClip();
+    if (base) {
+      this.project.activeClipId = base.id;
+      this.activeClipName = base.name;
+      return base;
+    }
     return this.project.clips[0];
   }
 
@@ -156,6 +177,11 @@ export class AnimationController {
     // Dam bao thu muc co mang frames hop le
     if (!targetClip.frames) {
       targetClip.frames = [];
+    }
+
+    // Bảo vệ: Nếu thư mục Base hoặc thư mục đích chưa có frame nào nhưng project.frames đang có khung hình (ví dụ vừa vẽ nét ban đầu)
+    if (targetClip.frames.length === 0 && (targetClip.isBase || targetClip.name === 'base') && this.project.frames && this.project.frames.length > 0) {
+      targetClip.frames = [...this.project.frames];
     }
 
     const isLegacySubClip = (targetClip.startFrame ?? 0) > 0 && this.project.frames.length > targetClip.frames.length;
@@ -293,13 +319,19 @@ export class AnimationController {
     return clip;
   }
 
-  // Them mot frame vao thu muc dong tac dang hoat dong
-  addFrameToActiveClip(copyPrevious = true): FrameData {
+  // Thêm một frame mới (mặc định là frame trống) vào thư mục động tác đang hoạt động
+  addFrameToActiveClip(copyPrevious = false): FrameData {
     const clip = this.getActiveClip();
     clip.frames = clip.frames || [];
 
-    const curIdx = this.project.activeFrameIndex;
-    const currentFrame = clip.frames[curIdx] || this.getBaseClip().frames?.[0] || this.project.frames[0];
+    // Bảo vệ: Nếu clip đang rỗng nhưng project.frames đang có khung hình (ví dụ người dùng vừa vẽ nét ban đầu)
+    // thì lập tức bảo toàn các khung hình hiện có vào clip để không bao giờ bị mất điểm ảnh
+    if (clip.frames.length === 0 && this.project.frames && this.project.frames.length > 0) {
+      clip.frames = [...this.project.frames];
+    }
+
+    const curIdx = Math.max(0, Math.min(this.project.activeFrameIndex ?? 0, Math.max(0, clip.frames.length - 1)));
+    const currentFrame = clip.frames[curIdx] || this.getBaseClip().frames?.[0] || this.project.frames?.[0];
 
     const newLayers: LayerData[] = currentFrame ? currentFrame.layers.map(layer => ({
       id: `layer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
